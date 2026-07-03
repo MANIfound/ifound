@@ -310,6 +310,8 @@ function renderParcelPanel(feature) {
 function renderWelcome() {
   app.innerHTML = `
     <div class="welcome-page">
+
+      <!-- NAV -->
       <nav class="welcome-nav">
         <div class="logo">
           <svg width="20" height="25" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#C2622A"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#C2622A"/></svg>
@@ -317,42 +319,143 @@ function renderWelcome() {
         </div>
         <div class="nav-badge">BETA · Helsingborg</div>
       </nav>
-      <div class="welcome-body">
-        <div class="welcome-left">
-          <div class="welcome-eyebrow">Fastigheter på ett nytt sätt</div>
-          <h1 class="welcome-headline">Hitta hem.<br><em>Eller låt<br>hemmet<br>hitta dig.</em></h1>
-          <p class="welcome-sub">Utforska fastigheter, visa intresse anonymt och koppla ihop ägare med de som letar — utan aktiv försäljning.</p>
-          <div class="feat-pills">
-            <div class="feat-pill"><i class="ti ti-map-pin"></i> Utforska på karta</div>
-            <div class="feat-pill"><i class="ti ti-heart"></i> Spara favoriter</div>
-            <div class="feat-pill"><i class="ti ti-home"></i> Visa upp ditt hem</div>
-            <div class="feat-pill"><i class="ti ti-bell"></i> Notiser om intresse</div>
+
+      <!-- HERO -->
+      <div class="welcome-hero">
+        <img class="welcome-hero-img" src="https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1800&q=85&auto=format&fit=crop" alt="Vackert hus" />
+        <div class="welcome-hero-overlay"></div>
+        <div class="welcome-hero-content">
+          <div class="welcome-hero-left">
+            <div class="welcome-eyebrow">Fastigheter på ett nytt sätt</div>
+            <h1 class="welcome-headline">Hitta hem.<br><em>Eller låt<br>hemmet<br>hitta dig.</em></h1>
+            <p class="welcome-sub">Du åker förbi ett hus eller en tomt och blir förälskad. Idag finns inget att göra — förutom att hoppas att det någon gång dyker upp till salu. Med ifound kan du lämna ditt intresse direkt.</p>
+            <div class="feat-pills">
+              <div class="feat-pill"><i class="ti ti-map-pin"></i> Utforska på karta</div>
+              <div class="feat-pill"><i class="ti ti-heart"></i> Spara favoriter</div>
+              <div class="feat-pill"><i class="ti ti-home"></i> Visa upp ditt hem</div>
+              <div class="feat-pill"><i class="ti ti-bell"></i> Få notiser om intresse</div>
+            </div>
           </div>
-        </div>
-        <div class="welcome-right">
-          <div class="auth-tabs">
-            <button class="auth-tab active" id="tabLogin">Logga in</button>
-            <button class="auth-tab" id="tabReg">Skapa konto</button>
-          </div>
-          <div class="auth-form visible" id="loginForm">
-            <h2>Välkommen tillbaka</h2>
-            <p>Ange dina uppgifter för att fortsätta.</p>
-            <div class="field-group"><label class="label">E-post</label><input id="loginEmail" class="input" type="email" placeholder="din@epost.se" /></div>
-            <div class="field-group"><label class="label">Lösenord</label><input id="loginPass" class="input" type="password" placeholder="••••••••" /></div>
-            <button id="loginBtn" class="btn-primary" style="width:100%;justify-content:center;">Logga in</button>
-            <p style="font-size:11px;color:#9CA3AF;text-align:center;">Demo: registrera ett konto och logga in.</p>
-          </div>
-          <div class="auth-form" id="regForm">
-            <h2>Skapa konto</h2>
-            <p>Kom igång på ett par sekunder.</p>
-            <div class="field-group"><label class="label">Namn</label><input id="regName" class="input" placeholder="Ditt namn" /></div>
-            <div class="field-group"><label class="label">E-post</label><input id="regEmail" class="input" type="email" placeholder="din@epost.se" /></div>
-            <div class="field-group"><label class="label">Lösenord</label><input id="regPass" class="input" type="password" placeholder="Min 4 tecken" /></div>
-            <button id="regBtn" class="btn-primary" style="width:100%;justify-content:center;">Skapa konto</button>
-            <p style="font-size:11px;color:#9CA3AF;text-align:center;">Riktig version: BankID-verifiering.</p>
+          <div class="welcome-hero-auth">
+            <div class="auth-tabs">
+              <button class="auth-tab active" id="tabLogin">Logga in</button>
+              <button class="auth-tab" id="tabReg">Skapa konto</button>
+            </div>
+            <div class="auth-form visible" id="loginForm">
+              <h2>Välkommen tillbaka</h2>
+              <p>Ange dina uppgifter för att fortsätta.</p>
+              <div class="field-group"><label class="label">E-post</label><input id="loginEmail" class="input" type="email" placeholder="din@epost.se" /></div>
+              <div class="field-group"><label class="label">Lösenord</label><input id="loginPass" class="input" type="password" placeholder="••••••••" /></div>
+              <button id="loginBtn" class="btn-primary" style="width:100%;justify-content:center;">Logga in</button>
+              <p style="font-size:11px;color:#9CA3AF;text-align:center;">Demo: registrera ett konto och logga in.</p>
+            </div>
+            <div class="auth-form" id="regForm">
+              <h2>Skapa konto</h2>
+              <p>Kom igång på ett par sekunder.</p>
+              <div class="field-group"><label class="label">Namn</label><input id="regName" class="input" placeholder="Ditt namn" /></div>
+              <div class="field-group"><label class="label">E-post</label><input id="regEmail" class="input" type="email" placeholder="din@epost.se" /></div>
+              <div class="field-group"><label class="label">Lösenord</label><input id="regPass" class="input" type="password" placeholder="Min 4 tecken" /></div>
+              <button id="regBtn" class="btn-primary" style="width:100%;justify-content:center;">Skapa konto</button>
+              <p style="font-size:11px;color:#9CA3AF;text-align:center;">Riktig version: BankID-verifiering.</p>
+            </div>
           </div>
         </div>
       </div>
+
+      <!-- VISION -->
+      <div class="vision-section">
+        <div class="vision-label">Hur det fungerar</div>
+        <div class="vision-title">Från förälskelse till möjlighet — utan att fastigheten behöver vara till salu.</div>
+        <div class="vision-steps">
+          <div class="vision-step">
+            <div class="vision-step-num">1</div>
+            <div class="vision-step-title">Du hittar drömfastigheten</div>
+            <div class="vision-step-desc">Du åker förbi ett hus, en tomt eller ett kvarter och tänder till. Sök upp fastigheten på kartan och lämna ett gilla eller ett intresse — ägaren ser det, men din identitet är skyddad.</div>
+          </div>
+          <div class="vision-step">
+            <div class="vision-step-num">2</div>
+            <div class="vision-step-title">Ägaren väcks till liv</div>
+            <div class="vision-step-desc">Fastighetsägaren får en notis om att någon visat intresse. Kanske visste de inte ens att deras hem var eftertraktat. De kan claima sin fastighet, lägga upp bilder och beskrivning — eller bara nyfiket följa aktiviteten.</div>
+          </div>
+          <div class="vision-step">
+            <div class="vision-step-num">3</div>
+            <div class="vision-step-title">En marknad på dina villkor</div>
+            <div class="vision-step-desc">Ägaren väljer själv om de vill vara passiva, visa upp fastigheten, hyra ut eller sätta ett pris. Som intresserad kan du följa, visa intresse eller lägga ett bud — allt i din egen takt.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SHOWCASE -->
+      <div class="showcase-section">
+        <div class="showcase-header">
+          <div>
+            <div class="showcase-title">Fastigheter på ifound</div>
+            <div class="showcase-sub">Villor, tomter, lägenheter och kustnära hem — allt på ett ställe.</div>
+          </div>
+          <button class="btn-primary" onclick="document.getElementById('regBtn2').scrollIntoView({behavior:'smooth'})">Kom igång gratis</button>
+        </div>
+        <div class="showcase-grid">
+          <div class="showcase-card tall">
+            <img class="showcase-img" src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=600&q=80&auto=format&fit=crop" alt="Villa" />
+            <div class="showcase-body">
+              <span class="showcase-badge badge-interest">3 intresserade</span>
+              <div class="showcase-name">Pålsjö 12:8</div>
+              <div class="showcase-meta">Helsingborg · Villa · 220 kvm</div>
+              <div class="showcase-stats"><span><strong>31</strong> gillar</span><span><strong>3</strong> intresserade</span></div>
+            </div>
+          </div>
+          <div class="showcase-card">
+            <img class="showcase-img" src="https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=600&q=80&auto=format&fit=crop" alt="Kusthus" />
+            <div class="showcase-body">
+              <span class="showcase-badge badge-passive">Passiv</span>
+              <div class="showcase-name">Viken Strand 4:2</div>
+              <div class="showcase-meta">Viken · Kusthus · 145 kvm</div>
+              <div class="showcase-stats"><span><strong>58</strong> gillar</span><span><strong>12</strong> intresserade</span></div>
+            </div>
+          </div>
+          <div class="showcase-card">
+            <img class="showcase-img" src="https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=600&q=80&auto=format&fit=crop" alt="Lägenhet" />
+            <div class="showcase-body">
+              <span class="showcase-badge badge-rent">Uthyrning</span>
+              <div class="showcase-name">Söder 8:22</div>
+              <div class="showcase-meta">Helsingborg · Lägenhet · 72 kvm</div>
+              <div class="showcase-stats"><span><strong>14</strong> gillar</span><span><strong>5</strong> intresserade</span></div>
+            </div>
+          </div>
+          <div class="showcase-card">
+            <img class="showcase-img" src="https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=600&q=80&auto=format&fit=crop" alt="Tomt" />
+            <div class="showcase-body">
+              <span class="showcase-badge badge-passive">Passiv</span>
+              <div class="showcase-name">Kulla Gunnarstorp 1:4</div>
+              <div class="showcase-meta">Höganäs · Tomt · 2 400 kvm</div>
+              <div class="showcase-stats"><span><strong>24</strong> gillar</span><span><strong>7</strong> intresserade</span></div>
+            </div>
+          </div>
+          <div class="showcase-card">
+            <img class="showcase-img" src="https://images.unsplash.com/photo-1449844908441-8829872d2607?w=600&q=80&auto=format&fit=crop" alt="Gård" />
+            <div class="showcase-body">
+              <span class="showcase-badge badge-sale">Till salu</span>
+              <div class="showcase-name">Laröd 3:19</div>
+              <div class="showcase-meta">Helsingborg · Gård · 5 200 kvm</div>
+              <div class="showcase-stats"><span><strong>41</strong> gillar</span><span><strong>9</strong> intresserade</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- CTA -->
+      <div class="cta-section">
+        <div class="cta-title">Redo att hitta ditt<br><em>nästa hem?</em></div>
+        <p class="cta-sub">Gå med tusentals nyfikna på fastigheter och ägare som vill synas — utan att behöva sälja.</p>
+        <button class="cta-btn" id="regBtn2" onclick="document.getElementById('tabReg').click();window.scrollTo({top:0,behavior:'smooth'})">Skapa gratis konto</button>
+      </div>
+
+      <!-- FOOTER -->
+      <div class="welcome-footer">
+        <div class="footer-logo">i<em>found</em></div>
+        <div class="footer-text">© 2025 ifound.se · Beta · Helsingborg</div>
+      </div>
+
     </div>
   `;
 

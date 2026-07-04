@@ -310,8 +310,6 @@ function renderParcelPanel(feature) {
 function renderWelcome() {
   app.innerHTML = `
     <div class="welcome-page">
-
-      <!-- NAV -->
       <nav class="welcome-nav">
         <div class="logo">
           <svg width="20" height="25" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#C2622A"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#C2622A"/></svg>
@@ -319,143 +317,42 @@ function renderWelcome() {
         </div>
         <div class="nav-badge">BETA · Helsingborg</div>
       </nav>
-
-      <!-- HERO -->
-      <div class="welcome-hero">
-        <img class="welcome-hero-img" src="https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1800&q=85&auto=format&fit=crop" alt="Vackert hus" />
-        <div class="welcome-hero-overlay"></div>
-        <div class="welcome-hero-content">
-          <div class="welcome-hero-left">
-            <div class="welcome-eyebrow">Fastigheter på ett nytt sätt</div>
-            <h1 class="welcome-headline">Hitta hem.<br><em>Eller låt<br>hemmet<br>hitta dig.</em></h1>
-            <p class="welcome-sub">Du åker förbi ett hus eller en tomt och blir förälskad. Idag finns inget att göra — förutom att hoppas att det någon gång dyker upp till salu. Med ifound kan du lämna ditt intresse direkt.</p>
-            <div class="feat-pills">
-              <div class="feat-pill"><i class="ti ti-map-pin"></i> Utforska på karta</div>
-              <div class="feat-pill"><i class="ti ti-heart"></i> Spara favoriter</div>
-              <div class="feat-pill"><i class="ti ti-home"></i> Visa upp ditt hem</div>
-              <div class="feat-pill"><i class="ti ti-bell"></i> Få notiser om intresse</div>
-            </div>
+      <div class="welcome-body">
+        <div class="welcome-left">
+          <div class="welcome-eyebrow">Fastigheter på ett nytt sätt</div>
+          <h1 class="welcome-headline">Hitta hem.<br><em>Eller låt<br>hemmet<br>hitta dig.</em></h1>
+          <p class="welcome-sub">Utforska fastigheter, visa intresse anonymt och koppla ihop ägare med de som letar — utan aktiv försäljning.</p>
+          <div class="feat-pills">
+            <div class="feat-pill"><i class="ti ti-map-pin"></i> Utforska på karta</div>
+            <div class="feat-pill"><i class="ti ti-heart"></i> Spara favoriter</div>
+            <div class="feat-pill"><i class="ti ti-home"></i> Visa upp ditt hem</div>
+            <div class="feat-pill"><i class="ti ti-bell"></i> Notiser om intresse</div>
           </div>
-          <div class="welcome-hero-auth">
-            <div class="auth-tabs">
-              <button class="auth-tab active" id="tabLogin">Logga in</button>
-              <button class="auth-tab" id="tabReg">Skapa konto</button>
-            </div>
-            <div class="auth-form visible" id="loginForm">
-              <h2>Välkommen tillbaka</h2>
-              <p>Ange dina uppgifter för att fortsätta.</p>
-              <div class="field-group"><label class="label">E-post</label><input id="loginEmail" class="input" type="email" placeholder="din@epost.se" /></div>
-              <div class="field-group"><label class="label">Lösenord</label><input id="loginPass" class="input" type="password" placeholder="••••••••" /></div>
-              <button id="loginBtn" class="btn-primary" style="width:100%;justify-content:center;">Logga in</button>
-              <p style="font-size:11px;color:#9CA3AF;text-align:center;">Demo: registrera ett konto och logga in.</p>
-            </div>
-            <div class="auth-form" id="regForm">
-              <h2>Skapa konto</h2>
-              <p>Kom igång på ett par sekunder.</p>
-              <div class="field-group"><label class="label">Namn</label><input id="regName" class="input" placeholder="Ditt namn" /></div>
-              <div class="field-group"><label class="label">E-post</label><input id="regEmail" class="input" type="email" placeholder="din@epost.se" /></div>
-              <div class="field-group"><label class="label">Lösenord</label><input id="regPass" class="input" type="password" placeholder="Min 4 tecken" /></div>
-              <button id="regBtn" class="btn-primary" style="width:100%;justify-content:center;">Skapa konto</button>
-              <p style="font-size:11px;color:#9CA3AF;text-align:center;">Riktig version: BankID-verifiering.</p>
-            </div>
+        </div>
+        <div class="welcome-right">
+          <div class="auth-tabs">
+            <button class="auth-tab active" id="tabLogin">Logga in</button>
+            <button class="auth-tab" id="tabReg">Skapa konto</button>
+          </div>
+          <div class="auth-form visible" id="loginForm">
+            <h2>Välkommen tillbaka</h2>
+            <p>Ange dina uppgifter för att fortsätta.</p>
+            <div class="field-group"><label class="label">E-post</label><input id="loginEmail" class="input" type="email" placeholder="din@epost.se" /></div>
+            <div class="field-group"><label class="label">Lösenord</label><input id="loginPass" class="input" type="password" placeholder="••••••••" /></div>
+            <button id="loginBtn" class="btn-primary" style="width:100%;justify-content:center;">Logga in</button>
+            <p style="font-size:11px;color:#9CA3AF;text-align:center;">Demo: registrera ett konto och logga in.</p>
+          </div>
+          <div class="auth-form" id="regForm">
+            <h2>Skapa konto</h2>
+            <p>Kom igång på ett par sekunder.</p>
+            <div class="field-group"><label class="label">Namn</label><input id="regName" class="input" placeholder="Ditt namn" /></div>
+            <div class="field-group"><label class="label">E-post</label><input id="regEmail" class="input" type="email" placeholder="din@epost.se" /></div>
+            <div class="field-group"><label class="label">Lösenord</label><input id="regPass" class="input" type="password" placeholder="Min 4 tecken" /></div>
+            <button id="regBtn" class="btn-primary" style="width:100%;justify-content:center;">Skapa konto</button>
+            <p style="font-size:11px;color:#9CA3AF;text-align:center;">Riktig version: BankID-verifiering.</p>
           </div>
         </div>
       </div>
-
-      <!-- VISION -->
-      <div class="vision-section">
-        <div class="vision-label">Hur det fungerar</div>
-        <div class="vision-title">Från förälskelse till möjlighet — utan att fastigheten behöver vara till salu.</div>
-        <div class="vision-steps">
-          <div class="vision-step">
-            <div class="vision-step-num">1</div>
-            <div class="vision-step-title">Du hittar drömfastigheten</div>
-            <div class="vision-step-desc">Du åker förbi ett hus, en tomt eller ett kvarter och tänder till. Sök upp fastigheten på kartan och lämna ett gilla eller ett intresse — ägaren ser det, men din identitet är skyddad.</div>
-          </div>
-          <div class="vision-step">
-            <div class="vision-step-num">2</div>
-            <div class="vision-step-title">Ägaren väcks till liv</div>
-            <div class="vision-step-desc">Fastighetsägaren får en notis om att någon visat intresse. Kanske visste de inte ens att deras hem var eftertraktat. De kan claima sin fastighet, lägga upp bilder och beskrivning — eller bara nyfiket följa aktiviteten.</div>
-          </div>
-          <div class="vision-step">
-            <div class="vision-step-num">3</div>
-            <div class="vision-step-title">En marknad på dina villkor</div>
-            <div class="vision-step-desc">Ägaren väljer själv om de vill vara passiva, visa upp fastigheten, hyra ut eller sätta ett pris. Som intresserad kan du följa, visa intresse eller lägga ett bud — allt i din egen takt.</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- SHOWCASE -->
-      <div class="showcase-section">
-        <div class="showcase-header">
-          <div>
-            <div class="showcase-title">Fastigheter på ifound</div>
-            <div class="showcase-sub">Villor, tomter, lägenheter och kustnära hem — allt på ett ställe.</div>
-          </div>
-          <button class="btn-primary" onclick="document.getElementById('regBtn2').scrollIntoView({behavior:'smooth'})">Kom igång gratis</button>
-        </div>
-        <div class="showcase-grid">
-          <div class="showcase-card tall">
-            <img class="showcase-img" src="https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=600&q=80&auto=format&fit=crop" alt="Villa" />
-            <div class="showcase-body">
-              <span class="showcase-badge badge-interest">3 intresserade</span>
-              <div class="showcase-name">Pålsjö 12:8</div>
-              <div class="showcase-meta">Helsingborg · Villa · 220 kvm</div>
-              <div class="showcase-stats"><span><strong>31</strong> gillar</span><span><strong>3</strong> intresserade</span></div>
-            </div>
-          </div>
-          <div class="showcase-card">
-            <img class="showcase-img" src="https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=600&q=80&auto=format&fit=crop" alt="Kusthus" />
-            <div class="showcase-body">
-              <span class="showcase-badge badge-passive">Passiv</span>
-              <div class="showcase-name">Viken Strand 4:2</div>
-              <div class="showcase-meta">Viken · Kusthus · 145 kvm</div>
-              <div class="showcase-stats"><span><strong>58</strong> gillar</span><span><strong>12</strong> intresserade</span></div>
-            </div>
-          </div>
-          <div class="showcase-card">
-            <img class="showcase-img" src="https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=600&q=80&auto=format&fit=crop" alt="Lägenhet" />
-            <div class="showcase-body">
-              <span class="showcase-badge badge-rent">Uthyrning</span>
-              <div class="showcase-name">Söder 8:22</div>
-              <div class="showcase-meta">Helsingborg · Lägenhet · 72 kvm</div>
-              <div class="showcase-stats"><span><strong>14</strong> gillar</span><span><strong>5</strong> intresserade</span></div>
-            </div>
-          </div>
-          <div class="showcase-card">
-            <img class="showcase-img" src="https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=600&q=80&auto=format&fit=crop" alt="Tomt" />
-            <div class="showcase-body">
-              <span class="showcase-badge badge-passive">Passiv</span>
-              <div class="showcase-name">Kulla Gunnarstorp 1:4</div>
-              <div class="showcase-meta">Höganäs · Tomt · 2 400 kvm</div>
-              <div class="showcase-stats"><span><strong>24</strong> gillar</span><span><strong>7</strong> intresserade</span></div>
-            </div>
-          </div>
-          <div class="showcase-card">
-            <img class="showcase-img" src="https://images.unsplash.com/photo-1449844908441-8829872d2607?w=600&q=80&auto=format&fit=crop" alt="Gård" />
-            <div class="showcase-body">
-              <span class="showcase-badge badge-sale">Till salu</span>
-              <div class="showcase-name">Laröd 3:19</div>
-              <div class="showcase-meta">Helsingborg · Gård · 5 200 kvm</div>
-              <div class="showcase-stats"><span><strong>41</strong> gillar</span><span><strong>9</strong> intresserade</span></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- CTA -->
-      <div class="cta-section">
-        <div class="cta-title">Redo att hitta ditt<br><em>nästa hem?</em></div>
-        <p class="cta-sub">Gå med tusentals nyfikna på fastigheter och ägare som vill synas — utan att behöva sälja.</p>
-        <button class="cta-btn" id="regBtn2" onclick="document.getElementById('tabReg').click();window.scrollTo({top:0,behavior:'smooth'})">Skapa gratis konto</button>
-      </div>
-
-      <!-- FOOTER -->
-      <div class="welcome-footer">
-        <div class="footer-logo">i<em>found</em></div>
-        <div class="footer-text">© 2025 ifound.se · Beta · Helsingborg</div>
-      </div>
-
     </div>
   `;
 
@@ -500,6 +397,257 @@ function readImageAsDataUrl(file) {
   return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
 }
 
+
+// =========================
+// FEED VIEW (Pinterest)
+// =========================
+function renderFeed() {
+  const session = loadSession();
+  if (!session?.email) return navigate("welcome");
+
+  const houseSvgs = [
+    `<svg viewBox="0 0 180 220" xmlns="http://www.w3.org/2000/svg"><rect width="180" height="220" fill="#1a2533"/><rect y="145" width="180" height="75" fill="#2a1a08"/><circle cx="150" cy="35" r="20" fill="#f5e6c8" opacity=".14"/><polygon points="8,147 60,80 112,147" fill="#0d1a0d"/><polygon points="68,147 128,72 188,147" fill="#101f10"/><rect x="20" y="152" width="140" height="68" rx="2" fill="#2C1A0E"/><polygon points="4,154 90,78 176,154" fill="#1a0f06"/><rect x="38" y="160" width="26" height="20" rx="2" fill="#C2622A" opacity=".38"/><rect x="78" y="160" width="26" height="20" rx="2" fill="#e8a060" opacity=".3"/><rect x="118" y="160" width="26" height="20" rx="2" fill="#C2622A" opacity=".2"/><rect x="72" y="178" width="20" height="42" rx="1" fill="#3a2510"/></svg>`,
+    `<svg viewBox="0 0 180 160" xmlns="http://www.w3.org/2000/svg"><rect width="180" height="160" fill="#1e3a2f"/><rect y="100" width="180" height="60" fill="#1a2e1a"/><polygon points="10,102 55,48 100,102" fill="#0d1f0d"/><polygon points="80,102 130,40 180,102" fill="#102010"/><rect x="22" y="106" width="136" height="54" rx="1" fill="#2C1A0E"/><polygon points="6,108 90,52 174,108" fill="#1a0f06"/><rect x="40" y="114" width="24" height="18" rx="1" fill="#C2622A" opacity=".35"/><rect x="80" y="114" width="24" height="18" rx="1" fill="#e8a060" opacity=".28"/><rect x="120" y="114" width="24" height="18" rx="1" fill="#C2622A" opacity=".2"/><rect x="76" y="130" width="20" height="30" rx="1" fill="#3a2510"/></svg>`,
+    `<svg viewBox="0 0 180 190" xmlns="http://www.w3.org/2000/svg"><rect width="180" height="190" fill="#2a1a08"/><rect y="120" width="180" height="70" fill="#1f1205"/><polygon points="8,122 52,52 96,122" fill="#1a0d04"/><polygon points="84,122 136,44 188,122" fill="#1c0e05"/><rect x="20" y="126" width="140" height="64" rx="1" fill="#3a1e08"/><polygon points="6,128 90,52 174,128" fill="#2a1406"/><rect x="38" y="134" width="26" height="20" rx="1" fill="#f97316" opacity=".3"/><rect x="80" y="134" width="26" height="20" rx="1" fill="#fb923c" opacity=".25"/><rect x="122" y="134" width="26" height="20" rx="1" fill="#f97316" opacity=".2"/><rect x="80" y="152" width="22" height="38" rx="1" fill="#2a1406"/></svg>`,
+    `<svg viewBox="0 0 180 175" xmlns="http://www.w3.org/2000/svg"><rect width="180" height="175" fill="#1a2038"/><rect y="110" width="180" height="65" fill="#141830"/><polygon points="12,112 54,48 96,112" fill="#0e1428"/><polygon points="84,112 136,38 188,112" fill="#0f1530"/><rect x="24" y="116" width="132" height="59" rx="1" fill="#1e2645"/><polygon points="8,118 90,50 172,118" fill="#161c38"/><rect x="42" y="124" width="26" height="20" rx="1" fill="#60a5fa" opacity=".32"/><rect x="84" y="124" width="26" height="20" rx="1" fill="#93c5fd" opacity=".25"/><rect x="126" y="124" width="26" height="20" rx="1" fill="#60a5fa" opacity=".2"/><rect x="80" y="142" width="22" height="33" rx="1" fill="#161c38"/></svg>`,
+    `<svg viewBox="0 0 180 200" xmlns="http://www.w3.org/2000/svg"><rect width="180" height="200" fill="#1e2a1a"/><rect y="126" width="180" height="74" fill="#1a2810"/><polygon points="8,128 55,60 102,128" fill="#0f1e0a"/><polygon points="78,128 132,50 186,128" fill="#0d1c08"/><rect x="20" y="132" width="140" height="68" rx="1" fill="#1e3012"/><polygon points="4,134 90,58 176,134" fill="#162408"/><rect x="38" y="140" width="24" height="20" rx="1" fill="#86efac" opacity=".3"/><rect x="78" y="140" width="24" height="20" rx="1" fill="#86efac" opacity=".22"/><rect x="118" y="140" width="24" height="20" rx="1" fill="#86efac" opacity=".18"/><rect x="76" y="158" width="22" height="42" rx="1" fill="#162408"/></svg>`,
+    `<svg viewBox="0 0 180 250" xmlns="http://www.w3.org/2000/svg"><rect width="180" height="250" fill="#1a2533"/><rect y="165" width="180" height="85" fill="#2a1a08"/><polygon points="6,167 55,95 104,167" fill="#0d1a0d"/><polygon points="76,167 130,88 184,167" fill="#101f10"/><rect x="16" y="172" width="148" height="78" rx="2" fill="#2C1A0E"/><polygon points="2,174 90,92 178,174" fill="#1a0f06"/><rect x="34" y="180" width="28" height="22" rx="2" fill="#C2622A" opacity=".38"/><rect x="76" y="180" width="28" height="22" rx="2" fill="#e8a060" opacity=".3"/><rect x="118" y="180" width="28" height="22" rx="2" fill="#C2622A" opacity=".2"/><rect x="72" y="200" width="22" height="50" rx="1" fill="#3a2510"/></svg>`
+  ];
+
+  const pins = [
+    { id:0, name:"Laröd 3:19",        meta:"Gård · 5 200 kvm",         badge:"pb-hot",   badgeText:"41 gillar", likes:41, interested:9,  svg: houseSvgs[0] },
+    { id:1, name:"Raus Plantage 7:2",  meta:"Gård · 4 800 kvm",         badge:"pb-new",   badgeText:"Ny claim",  likes:6,  interested:2,  svg: houseSvgs[1] },
+    { id:2, name:"Kulla 1:4",          meta:"Tomt · 2 400 kvm",         badge:"pb-hot",   badgeText:"Populär",   likes:24, interested:7,  svg: houseSvgs[2] },
+    { id:3, name:"Pålsjö 4:7",         meta:"Villa · 240 kvm",          badge:"pb-quiet", badgeText:"Passiv",    likes:18, interested:4,  svg: houseSvgs[3] },
+    { id:4, name:"Fredriksdal 6:1",    meta:"Villa · 5,75 mkr",         badge:"pb-sale",  badgeText:"Till salu", likes:19, interested:6,  svg: houseSvgs[4] },
+    { id:5, name:"Söder 8:22",         meta:"Lägenhet · 9 800 kr/mån",  badge:"pb-rent",  badgeText:"Uthyrning", likes:14, interested:0,  svg: houseSvgs[5] },
+  ];
+
+  const state = loadState();
+  const myLikes = state.myLikes || {};
+
+  app.innerHTML = `
+    <div class="feed-page">
+      <nav class="dashboard-nav">
+        <div class="nav-left">
+          <div class="logo">
+            <svg width="18" height="23" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#C2622A"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#C2622A"/></svg>
+            <span class="logo-text">i<em>found</em></span>
+          </div>
+        </div>
+        <div class="nav-center">
+          <button class="nav-tab" onclick="navigate('dashboard')">Min sida</button>
+          <button class="nav-tab active">Utforska</button>
+          <button class="nav-tab" onclick="navigate('map')">Karta</button>
+        </div>
+        <div class="nav-right">
+          <button class="btn-ghost" style="font-size:12px;padding:7px 13px;" id="logoutBtn">Logga ut</button>
+        </div>
+      </nav>
+
+      <!-- Search bar -->
+      <div style="padding:10px 12px;background:#fff;border-bottom:0.5px solid rgba(17,24,39,.08);display:flex;gap:8px;">
+        <div style="flex:1;display:flex;align-items:center;gap:8px;background:#F9F6F1;border-radius:999px;padding:8px 14px;border:0.5px solid rgba(17,24,39,.10);position:relative;">
+          <i class="ti ti-search" style="font-size:16px;color:#9CA3AF;flex-shrink:0;"></i>
+          <input id="feedSearch" placeholder="Sök område eller gata..." style="flex:1;border:none;background:transparent;font-size:13px;font-family:'Inter',sans-serif;color:#111827;outline:none;" />
+          <div id="searchDropdown" style="display:none;position:absolute;top:calc(100% + 8px);left:0;right:0;background:#fff;border:0.5px solid rgba(17,24,39,.10);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.10);z-index:100;overflow:hidden;"></div>
+        </div>
+        <button id="nearMeBtn" style="display:flex;align-items:center;gap:6px;background:#111827;color:#fff;border:none;border-radius:999px;padding:8px 16px;font-size:12px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;white-space:nowrap;flex-shrink:0;">
+          <i class="ti ti-current-location" style="font-size:15px;"></i> Nära mig
+        </button>
+      </div>
+
+      <!-- Area chips -->
+      <div class="area-bar">
+        <button class="area-chip active" onclick="feedChip(this)">Alla</button>
+        <button class="area-chip" onclick="feedChip(this)">Pålsjö</button>
+        <button class="area-chip" onclick="feedChip(this)">Raus</button>
+        <button class="area-chip" onclick="feedChip(this)">Laröd</button>
+        <button class="area-chip" onclick="feedChip(this)">Söder</button>
+        <button class="area-chip" onclick="feedChip(this)">Höganäs</button>
+      </div>
+
+      <!-- Claim nudge -->
+      <div class="claim-nudge" onclick="navigate('dashboard')">
+        <div class="claim-nudge-icon"><i class="ti ti-home-check" style="font-size:20px;color:#C2622A;"></i></div>
+        <div style="flex:1;">
+          <div class="claim-nudge-title">18 gillar ditt hem</div>
+          <div class="claim-nudge-sub">Pålsjö 4:7 — claima för att se vem som är intresserad</div>
+        </div>
+        <i class="ti ti-chevron-right" style="color:#9CA3AF;"></i>
+      </div>
+
+      <!-- Location status -->
+      <div id="locationStatus" style="display:none;padding:10px 12px;background:#F0FDF4;border-bottom:0.5px solid rgba(22,163,74,.15);">
+        <div style="font-size:12px;color:#16a34a;font-weight:500;display:flex;align-items:center;gap:6px;">
+          <i class="ti ti-map-pin" style="font-size:14px;"></i>
+          <span id="locationText">Visar fastigheter nära dig</span>
+        </div>
+      </div>
+
+      <!-- Masonry grid -->
+      <div class="masonry-grid" id="masonryGrid">
+        ${pins.map(p => `
+          <div class="pin-card" onclick="toast('Öppnar ${p.name}...')">
+            <div class="pin-img-wrap">
+              ${p.svg}
+              <div class="pin-top">
+                <div class="pin-badge ${p.badge}">${p.badgeText}</div>
+                <button class="pin-like-btn ${myLikes[p.id] ? 'liked' : ''}"
+                  onclick="event.stopPropagation();feedToggleLike(this,${p.id})"
+                  aria-label="Gilla">
+                  <i class="ti ti-heart"></i>
+                </button>
+              </div>
+            </div>
+            <div class="pin-body">
+              <div class="pin-name">${p.name}</div>
+              <div class="pin-meta">${p.meta}</div>
+              <div class="pin-footer">
+                <div class="pin-likes"><i class="ti ti-heart" style="font-size:12px;"></i><strong>${p.likes}</strong></div>
+                ${p.interested ? `<div class="pin-interest-badge">${p.interested} intresserade</div>` : ''}
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+
+  document.getElementById("logoutBtn").onclick = () => {
+    clearSession(); toast("Utloggad."); navigate("welcome");
+  };
+
+  // Search with Nominatim autocomplete
+  const searchInput = document.getElementById("feedSearch");
+  const dropdown = document.getElementById("searchDropdown");
+  let searchTimer = null;
+  let abortController = null;
+
+  searchInput.addEventListener("input", () => {
+    const q = searchInput.value.trim();
+    clearTimeout(searchTimer);
+    if (q.length < 3) { dropdown.style.display = "none"; return; }
+    searchTimer = setTimeout(() => feedSearch(q), 300);
+  });
+
+  searchInput.addEventListener("keydown", e => {
+    if (e.key === "Escape") { dropdown.style.display = "none"; searchInput.blur(); }
+  });
+
+  document.addEventListener("click", e => {
+    if (!dropdown.contains(e.target) && e.target !== searchInput) {
+      dropdown.style.display = "none";
+    }
+  }, { once: false });
+
+  // Near me button
+  document.getElementById("nearMeBtn").onclick = () => {
+    const btn = document.getElementById("nearMeBtn");
+    if (!navigator.geolocation) { toast("Din webbläsare stödjer inte platsfunktion."); return; }
+    btn.innerHTML = '<i class="ti ti-loader" style="font-size:15px;"></i> Söker...';
+    btn.disabled = true;
+
+    navigator.geolocation.getCurrentPosition(pos => {
+      const { latitude: lat, longitude: lng } = pos.coords;
+
+      // Reverse geocode to get area name
+      fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=sv`)
+        .then(r => r.json())
+        .then(data => {
+          const area = data.address?.suburb || data.address?.quarter || data.address?.city || "din position";
+          const status = document.getElementById("locationStatus");
+          const locText = document.getElementById("locationText");
+          if (status && locText) {
+            locText.textContent = `Visar fastigheter nära ${area}`;
+            status.style.display = "block";
+          }
+          toast(`Visar fastigheter nära ${area}`);
+          btn.innerHTML = '<i class="ti ti-current-location" style="font-size:15px;"></i> Nära mig';
+          btn.disabled = false;
+
+          // Filter chips to show local area
+          const chips = document.querySelectorAll('.area-chip');
+          chips.forEach(c => c.classList.remove('active'));
+          if (chips[0]) chips[0].classList.add('active');
+        })
+        .catch(() => {
+          toast("Kunde inte hämta platsinfo.");
+          btn.innerHTML = '<i class="ti ti-current-location" style="font-size:15px;"></i> Nära mig';
+          btn.disabled = false;
+        });
+    }, () => {
+      toast("Kunde inte hämta din position.");
+      btn.innerHTML = '<i class="ti ti-current-location" style="font-size:15px;"></i> Nära mig';
+      btn.disabled = false;
+    }, { enableHighAccuracy: true, timeout: 8000 });
+  };
+}
+
+async function feedSearch(query) {
+  const dropdown = document.getElementById("searchDropdown");
+  if (!dropdown) return;
+
+  dropdown.style.display = "block";
+  dropdown.innerHTML = '<div style="padding:12px 16px;font-size:12px;color:#9CA3AF;">Söker...</div>';
+
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&countrycodes=se&accept-language=sv`;
+    const res = await fetch(url);
+    const results = await res.json();
+
+    if (!results.length) {
+      dropdown.innerHTML = '<div style="padding:12px 16px;font-size:12px;color:#9CA3AF;">Inga resultat hittades</div>';
+      return;
+    }
+
+    dropdown.innerHTML = results.map(r => {
+      const name = r.display_name.split(",").slice(0, 2).join(", ");
+      return `<div onclick="feedSelectLocation('${r.display_name.replace(/'/g,"\'")}', ${r.lat}, ${r.lon})"
+        style="padding:11px 16px;font-size:13px;color:#111827;cursor:pointer;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;align-items:center;gap:10px;"
+        onmouseover="this.style.background='#F9F6F1'" onmouseout="this.style.background=''"
+      >
+        <i class="ti ti-map-pin" style="font-size:14px;color:#C2622A;flex-shrink:0;"></i>
+        <span>${name}</span>
+      </div>`;
+    }).join('');
+  } catch {
+    dropdown.innerHTML = '<div style="padding:12px 16px;font-size:12px;color:#9CA3AF;">Sökning misslyckades</div>';
+  }
+}
+
+function feedSelectLocation(name, lat, lon) {
+  const input = document.getElementById("feedSearch");
+  const dropdown = document.getElementById("searchDropdown");
+  const status = document.getElementById("locationStatus");
+  const locText = document.getElementById("locationText");
+
+  if (input) input.value = name.split(",").slice(0, 2).join(", ");
+  if (dropdown) dropdown.style.display = "none";
+
+  const shortName = name.split(",")[0];
+  if (status && locText) {
+    locText.textContent = `Visar fastigheter i ${shortName}`;
+    status.style.display = "block";
+  }
+  toast(`Visar fastigheter i ${shortName}`);
+}
+function feedChip(el) {
+  document.querySelectorAll('.area-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function feedToggleLike(btn, id) {
+  btn.classList.toggle('liked');
+  const i = btn.querySelector('i');
+  i.style.color = btn.classList.contains('liked') ? '#C2622A' : '';
+  const s = loadState();
+  s.myLikes = s.myLikes || {};
+  if (btn.classList.contains('liked')) { s.myLikes[id] = true; toast('Gillad!'); }
+  else { delete s.myLikes[id]; toast('Gillning borttagen'); }
+  saveState(s);
+}
+
 function renderDashboard() {
   const session = loadSession();
   if (!session?.email) return navigate("welcome");
@@ -528,6 +676,7 @@ function renderDashboard() {
         </div>
         <div class="nav-center">
           <button class="nav-tab active" onclick="navigate('dashboard')">Min sida</button>
+          <button class="nav-tab" onclick="navigate('feed')">Utforska</button>
           <button class="nav-tab" onclick="navigate('map')">Karta</button>
         </div>
         <div class="nav-right">
@@ -860,6 +1009,7 @@ function render() {
   const session = loadSession();
   if (!session?.email) { renderWelcome(); return; }
   if (currentView === "map") { renderMapView(); return; }
+  if (currentView === "feed") { renderFeed(); return; }
   renderDashboard();
 }
 

@@ -812,6 +812,7 @@ function renderDashboard() {
   const state   = loadState();
   const ownerId = state.ownerParcelId;
   const ownerName = ownerId ? state.parcelNames?.[ownerId] || ownerId : null;
+  const claimStatus = state.claimStatus || null;
   const myLikedIds = Object.keys(state.myLikes || {});
   const ownerLikes = ownerId ? state.likes?.[ownerId] || 0 : 0;
   const ownerInterests = ownerId ? state.interests?.[ownerId] || 0 : 0;
@@ -859,7 +860,9 @@ function renderDashboard() {
             <div class="hero-name">${ownerName || "Ingen fastighet kopplad ännu"}</div>
             <div class="hero-meta" id="hero-meta">Fastigheten visas passivt — besökare kan visa intresse utan aktiv försäljning.</div>
             <div class="hero-actions">
-              ${ownerId ? `<button class="hero-btn primary" onclick="navigate('map')"><i class="ti ti-map-pin"></i> Visa i kartan</button>` : `<button class="hero-btn primary" onclick="navigate('map')"><i class="ti ti-map-pin"></i> Koppla fastighet</button>`}
+              ${ownerId ? `<button class="hero-btn primary" onclick="navigate('map')"><i class="ti ti-map-pin"></i> Visa i kartan</button>` : `<button class="hero-btn primary" onclick="openClaimModal()"><i class="ti ti-home-check"></i> Claima din fastighet</button>`}
+              ${ownerId && claimStatus === 'pending' ? `<span style="background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.3);color:#fff;border-radius:999px;padding:5px 13px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px;"><i class="ti ti-clock" style="font-size:13px;"></i> Verifieras inom 24h</span>` : ''}
+              ${ownerId && claimStatus === 'verified' ? `<span style="background:rgba(22,163,74,.2);border:1.5px solid rgba(22,163,74,.4);color:#fff;border-radius:999px;padding:5px 13px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px;"><i class="ti ti-check" style="font-size:13px;"></i> Verifierad ägare</span>` : ''}
               ${ownerId ? `<button class="hero-btn" id="clearOwnerBtn"><i class="ti ti-switch-horizontal"></i> Byt fastighet</button>` : ""}
             </div>
           </div>
@@ -1162,6 +1165,155 @@ function renderMapView() {
 }
 
 
+
+// =========================
+// CLAIM MODAL
+// =========================
+function openClaimModal() {
+  const existing = document.getElementById('claim-modal-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'claim-modal-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;';
+
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:20px;padding:28px;width:100%;max-width:440px;box-shadow:0 24px 64px rgba(0,0,0,.2);">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#C2622A;margin-bottom:4px;">Claima fastighet</div>
+          <div style="font-size:18px;font-weight:700;letter-spacing:-.03em;color:#111827;">Verifiera ditt ägande</div>
+        </div>
+        <button onclick="closeClaimModal()" style="width:32px;height:32px;border-radius:50%;border:none;background:#F3F4F6;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:#6B7280;">✕</button>
+      </div>
+
+      <div style="background:#F9F6F1;border-radius:12px;padding:14px 16px;margin-bottom:20px;display:flex;align-items:center;gap:12px;">
+        <i class="ti ti-home" style="font-size:20px;color:#C2622A;" aria-hidden="true"></i>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:#111827;">Ingen fastighet vald</div>
+          <div style="font-size:11px;color:#9CA3AF;">Välj fastighet via kartan för att koppla den till din profil</div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:20px;">
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#6B7280;margin-bottom:6px;">Fullständigt namn</label>
+          <input id="claim-name" class="input" placeholder="Anna Lindqvist" style="width:100%;" />
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#6B7280;margin-bottom:6px;">Personnummer</label>
+          <input id="claim-pnr" class="input" placeholder="YYYYMMDD-XXXX" maxlength="13" style="width:100%;font-family:monospace;letter-spacing:.05em;" />
+          <div style="font-size:11px;color:#9CA3AF;margin-top:5px;">Används endast för att verifiera ägandet mot fastighetsregistret.</div>
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#6B7280;margin-bottom:6px;">Fastighetsbeteckning</label>
+          <input id="claim-prop" class="input" placeholder="Ex. Pålsjö 4:7" style="width:100%;" />
+        </div>
+      </div>
+
+      <div style="background:#FEF0E7;border-radius:10px;padding:12px 14px;margin-bottom:20px;display:flex;gap:10px;align-items:flex-start;">
+        <i class="ti ti-clock" style="font-size:16px;color:#C2622A;flex-shrink:0;margin-top:1px;" aria-hidden="true"></i>
+        <div style="font-size:12px;color:#92400E;line-height:1.5;">Din claim behandlas inom <strong>24 timmar</strong>. Vi verifierar manuellt att uppgifterna stämmer mot fastighetsregistret innan fastigheten kopplas till din profil.</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:20px;">
+        <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#6B7280;margin-bottom:-6px;">Hur vill du synas?</div>
+        ${[
+          { id:'vis-private', val:'private', label:'Privat', desc:'Bara du ser statistiken. Syns inte utåt.' },
+          { id:'vis-public',  val:'public',  label:'Synlig', desc:'Din profil och bilder syns för besökare.' },
+          { id:'vis-sale',    val:'sale',    label:'Till salu eller uthyrning', desc:'Visa pris och ta emot intresse direkt.' },
+        ].map((o,i) => `
+          <div id="vo-${o.val}" onclick="selectClaimVis('${o.val}')" style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:11px;border:1.5px solid ${i===0?'#C2622A':'rgba(17,24,39,.08)'};background:${i===0?'rgba(194,98,42,.03)':'#fff'};cursor:pointer;">
+            <div id="radio-${o.val}" style="width:18px;height:18px;border-radius:50%;border:2px solid ${i===0?'#C2622A':'rgba(17,24,39,.18)'};flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;background:${i===0?'#C2622A':'transparent'};">
+              ${i===0?'<div style="width:6px;height:6px;border-radius:50%;background:#fff;"></div>':''}
+            </div>
+            <div>
+              <div style="font-size:13px;font-weight:600;color:#111827;margin-bottom:2px;">${o.label}</div>
+              <div style="font-size:11px;color:#9CA3AF;line-height:1.5;">${o.desc}</div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+
+      <button onclick="submitClaim()" style="width:100%;padding:14px;border-radius:12px;border:none;background:#C2622A;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;letter-spacing:-.01em;">
+        Skicka in claim
+      </button>
+
+      <div style="font-size:11px;color:#9CA3AF;text-align:center;margin-top:12px;line-height:1.5;">
+        Ditt personnummer lagras krypterat och används endast för verifiering. Det visas aldrig publikt.
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeClaimModal(); });
+}
+
+function closeClaimModal() {
+  const overlay = document.getElementById('claim-modal-overlay');
+  if (overlay) overlay.remove();
+}
+
+let selectedClaimVis = 'private';
+
+function selectClaimVis(val) {
+  selectedClaimVis = val;
+  ['private','public','sale'].forEach(v => {
+    const el = document.getElementById('vo-' + v);
+    const radio = document.getElementById('radio-' + v);
+    if (!el || !radio) return;
+    if (v === val) {
+      el.style.borderColor = '#C2622A';
+      el.style.background = 'rgba(194,98,42,.03)';
+      radio.style.borderColor = '#C2622A';
+      radio.style.background = '#C2622A';
+      radio.innerHTML = '<div style="width:6px;height:6px;border-radius:50%;background:#fff;"></div>';
+    } else {
+      el.style.borderColor = 'rgba(17,24,39,.08)';
+      el.style.background = '#fff';
+      radio.style.borderColor = 'rgba(17,24,39,.18)';
+      radio.style.background = 'transparent';
+      radio.innerHTML = '';
+    }
+  });
+}
+
+function submitClaim() {
+  const name = document.getElementById('claim-name')?.value.trim();
+  const pnr  = document.getElementById('claim-pnr')?.value.trim();
+  const prop = document.getElementById('claim-prop')?.value.trim();
+
+  if (!name || !pnr || !prop) {
+    toast('Fyll i alla fält för att fortsätta.');
+    return;
+  }
+
+  if (!/^\d{8}-\d{4}$/.test(pnr)) {
+    toast('Personnummer måste vara i format YYYYMMDD-XXXX.');
+    return;
+  }
+
+  const s = loadState();
+  s.claimStatus = 'pending';
+  s.claimData = { name, pnr: pnr.slice(0,8) + '-****', prop, visibility: selectedClaimVis, submittedAt: new Date().toISOString() };
+  s.ownerParcelId = prop;
+  s.parcelNames = s.parcelNames || {};
+  s.parcelNames[prop] = prop;
+  saveState(s);
+
+  // Save pending claim for admin
+  const users = loadUsers();
+  const session = loadSession();
+  if (session?.email && users[session.email]) {
+    users[session.email].pendingClaim = { name, pnr: pnr.slice(0,8) + '-****', prop, visibility: selectedClaimVis, submittedAt: new Date().toISOString(), status: 'pending' };
+    saveUsers(users);
+  }
+
+  closeClaimModal();
+  toast('Claim inskickad! Vi återkommer inom 24h.');
+  render();
+}
+
 // =========================
 // ADMIN VIEW
 // =========================
@@ -1362,8 +1514,63 @@ function renderAdmin() {
     </div>
   `;
 
+  const pendingClaims = Object.values(users).filter(u => u.pendingClaim && u.pendingClaim.status === 'pending');
+
   const moderationHtml = `
     <div style="display:grid;gap:12px;">
+
+      ${pendingClaims.length > 0 ? `
+        <div style="background:#fff;border:1.5px solid #C2622A;border-radius:14px;overflow:hidden;">
+          <div style="padding:14px 20px;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;align-items:center;justify-content:space-between;background:#FEF0E7;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <i class="ti ti-home-check" style="font-size:16px;color:#C2622A;" aria-hidden="true"></i>
+              <div style="font-size:13px;font-weight:600;color:#C2622A;">Claims som väntar verifiering</div>
+            </div>
+            <span style="font-size:11px;font-weight:700;background:#C2622A;color:#fff;border-radius:999px;padding:2px 8px;">${pendingClaims.length}</span>
+          </div>
+          ${pendingClaims.map(u => \`
+            <div style="padding:16px 20px;border-bottom:0.5px solid rgba(17,24,39,.05);">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;">
+                <div>
+                  <div style="font-size:13px;font-weight:600;color:#111827;">\${u.pendingClaim.prop}</div>
+                  <div style="font-size:11px;color:#9CA3AF;margin-top:2px;">Inskickad av \${u.pendingClaim.name} · \${new Date(u.pendingClaim.submittedAt).toLocaleDateString('sv-SE')}</div>
+                </div>
+                <span style="font-size:10px;font-weight:600;background:#FEF0E7;color:#C2622A;border-radius:999px;padding:3px 9px;flex-shrink:0;margin-left:10px;">Inväntar</span>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+                <div style="background:#F9F6F1;border-radius:8px;padding:10px 12px;">
+                  <div style="font-size:10px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:3px;">Namn</div>
+                  <div style="font-size:12px;font-weight:600;color:#111827;">\${u.pendingClaim.name}</div>
+                </div>
+                <div style="background:#F9F6F1;border-radius:8px;padding:10px 12px;">
+                  <div style="font-size:10px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:3px;">Personnummer</div>
+                  <div style="font-size:12px;font-weight:600;color:#111827;font-family:monospace;">\${u.pendingClaim.pnr}</div>
+                </div>
+                <div style="background:#F9F6F1;border-radius:8px;padding:10px 12px;">
+                  <div style="font-size:10px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:3px;">Fastighet</div>
+                  <div style="font-size:12px;font-weight:600;color:#111827;">\${u.pendingClaim.prop}</div>
+                </div>
+                <div style="background:#F9F6F1;border-radius:8px;padding:10px 12px;">
+                  <div style="font-size:10px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:3px;">Synlighet</div>
+                  <div style="font-size:12px;font-weight:600;color:#111827;">\${{ private:'Privat', public:'Synlig', sale:'Till salu' }[u.pendingClaim.visibility] || 'Privat'}</div>
+                </div>
+              </div>
+              <div style="display:flex;gap:8px;">
+                <button onclick="approveClaim('\${u.email}')" style="flex:1;padding:9px;border-radius:9px;border:none;background:#16a34a;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;justify-content:center;gap:6px;">
+                  <i class="ti ti-check" aria-hidden="true"></i> Godkänn
+                </button>
+                <button onclick="rejectClaim('\${u.email}')" style="flex:1;padding:9px;border-radius:9px;border:0.5px solid rgba(17,24,39,.12);background:#fff;color:#dc2626;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;justify-content:center;gap:6px;">
+                  <i class="ti ti-x" aria-hidden="true"></i> Neka
+                </button>
+                <a href="https://www.lantmateriet.se/fastighetsregistret" target="_blank" style="flex:1;padding:9px;border-radius:9px;border:0.5px solid rgba(17,24,39,.12);background:#fff;color:#111827;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;">
+                  <i class="ti ti-external-link" aria-hidden="true"></i> Lantmäteriet
+                </a>
+              </div>
+            </div>
+          \`).join('')}
+        </div>
+      ` : ''}
+
       <div style="background:#FEF2F2;border:0.5px solid rgba(220,38,38,.15);border-radius:14px;padding:18px 20px;">
         <div style="display:flex;align-items:flex-start;gap:14px;">
           <div style="width:40px;height:40px;border-radius:10px;background:#FEE2E2;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
@@ -1569,6 +1776,27 @@ function adminToast(msg) {
   toast(msg);
 }
 
+
+
+function approveClaim(email) {
+  const users = loadUsers();
+  if (users[email]?.pendingClaim) {
+    users[email].pendingClaim.status = 'approved';
+    saveUsers(users);
+  }
+  toast('Claim godkänd — ' + email);
+  renderAdmin();
+}
+
+function rejectClaim(email) {
+  const users = loadUsers();
+  if (users[email]?.pendingClaim) {
+    users[email].pendingClaim.status = 'rejected';
+    saveUsers(users);
+  }
+  toast('Claim nekad — ' + email);
+  renderAdmin();
+}
 
 // =========================
 // Render & boot

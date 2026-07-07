@@ -159,42 +159,116 @@ function reprojectGeoJsonIfNeeded(geojson) {
 // =========================
 function ensureMapMounted() {
   if (map) return;
-  map = L.map("map", { zoomControl: true }).setView([56.0465, 12.6945], 13);
+  const svgRenderer = L.svg({ padding: 0.5 });
+  map = L.map("map", { zoomControl: true, renderer: svgRenderer }).setView([56.0465, 12.6945], 13);
   baseLayers.map = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" });
   baseLayers.satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Tiles &copy; Esri" });
   baseLayers.map.addTo(map);
 }
 
-function clearLayer() { if (parcelsLayer) { parcelsLayer.remove(); parcelsLayer = null; } lastGeoJson = null; }
+function clearLayer() {
+  if (parcelsLayer) {
+    if (parcelsLayer.remove) parcelsLayer.remove();
+    parcelsLayer = null;
+  }
+  lastGeoJson = null;
+}
 function redrawLayer() { if (lastGeoJson) addGeoJsonToMap(lastGeoJson, { keepView: true, silent: true }); }
 
 function addGeoJsonToMap(geojson, opts = {}) {
   ensureMapMounted();
   if (parcelsLayer) { parcelsLayer.remove(); parcelsLayer = null; }
   lastGeoJson = geojson;
-  if (!map.getPane("parcelsPane")) { map.createPane("parcelsPane"); map.getPane("parcelsPane").style.zIndex = 450; }
 
-  function baseStyle(feature) {
-    const state = loadState();
-    const pid = getParcelId(feature);
-    if (state.ownerParcelId === pid)    return { color: "#22c55e", weight: 2.5, fillColor: "#22c55e", fillOpacity: 0.18, dashArray: null };
-    if (state.myInterests?.[pid])       return { color: "#a78bfa", weight: 2,   fillColor: "#8b5cf6", fillOpacity: 0.15 };
-    if (state.myLikes?.[pid])           return { color: "#60a5fa", weight: 2,   fillColor: "#60a5fa", fillOpacity: 0.12 };
-    return { color: "#f97316", weight: 1.2, fillColor: "#f97316", fillOpacity: 0.04 };
+  if (!map.getPane("parcelsPane")) {
+    map.createPane("parcelsPane");
+    map.getPane("parcelsPane").style.zIndex = 450;
   }
 
-  parcelsLayer = L.geoJSON(geojson, {
-    pane: "parcelsPane",
-    style: baseStyle,
-    pointToLayer: (f, ll) => L.circleMarker(ll, { radius: 6, weight: 2, fillOpacity: 0.6 }),
-    onEachFeature: (feature, layer) => {
-      layer.on("mouseover", () => { map.getContainer().style.cursor = "pointer"; if (layer.setStyle) layer.setStyle({ weight: 2.8, fillOpacity: 0.07 }); if (layer.bringToFront) layer.bringToFront(); });
-      layer.on("mouseout",  () => { map.getContainer().style.cursor = ""; if (layer.setStyle) layer.setStyle(baseStyle(feature)); });
-      layer.on("click",     () => renderParcelPanel(feature));
-    },
-  }).addTo(map);
+  function getStyle(feature) {
+    const state = loadState();
+    const pid = getParcelId(feature);
+    if (state.ownerParcelId === pid) return { color: "#22c55e", weight: 2.5, fillColor: "#22c55e", fillOpacity: 0.18, fill: true };
+    if (state.myInterests?.[pid])    return { color: "#a78bfa", weight: 2,   fillColor: "#8b5cf6", fillOpacity: 0.14, fill: true };
+    if (state.myLikes?.[pid])        return { color: "#93c5fd", weight: 2,   fillColor: "#60a5fa", fillOpacity: 0.10, fill: true };
+    return { color: "rgba(255,255,255,0.7)", weight: 1, fill: false };
+  }
 
-  try { const b = parcelsLayer.getBounds(); if (b?.isValid() && !opts.keepView) map.fitBounds(b, { padding: [20, 20] }); } catch {}
+  // Use L.polyline for outlines — bypasses Leaflet polygon fill triangulation
+  const layerGroup = L.layerGroup({ pane: "parcelsPane" });
+
+  for (const feature of (geojson.features || [])) {
+    const geom = feature?.geometry;
+    if (!geom) continue;
+
+    const style = getStyle(feature);
+    const rings = [];
+
+    if (geom.type === "Polygon") {
+      rings.push(...geom.coordinates);
+    } else if (geom.type === "MultiPolygon") {
+      for (const poly of geom.coordinates) rings.push(...poly);
+    } else continue;
+
+    const outerRings = [];
+    for (const ring of rings) {
+      // Convert [lon, lat] to L.LatLng [lat, lon]
+      const latLngs = ring.map(p => [p[1], p[0]]);
+      if (latLngs.length < 3) continue;
+
+      let layer;
+      if (style.fill) {
+        // Filled polygon for liked/owned
+        layer = L.polygon(latLngs, {
+          pane: "parcelsPane",
+          color: style.color,
+          weight: style.weight,
+          fillColor: style.fillColor,
+          fillOpacity: style.fillOpacity,
+          smoothFactor: 0,
+        });
+      } else {
+        // Pure polyline — no fill, no triangulation
+        layer = L.polyline(latLngs, {
+          pane: "parcelsPane",
+          color: style.color,
+          weight: style.weight,
+          opacity: 0.8,
+          smoothFactor: 0,
+        });
+      }
+
+      layer.on("click", () => renderParcelPanel(feature));
+      layer.on("mouseover", () => {
+        map.getContainer().style.cursor = "pointer";
+        layer.setStyle({ color: "#C2622A", weight: 2 });
+      });
+      layer.on("mouseout", () => {
+        map.getContainer().style.cursor = "";
+        layer.setStyle({ color: style.color, weight: style.weight });
+      });
+
+      layerGroup.addLayer(layer);
+      outerRings.push(latLngs);
+    }
+  }
+
+  layerGroup.addTo(map);
+  parcelsLayer = layerGroup;
+
+  // Fit bounds on first load
+  if (!opts.keepView && geojson.features?.length) {
+    try {
+      const allCoords = [];
+      for (const f of geojson.features) {
+        const geom = f?.geometry;
+        if (geom?.type === "Polygon") allCoords.push(...geom.coordinates[0].map(p => [p[1], p[0]]));
+        else if (geom?.type === "MultiPolygon") allCoords.push(...geom.coordinates[0][0].map(p => [p[1], p[0]]));
+      }
+      if (allCoords.length) map.fitBounds(L.latLngBounds(allCoords), { padding: [20, 20] });
+    } catch {}
+  }
+
   try { localStorage.setItem(LS_GEOJSON, JSON.stringify(geojson)); } catch {}
   if (!opts.silent) toast("Fastighetslager inläst — klicka på en fastighet.");
 }

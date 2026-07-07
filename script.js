@@ -177,10 +177,10 @@ function addGeoJsonToMap(geojson, opts = {}) {
   function baseStyle(feature) {
     const state = loadState();
     const pid = getParcelId(feature);
-    if (state.ownerParcelId === pid)    return { color: "#16a34a", weight: 3, fillColor: "#22c55e", fillOpacity: 0.12 };
-    if (state.myInterests?.[pid])       return { color: "#7c3aed", weight: 2.8, fillColor: "#8b5cf6", fillOpacity: 0.10 };
-    if (state.myLikes?.[pid])           return { color: "#2563eb", weight: 2.4, fillColor: "#60a5fa", fillOpacity: 0.08 };
-    return { color: "#C2622A", weight: 1.6, fillColor: "#C2622A", fillOpacity: 0.03 };
+    if (state.ownerParcelId === pid)    return { color: "#22c55e", weight: 2.5, fillColor: "#22c55e", fillOpacity: 0.18, dashArray: null };
+    if (state.myInterests?.[pid])       return { color: "#a78bfa", weight: 2,   fillColor: "#8b5cf6", fillOpacity: 0.15 };
+    if (state.myLikes?.[pid])           return { color: "#60a5fa", weight: 2,   fillColor: "#60a5fa", fillOpacity: 0.12 };
+    return { color: "#f97316", weight: 1.2, fillColor: "#f97316", fillOpacity: 0.04 };
   }
 
   parcelsLayer = L.geoJSON(geojson, {

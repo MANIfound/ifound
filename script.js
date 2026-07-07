@@ -1270,6 +1270,16 @@ function renderMapView() {
       <div class="map-wrap"><div id="map"></div></div>
       <div id="panel" class="panel hidden"></div>
     </div>
+    <style>
+      .ifound-popup .leaflet-popup-content-wrapper {
+        border-radius: 14px;
+        box-shadow: 0 8px 32px rgba(17,24,39,.15);
+        padding: 0;
+        overflow: hidden;
+      }
+      .ifound-popup .leaflet-popup-content { margin: 16px; }
+      .ifound-popup .leaflet-popup-tip { background: #fff; }
+    </style>
   `;
 
   ensureMapMounted();
@@ -1289,6 +1299,7 @@ function renderMapView() {
       const gj = JSON.parse(cached);
       addGeoJsonToMap(gj, { keepView: true });
       updateMapStatus(gj.features?.length || 0);
+      addClaimedMarkers();
     } catch { autoLoadCentrum(); }
   } else {
     autoLoadCentrum();
@@ -1360,7 +1371,115 @@ function renderMapView() {
     if (!dropdown.contains(e.target) && e.target !== searchInput) dropdown.style.display = "none";
   });
 
-  setTimeout(() => { try { map.invalidateSize(); } catch {} }, 120);
+  setTimeout(() => {
+    try { map.invalidateSize(); } catch {}
+    addClaimedMarkers();
+  }, 120);
+}
+
+
+// =========================
+// CUSTOM MARKERS
+// =========================
+
+// Mock claimed properties for demo — in production these come from database
+const CLAIMED_PROPS = [
+  { id: "RÅDHUSET 3>1",       lat: 56.04676, lon: 12.69298, status: "passive",  name: "Rådhuset 3:1",       likes: 18, interested: 4 },
+  { id: "PÅLSJÖ 4>7",         lat: 56.05820, lon: 12.70450, status: "sale",     name: "Pålsjö 4:7",        likes: 31, interested: 11, price: "4 200 000 kr" },
+  { id: "LARÖD 3>19",         lat: 56.07210, lon: 12.70830, status: "passive",  name: "Laröd 3:19",        likes: 41, interested: 9 },
+  { id: "SÖDER 8>22",         lat: 56.04120, lon: 12.69540, status: "rent",     name: "Söder 8:22",        likes: 14, interested: 5, price: "9 800 kr/mån" },
+  { id: "FREDRIKSDAL 6>1",    lat: 56.05110, lon: 12.70120, status: "sale",     name: "Fredriksdal 6:1",   likes: 19, interested: 6, price: "5 750 000 kr" },
+  { id: "RAUS PLANTAGE 7>2",  lat: 56.03980, lon: 12.67230, status: "passive",  name: "Raus Plantage 7:2", likes: 6,  interested: 2 },
+  { id: "VIKEN STRAND 4>2",   lat: 56.15430, lon: 12.57820, status: "rent",     name: "Viken Strand 4:2",  likes: 58, interested: 12, price: "14 500 kr/mån" },
+];
+
+let markerLayer = null;
+
+function createMarkerIcon(status) {
+  // SVG icons for each status
+  const icons = {
+    passive: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
+      <path d="M14 0C6.3 0 0 6.3 0 14C0 24.5 14 36 14 36S28 24.5 28 14C28 6.3 21.7 0 14 0Z" fill="#6B7280"/>
+      <circle cx="14" cy="14" r="6" fill="white" opacity="0.9"/>
+    </svg>`,
+
+    sale: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 64 78">
+      <path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#C2622A"/>
+      <polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/>
+      <rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/>
+      <rect x="27" y="37" width="10" height="12" rx="1" fill="#C2622A"/>
+    </svg>`,
+
+    rent: `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="38" viewBox="0 0 30 38">
+      <path d="M15 0C6.7 0 0 6.7 0 15C0 26.3 15 38 15 38S30 26.3 30 15C30 6.7 23.3 0 15 0Z" fill="#2563eb"/>
+      <text x="15" y="20" text-anchor="middle" font-size="14" fill="white" font-family="sans-serif">🔑</text>
+    </svg>`,
+  };
+
+  const svgStr = icons[status] || icons.passive;
+  const sizes = { passive: [28,36], sale: [32,40], rent: [30,38] };
+  const [w, h] = sizes[status] || [28,36];
+
+  return L.divIcon({
+    html: svgStr,
+    className: '',
+    iconSize: [w, h],
+    iconAnchor: [w/2, h],
+    popupAnchor: [0, -h],
+  });
+}
+
+function addClaimedMarkers() {
+  if (!map) return;
+  if (markerLayer) { markerLayer.remove(); markerLayer = null; }
+
+  markerLayer = L.layerGroup().addTo(map);
+
+  // Add user's own claimed property if exists
+  const state = loadState();
+  const ownerId = state.ownerParcelId;
+  const ownerName = ownerId ? state.parcelNames?.[ownerId] || ownerId : null;
+
+  const allProps = [...CLAIMED_PROPS];
+  if (ownerId && !allProps.find(p => p.id === ownerId)) {
+    // Add user's own property at map center if no coordinates known
+    allProps.push({
+      id: ownerId,
+      lat: 56.0465, lon: 12.6945,
+      status: state.claimData?.visibility === 'sale' ? 'sale' : state.claimData?.visibility === 'rent' ? 'rent' : 'passive',
+      name: ownerName,
+      likes: state.likes?.[ownerId] || 0,
+      interested: state.interests?.[ownerId] || 0,
+    });
+  }
+
+  allProps.forEach(prop => {
+    const icon = createMarkerIcon(prop.status);
+    const marker = L.marker([prop.lat, prop.lon], { icon, zIndexOffset: 1000 });
+
+    const statusLabel = { passive: 'Passiv', sale: 'Till salu', rent: 'Uthyrning' }[prop.status] || 'Passiv';
+    const statusColor = { passive: '#6B7280', sale: '#C2622A', rent: '#2563eb' }[prop.status] || '#6B7280';
+
+    marker.bindPopup(`
+      <div style="font-family:'Inter',sans-serif;min-width:200px;padding:4px;">
+        <div style="font-size:11px;font-weight:600;color:${statusColor};text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">${statusLabel}</div>
+        <div style="font-size:15px;font-weight:700;letter-spacing:-.03em;color:#111827;margin-bottom:6px;">${prop.name}</div>
+        ${prop.price ? `<div style="font-size:14px;font-weight:600;color:#111827;margin-bottom:8px;">${prop.price}</div>` : ''}
+        <div style="display:flex;gap:14px;padding-top:8px;border-top:1px solid #F3F4F6;">
+          <div style="text-align:center;">
+            <div style="font-size:18px;font-weight:700;color:#111827;">${prop.likes}</div>
+            <div style="font-size:10px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.05em;">Gillar</div>
+          </div>
+          <div style="text-align:center;">
+            <div style="font-size:18px;font-weight:700;color:#111827;">${prop.interested}</div>
+            <div style="font-size:10px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.05em;">Intresserade</div>
+          </div>
+        </div>
+      </div>
+    `, { maxWidth: 240, className: 'ifound-popup' });
+
+    markerLayer.addLayer(marker);
+  });
 }
 
 function autoLoadCentrum() {
@@ -1380,6 +1499,7 @@ function autoLoadCentrum() {
       addGeoJsonToMap(geojson, { keepView: false });
       updateMapStatus(geojson.features?.length || 0);
       try { localStorage.setItem(LS_GEOJSON, JSON.stringify(geojson)); } catch {}
+      addClaimedMarkers();
     })
     .catch(err => {
       console.error(err);

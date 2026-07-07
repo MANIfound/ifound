@@ -65,7 +65,7 @@ let map = null;
 let parcelsLayer = null;
 let lastGeoJson = null;
 let baseLayers = {};
-let currentBase = "map";
+let currentBase = "satellite";
 let locateMarker = null;
 
 // =========================
@@ -175,11 +175,10 @@ function ensureMapMounted() {
   map = L.map("map", { zoomControl: true, renderer: svgRenderer }).setView([56.0465, 12.6945], 13);
   baseLayers.map = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" });
   baseLayers.satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Tiles &copy; Esri" });
-  baseLayers.map.addTo(map);
-  // Restore last base layer
   if (currentBase === "satellite") {
-    baseLayers.map.remove();
     baseLayers.satellite.addTo(map);
+  } else {
+    baseLayers.map.addTo(map);
   }
 }
 
@@ -200,9 +199,10 @@ function addGeoJsonToMap(geojson, opts = {}) {
       weight: 1,
       opacity: 0.8,
       fill: true,
-      fillColor: "#ffffff",
-      fillOpacity: 0.01, // must be > 0 for SVG pointer events
+      fillColor: "#000000",
+      fillOpacity: 0.02,
     },
+    interactive: true,
     onEachFeature: (feature, layer) => {
       layer.on("click", () => renderParcelPanel(feature));
       layer.on("mouseover", () => {
@@ -1274,7 +1274,7 @@ function renderMapView() {
             <option value="owner"   ${savedMode==="owner"  ?"selected":""}>Ägarläge</option>
           </select>
           <button id="nearMeMapBtn" class="toolbar-btn"><i class="ti ti-current-location" aria-hidden="true"></i> Nära mig</button>
-          <button id="toggleMapStyleBtn" class="toolbar-btn">${currentBase==="map"?"Flygfoto":"Kartvy"}</button>
+          <button id="toggleMapStyleBtn" class="toolbar-btn">Kartvy</button>
           <button id="backBtn" class="toolbar-btn"><i class="ti ti-arrow-left" aria-hidden="true"></i> Min sida</button>
         </div>
       </div>
@@ -1470,8 +1470,14 @@ function addClaimedMarkers() {
     // Try to get centroid from parcelsLayer if no stored coords
     if ((!lat || !lon) && parcelsLayer) {
       try {
+        const ownerNorm = ownerId.toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g,'');
         parcelsLayer.eachLayer(layer => {
-          if (layer.feature && getParcelId(layer.feature) === ownerId) {
+          if (lat && lon) return;
+          if (!layer.feature) return;
+          const pid = getParcelId(layer.feature);
+          const fname = (layer.feature.properties?.fastighet || '').toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g,'');
+          const pidNorm = pid.toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g,'');
+          if (pid === ownerId || pidNorm === ownerNorm || fname === ownerNorm || fname.startsWith(ownerNorm)) {
             const bounds = layer.getBounds?.();
             if (bounds?.isValid()) {
               const c = bounds.getCenter();
@@ -1480,7 +1486,7 @@ function addClaimedMarkers() {
             }
           }
         });
-      } catch {}
+      } catch(e) { console.warn(e); }
     }
 
     if (lat && lon && !allProps.find(p => p.id === ownerId)) {

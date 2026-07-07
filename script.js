@@ -309,65 +309,150 @@ function renderParcelPanel(feature) {
 // =========================
 function renderWelcome() {
   app.innerHTML = `
-    <div class="welcome-page">
-      <nav class="welcome-nav">
-        <div class="logo">
-          <svg width="20" height="25" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#C2622A"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#C2622A"/></svg>
-          <span class="logo-text">i<em>found</em></span>
+    <div style="min-height:100vh;background:#0F1117;font-family:'Inter',sans-serif;">
+
+      <!-- Nav -->
+      <nav style="height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 28px;background:rgba(15,17,23,.8);backdrop-filter:blur(12px);position:sticky;top:0;z-index:50;border-bottom:0.5px solid rgba(255,255,255,.06);">
+        <div style="display:flex;align-items:center;gap:9px;">
+          <svg width="18" height="23" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#C2622A"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#C2622A"/></svg>
+          <span style="font-size:19px;font-weight:700;letter-spacing:-.04em;color:#fff;">i<em style="font-style:normal;color:#C2622A;">found</em></span>
         </div>
-        <div class="nav-badge">BETA · Helsingborg</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:11px;font-weight:600;color:#C2622A;background:rgba(194,98,42,.15);border-radius:999px;padding:3px 10px;letter-spacing:.06em;">BETA · Helsingborg</span>
+          <button onclick="document.getElementById('auth-section').scrollIntoView({behavior:'smooth'})" style="padding:8px 18px;border-radius:9px;border:none;background:#C2622A;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">Kom igång</button>
+        </div>
       </nav>
-      <div class="welcome-body">
-        <div class="welcome-left">
-          <div class="welcome-eyebrow">Fastigheter på ett nytt sätt</div>
-          <h1 class="welcome-headline">Hitta hem.<br><em>Eller låt<br>hemmet<br>hitta dig.</em></h1>
-          <p class="welcome-sub">Utforska fastigheter, visa intresse anonymt och koppla ihop ägare med de som letar — utan aktiv försäljning.</p>
-          <div class="feat-pills">
-            <div class="feat-pill"><i class="ti ti-map-pin"></i> Utforska på karta</div>
-            <div class="feat-pill"><i class="ti ti-heart"></i> Spara favoriter</div>
-            <div class="feat-pill"><i class="ti ti-home"></i> Visa upp ditt hem</div>
-            <div class="feat-pill"><i class="ti ti-bell"></i> Notiser om intresse</div>
+
+      <!-- Hero -->
+      <div style="position:relative;height:90vh;min-height:580px;overflow:hidden;display:flex;align-items:flex-end;">
+        <img src="https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1800&q=85&auto=format&fit=crop" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;" />
+        <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(10,10,15,.92) 0%,rgba(10,10,15,.4) 45%,rgba(10,10,15,.1) 100%);"></div>
+        <div style="position:relative;z-index:2;width:100%;padding:52px 48px;display:grid;grid-template-columns:1fr 400px;gap:40px;align-items:flex-end;">
+          <div>
+            <div style="font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:#C2622A;margin-bottom:16px;">Fastigheter på ett nytt sätt</div>
+            <h1 style="font-size:clamp(44px,5.5vw,80px);font-weight:700;line-height:1.0;color:#fff;letter-spacing:-.05em;margin:0 0 20px;font-family:'Inter',sans-serif;">Hitta hem.<br><em style="font-style:normal;color:#C2622A;">Eller låt hemmet<br>hitta dig.</em></h1>
+            <p style="font-size:16px;line-height:1.7;color:rgba(255,255,255,.6);max-width:500px;margin:0 0 28px;">Du åker förbi ett hus och blir förälskad. Idag finns inget att göra. Med ifound lämnar du ditt intresse direkt — ägaren ser det och väljer själv vad som händer sen.</p>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;">
+              ${["Utforska på karta","Spara favoriter","Visa upp ditt hem","Få notiser om intresse"].map(f=>`
+                <div style="background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:7px 14px;font-size:12px;font-weight:500;color:rgba(255,255,255,.75);">${f}</div>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- Auth box -->
+          <div id="auth-section" style="background:rgba(255,255,255,.96);backdrop-filter:blur(20px);border-radius:20px;padding:28px;box-shadow:0 24px 64px rgba(0,0,0,.3);">
+            <div style="display:flex;background:rgba(17,24,39,.07);border-radius:10px;padding:3px;margin-bottom:22px;">
+              <button id="tabLogin" onclick="switchTab('login')" style="flex:1;padding:9px;border-radius:8px;border:none;background:#fff;color:#111827;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;box-shadow:0 1px 4px rgba(0,0,0,.08);">Logga in</button>
+              <button id="tabReg" onclick="switchTab('reg')" style="flex:1;padding:9px;border-radius:8px;border:none;background:transparent;color:#6B7280;font-size:13px;font-weight:500;cursor:pointer;font-family:'Inter',sans-serif;">Skapa konto</button>
+            </div>
+
+            <div id="loginForm" style="display:flex;flex-direction:column;gap:12px;">
+              <div>
+                <div style="font-size:19px;font-weight:700;letter-spacing:-.04em;color:#111827;">Välkommen tillbaka</div>
+                <div style="font-size:12px;color:#9CA3AF;margin-top:3px;">Ange dina uppgifter för att fortsätta.</div>
+              </div>
+              <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#6B7280;margin-bottom:5px;">E-post</label><input id="loginEmail" class="input" type="email" placeholder="din@epost.se" /></div>
+              <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#6B7280;margin-bottom:5px;">Lösenord</label><input id="loginPass" class="input" type="password" placeholder="••••••••" /></div>
+              <button id="loginBtn" class="btn-primary" style="width:100%;justify-content:center;padding:12px;">Logga in</button>
+              <div style="font-size:11px;color:#9CA3AF;text-align:center;">Demo: registrera ett konto och logga in.</div>
+            </div>
+
+            <div id="regForm" style="display:none;flex-direction:column;gap:12px;">
+              <div>
+                <div style="font-size:19px;font-weight:700;letter-spacing:-.04em;color:#111827;">Skapa konto</div>
+                <div style="font-size:12px;color:#9CA3AF;margin-top:3px;">Kom igång på ett par sekunder.</div>
+              </div>
+              <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#6B7280;margin-bottom:5px;">Namn</label><input id="regName" class="input" placeholder="Ditt namn" /></div>
+              <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#6B7280;margin-bottom:5px;">E-post</label><input id="regEmail" class="input" type="email" placeholder="din@epost.se" /></div>
+              <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#6B7280;margin-bottom:5px;">Lösenord</label><input id="regPass" class="input" type="password" placeholder="Min 4 tecken" /></div>
+              <button id="regBtn" class="btn-primary" style="width:100%;justify-content:center;padding:12px;">Skapa konto</button>
+              <div style="font-size:11px;color:#9CA3AF;text-align:center;">Riktig version: BankID-verifiering.</div>
+            </div>
           </div>
         </div>
-        <div class="welcome-right">
-          <div class="auth-tabs">
-            <button class="auth-tab active" id="tabLogin">Logga in</button>
-            <button class="auth-tab" id="tabReg">Skapa konto</button>
-          </div>
-          <div class="auth-form visible" id="loginForm">
-            <h2>Välkommen tillbaka</h2>
-            <p>Ange dina uppgifter för att fortsätta.</p>
-            <div class="field-group"><label class="label">E-post</label><input id="loginEmail" class="input" type="email" placeholder="din@epost.se" /></div>
-            <div class="field-group"><label class="label">Lösenord</label><input id="loginPass" class="input" type="password" placeholder="••••••••" /></div>
-            <button id="loginBtn" class="btn-primary" style="width:100%;justify-content:center;">Logga in</button>
-            <p style="font-size:11px;color:#9CA3AF;text-align:center;">Demo: registrera ett konto och logga in.</p>
-          </div>
-          <div class="auth-form" id="regForm">
-            <h2>Skapa konto</h2>
-            <p>Kom igång på ett par sekunder.</p>
-            <div class="field-group"><label class="label">Namn</label><input id="regName" class="input" placeholder="Ditt namn" /></div>
-            <div class="field-group"><label class="label">E-post</label><input id="regEmail" class="input" type="email" placeholder="din@epost.se" /></div>
-            <div class="field-group"><label class="label">Lösenord</label><input id="regPass" class="input" type="password" placeholder="Min 4 tecken" /></div>
-            <button id="regBtn" class="btn-primary" style="width:100%;justify-content:center;">Skapa konto</button>
-            <p style="font-size:11px;color:#9CA3AF;text-align:center;">Riktig version: BankID-verifiering.</p>
+      </div>
+
+      <!-- Vision -->
+      <div style="background:#0F1117;padding:80px 48px;">
+        <div style="max-width:1000px;margin:0 auto;">
+          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#C2622A;margin-bottom:12px;">Hur det fungerar</div>
+          <div style="font-size:clamp(26px,3vw,42px);font-weight:700;letter-spacing:-.04em;color:#fff;max-width:640px;line-height:1.1;margin-bottom:52px;">Från förälskelse till möjlighet — utan att fastigheten behöver vara till salu.</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:32px;">
+            ${[
+              { num:"01", title:"Du hittar drömfastigheten", desc:"Du åker förbi ett hus eller en tomt och tänder till. Sök upp fastigheten på kartan och lämna ett gilla eller ett intresse — anonymt." },
+              { num:"02", title:"Ägaren väcks till liv", desc:"Fastighetsägaren får en notis om att någon visat intresse. Kanske visste de inte ens att deras hem var eftertraktat." },
+              { num:"03", title:"En marknad på egna villkor", desc:"Ägaren väljer själv om de vill vara passiva, visa upp fastigheten, eller sätta ett pris. Du följer i din egen takt." },
+            ].map(s=>`
+              <div>
+                <div style="font-size:11px;font-weight:700;letter-spacing:.1em;color:#C2622A;margin-bottom:14px;">${s.num}</div>
+                <div style="font-size:17px;font-weight:600;letter-spacing:-.03em;color:#fff;margin-bottom:10px;line-height:1.2;">${s.title}</div>
+                <div style="font-size:14px;color:rgba(255,255,255,.5);line-height:1.7;">${s.desc}</div>
+              </div>
+            `).join('')}
           </div>
         </div>
+      </div>
+
+      <!-- Pinterest grid -->
+      <div style="background:#111318;padding:60px 24px 80px;">
+        <div style="max-width:1000px;margin:0 auto;">
+          <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:28px;">
+            <div>
+              <div style="font-size:22px;font-weight:700;letter-spacing:-.04em;color:#fff;">Fastigheter på ifound</div>
+              <div style="font-size:13px;color:rgba(255,255,255,.4);margin-top:4px;">Villor, tomter, lägenheter och kustnära hem</div>
+            </div>
+          </div>
+          <div style="columns:3;column-gap:10px;">
+            ${[
+              { img:"https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=400&q=80&auto=format", name:"Pålsjö 4:7", meta:"Villa · 240 kvm", likes:18, badge:"Passiv", h:200 },
+              { img:"https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400&q=80&auto=format", name:"Laröd 3:19", meta:"Gård · 5 200 kvm", likes:41, badge:"Populär", h:260 },
+              { img:"https://images.unsplash.com/photo-1449844908441-8829872d2607?w=400&q=80&auto=format", name:"Viken Strand 4:2", meta:"Kusthus · 145 kvm", likes:58, badge:"58 gillar", h:230 },
+              { img:"https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=400&q=80&auto=format", name:"Kulla 1:4", meta:"Tomt · 2 400 kvm", likes:24, badge:"Passiv", h:180 },
+              { img:"https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=400&q=80&auto=format", name:"Raus Plantage 7:2", meta:"Gård · 4 800 kvm", likes:6, badge:"Ny claim", h:210 },
+              { img:"https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=400&q=80&auto=format", name:"Fredriksdal 6:1", meta:"Villa · 195 kvm", likes:19, badge:"Till salu", h:190 },
+            ].map(p=>`
+              <div style="break-inside:avoid;margin-bottom:10px;border-radius:14px;overflow:hidden;position:relative;cursor:pointer;">
+                <img src="${p.img}" alt="${p.name}" style="width:100%;height:${p.h}px;object-fit:cover;display:block;" loading="lazy" />
+                <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.65) 0%,transparent 55%);"></div>
+                <div style="position:absolute;top:10px;left:10px;">
+                  <span style="font-size:10px;font-weight:600;background:rgba(194,98,42,.88);color:#fff;border-radius:999px;padding:3px 9px;">${p.badge}</span>
+                </div>
+                <div style="position:absolute;bottom:0;left:0;right:0;padding:14px;">
+                  <div style="font-size:13px;font-weight:600;color:#fff;letter-spacing:-.02em;">${p.name}</div>
+                  <div style="font-size:11px;color:rgba(255,255,255,.6);margin-top:2px;display:flex;align-items:center;gap:8px;">${p.meta} <span style="display:flex;align-items:center;gap:3px;"><i class="ti ti-heart" style="font-size:11px;" aria-hidden="true"></i>${p.likes}</span></div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+
+      <!-- CTA -->
+      <div style="background:#0F1117;border-top:0.5px solid rgba(255,255,255,.06);padding:72px 48px;text-align:center;">
+        <div style="font-size:clamp(26px,3.5vw,48px);font-weight:700;letter-spacing:-.05em;color:#fff;margin-bottom:14px;line-height:1.05;">Redo att hitta ditt<br><em style="font-style:normal;color:#C2622A;">nästa hem?</em></div>
+        <p style="font-size:15px;color:rgba(255,255,255,.5);max-width:440px;margin:0 auto 28px;line-height:1.6;">Gå med tusentals nyfikna och ägare som vill synas — utan att behöva sälja.</p>
+        <button onclick="document.getElementById('auth-section').scrollIntoView({behavior:'smooth'})" style="padding:14px 32px;border-radius:12px;border:none;background:#C2622A;color:#fff;font-size:15px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">Skapa gratis konto</button>
+      </div>
+
+      <!-- Footer -->
+      <div style="background:#0a0b0f;padding:20px 48px;display:flex;align-items:center;justify-content:space-between;border-top:0.5px solid rgba(255,255,255,.05);">
+        <div style="font-size:15px;font-weight:700;letter-spacing:-.04em;color:rgba(255,255,255,.4);">i<em style="font-style:normal;color:#C2622A;">found</em></div>
+        <div style="font-size:12px;color:rgba(255,255,255,.2);">© 2025 ifound.se · Beta · Helsingborg</div>
       </div>
     </div>
   `;
 
-  document.getElementById("tabLogin").onclick = () => {
-    document.getElementById("tabLogin").classList.add("active");
-    document.getElementById("tabReg").classList.remove("active");
-    document.getElementById("loginForm").classList.add("visible");
-    document.getElementById("regForm").classList.remove("visible");
-  };
-  document.getElementById("tabReg").onclick = () => {
-    document.getElementById("tabReg").classList.add("active");
-    document.getElementById("tabLogin").classList.remove("active");
-    document.getElementById("regForm").classList.add("visible");
-    document.getElementById("loginForm").classList.remove("visible");
-  };
+  function switchTab(tab) {
+    const isLogin = tab === 'login';
+    document.getElementById('tabLogin').style.cssText = isLogin
+      ? 'flex:1;padding:9px;border-radius:8px;border:none;background:#fff;color:#111827;font-size:13px;font-weight:600;cursor:pointer;font-family:Inter,sans-serif;box-shadow:0 1px 4px rgba(0,0,0,.08);'
+      : 'flex:1;padding:9px;border-radius:8px;border:none;background:transparent;color:#6B7280;font-size:13px;font-weight:500;cursor:pointer;font-family:Inter,sans-serif;';
+    document.getElementById('tabReg').style.cssText = !isLogin
+      ? 'flex:1;padding:9px;border-radius:8px;border:none;background:#fff;color:#111827;font-size:13px;font-weight:600;cursor:pointer;font-family:Inter,sans-serif;box-shadow:0 1px 4px rgba(0,0,0,.08);'
+      : 'flex:1;padding:9px;border-radius:8px;border:none;background:transparent;color:#6B7280;font-size:13px;font-weight:500;cursor:pointer;font-family:Inter,sans-serif;';
+    document.getElementById('loginForm').style.display = isLogin ? 'flex' : 'none';
+    document.getElementById('regForm').style.display = !isLogin ? 'flex' : 'none';
+  }
 
   document.getElementById("loginBtn").onclick = () => {
     const email = document.getElementById("loginEmail").value.trim().toLowerCase();
@@ -389,10 +474,6 @@ function renderWelcome() {
     saveUsers(users); saveSession({ email }); toast("Konto skapat — välkommen!"); navigate("dashboard");
   };
 }
-
-// =========================
-// DASHBOARD VIEW
-// =========================
 function readImageAsDataUrl(file) {
   return new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); });
 }
@@ -1516,62 +1597,55 @@ function renderAdmin() {
 
   const pendingClaims = Object.values(users).filter(u => u.pendingClaim && u.pendingClaim.status === 'pending');
 
+  const pendingClaimsHtml = pendingClaims.length > 0 ? pendingClaims.map(u => `
+    <div style="padding:16px 20px;border-bottom:0.5px solid rgba(17,24,39,.05);">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;">
+        <div>
+          <div style="font-size:13px;font-weight:600;color:#111827;">${u.pendingClaim.prop}</div>
+          <div style="font-size:11px;color:#9CA3AF;margin-top:2px;">Inskickad av ${u.pendingClaim.name}</div>
+        </div>
+        <span style="font-size:10px;font-weight:600;background:#FEF0E7;color:#C2622A;border-radius:999px;padding:3px 9px;flex-shrink:0;margin-left:10px;">Inväntar</span>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
+        <div style="background:#F9F6F1;border-radius:8px;padding:10px 12px;">
+          <div style="font-size:10px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:3px;">Namn</div>
+          <div style="font-size:12px;font-weight:600;color:#111827;">${u.pendingClaim.name}</div>
+        </div>
+        <div style="background:#F9F6F1;border-radius:8px;padding:10px 12px;">
+          <div style="font-size:10px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:3px;">Personnummer</div>
+          <div style="font-size:12px;font-weight:600;color:#111827;font-family:monospace;">${u.pendingClaim.pnr}</div>
+        </div>
+        <div style="background:#F9F6F1;border-radius:8px;padding:10px 12px;">
+          <div style="font-size:10px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:3px;">Fastighet</div>
+          <div style="font-size:12px;font-weight:600;color:#111827;">${u.pendingClaim.prop}</div>
+        </div>
+        <div style="background:#F9F6F1;border-radius:8px;padding:10px 12px;">
+          <div style="font-size:10px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:3px;">Synlighet</div>
+          <div style="font-size:12px;font-weight:600;color:#111827;">${{private:'Privat',public:'Synlig',sale:'Till salu'}[u.pendingClaim.visibility]||'Privat'}</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="approveClaim('${u.email}')" style="flex:1;padding:9px;border-radius:9px;border:none;background:#16a34a;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">Godkänn</button>
+        <button onclick="rejectClaim('${u.email}')" style="flex:1;padding:9px;border-radius:9px;border:0.5px solid rgba(17,24,39,.12);background:#fff;color:#dc2626;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">Neka</button>
+      </div>
+    </div>
+  `).join('') : '<div style="padding:16px 20px;font-size:13px;color:#9CA3AF;">Inga väntande claims.</div>';
+
   const moderationHtml = `
     <div style="display:grid;gap:12px;">
 
-      ${pendingClaims.length > 0 ? `
-        <div style="background:#fff;border:1.5px solid #C2622A;border-radius:14px;overflow:hidden;">
-          <div style="padding:14px 20px;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;align-items:center;justify-content:space-between;background:#FEF0E7;">
-            <div style="display:flex;align-items:center;gap:8px;">
-              <i class="ti ti-home-check" style="font-size:16px;color:#C2622A;" aria-hidden="true"></i>
-              <div style="font-size:13px;font-weight:600;color:#C2622A;">Claims som väntar verifiering</div>
-            </div>
-            <span style="font-size:11px;font-weight:700;background:#C2622A;color:#fff;border-radius:999px;padding:2px 8px;">${pendingClaims.length}</span>
+      <div style="background:#fff;border:1.5px solid #C2622A;border-radius:14px;overflow:hidden;">
+        <div style="padding:14px 20px;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;align-items:center;justify-content:space-between;background:#FEF0E7;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <i class="ti ti-home-check" style="font-size:16px;color:#C2622A;" aria-hidden="true"></i>
+            <div style="font-size:13px;font-weight:600;color:#C2622A;">Claims som väntar verifiering</div>
           </div>
-          ${pendingClaims.map(u => \`
-            <div style="padding:16px 20px;border-bottom:0.5px solid rgba(17,24,39,.05);">
-              <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;">
-                <div>
-                  <div style="font-size:13px;font-weight:600;color:#111827;">\${u.pendingClaim.prop}</div>
-                  <div style="font-size:11px;color:#9CA3AF;margin-top:2px;">Inskickad av \${u.pendingClaim.name} · \${new Date(u.pendingClaim.submittedAt).toLocaleDateString('sv-SE')}</div>
-                </div>
-                <span style="font-size:10px;font-weight:600;background:#FEF0E7;color:#C2622A;border-radius:999px;padding:3px 9px;flex-shrink:0;margin-left:10px;">Inväntar</span>
-              </div>
-              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
-                <div style="background:#F9F6F1;border-radius:8px;padding:10px 12px;">
-                  <div style="font-size:10px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:3px;">Namn</div>
-                  <div style="font-size:12px;font-weight:600;color:#111827;">\${u.pendingClaim.name}</div>
-                </div>
-                <div style="background:#F9F6F1;border-radius:8px;padding:10px 12px;">
-                  <div style="font-size:10px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:3px;">Personnummer</div>
-                  <div style="font-size:12px;font-weight:600;color:#111827;font-family:monospace;">\${u.pendingClaim.pnr}</div>
-                </div>
-                <div style="background:#F9F6F1;border-radius:8px;padding:10px 12px;">
-                  <div style="font-size:10px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:3px;">Fastighet</div>
-                  <div style="font-size:12px;font-weight:600;color:#111827;">\${u.pendingClaim.prop}</div>
-                </div>
-                <div style="background:#F9F6F1;border-radius:8px;padding:10px 12px;">
-                  <div style="font-size:10px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:3px;">Synlighet</div>
-                  <div style="font-size:12px;font-weight:600;color:#111827;">\${{ private:'Privat', public:'Synlig', sale:'Till salu' }[u.pendingClaim.visibility] || 'Privat'}</div>
-                </div>
-              </div>
-              <div style="display:flex;gap:8px;">
-                <button onclick="approveClaim('\${u.email}')" style="flex:1;padding:9px;border-radius:9px;border:none;background:#16a34a;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;justify-content:center;gap:6px;">
-                  <i class="ti ti-check" aria-hidden="true"></i> Godkänn
-                </button>
-                <button onclick="rejectClaim('\${u.email}')" style="flex:1;padding:9px;border-radius:9px;border:0.5px solid rgba(17,24,39,.12);background:#fff;color:#dc2626;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;justify-content:center;gap:6px;">
-                  <i class="ti ti-x" aria-hidden="true"></i> Neka
-                </button>
-                <a href="https://www.lantmateriet.se/fastighetsregistret" target="_blank" style="flex:1;padding:9px;border-radius:9px;border:0.5px solid rgba(17,24,39,.12);background:#fff;color:#111827;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;">
-                  <i class="ti ti-external-link" aria-hidden="true"></i> Lantmäteriet
-                </a>
-              </div>
-            </div>
-          \`).join('')}
+          <span style="font-size:11px;font-weight:700;background:#C2622A;color:#fff;border-radius:999px;padding:2px 8px;">${pendingClaims.length}</span>
         </div>
-      ` : ''}
+        ${pendingClaimsHtml}
+      </div>
 
-      <div style="background:#FEF2F2;border:0.5px solid rgba(220,38,38,.15);border-radius:14px;padding:18px 20px;">
+            <div style="background:#FEF2F2;border:0.5px solid rgba(220,38,38,.15);border-radius:14px;padding:18px 20px;">
         <div style="display:flex;align-items:flex-start;gap:14px;">
           <div style="width:40px;height:40px;border-radius:10px;background:#FEE2E2;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
             <i class="ti ti-flag" style="font-size:18px;color:#dc2626;" aria-hidden="true"></i>

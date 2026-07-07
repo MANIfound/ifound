@@ -177,6 +177,37 @@ function addGeoJsonToMap(geojson, opts = {}) {
   if (parcelsLayer) { parcelsLayer.remove(); parcelsLayer = null; }
   lastGeoJson = geojson;
 
+  parcelsLayer = L.geoJSON(geojson, {
+    style: {
+      color: "#ffffff",
+      weight: 1,
+      opacity: 0.8,
+      fill: false,
+    },
+    onEachFeature: (feature, layer) => {
+      layer.on("click", () => renderParcelPanel(feature));
+      layer.on("mouseover", () => {
+        map.getContainer().style.cursor = "pointer";
+        layer.setStyle({ color: "#C2622A", weight: 2 });
+      });
+      layer.on("mouseout", () => {
+        map.getContainer().style.cursor = "";
+        layer.setStyle({ color: "#ffffff", weight: 1, fill: false });
+      });
+    },
+  }).addTo(map);
+
+  try {
+    const b = parcelsLayer.getBounds();
+    if (b?.isValid() && !opts.keepView) map.fitBounds(b, { padding: [20, 20] });
+  } catch {}
+
+  try { localStorage.setItem(LS_GEOJSON, JSON.stringify(geojson)); } catch {}
+  if (!opts.silent) toast("Fastighetslager inläst — klicka på en fastighet.");
+  ensureMapMounted();
+  if (parcelsLayer) { parcelsLayer.remove(); parcelsLayer = null; }
+  lastGeoJson = geojson;
+
   if (!map.getPane("parcelsPane")) {
     map.createPane("parcelsPane");
     map.getPane("parcelsPane").style.zIndex = 450;
@@ -1206,6 +1237,7 @@ function renderMapView() {
             <option value="visitor" ${savedMode==="visitor"?"selected":""}>Besökarläge</option>
             <option value="owner"   ${savedMode==="owner"  ?"selected":""}>Ägarläge</option>
           </select>
+          <label class="toolbar-upload"><i class="ti ti-upload" aria-hidden="true"></i> Ladda GeoJSON<input id="fileInput" type="file" accept=".geojson,application/geo+json,application/json" /></label>
           <button id="nearMeMapBtn" class="toolbar-btn"><i class="ti ti-current-location" aria-hidden="true"></i> Nära mig</button>
           <button id="toggleMapStyleBtn" class="toolbar-btn">${currentBase==="map"?"Flygfoto":"Kartvy"}</button>
           <button id="backBtn" class="toolbar-btn"><i class="ti ti-arrow-left" aria-hidden="true"></i> Min sida</button>
@@ -1234,15 +1266,18 @@ function renderMapView() {
     baseLayers[currentBase].addTo(map);
   }
 
-  // Try loading saved GeoJSON first, then auto-load centrum file
+  // Load saved GeoJSON if exists, otherwise prompt upload
   const saved = localStorage.getItem(LS_GEOJSON);
   if (saved) {
     try {
-      addGeoJsonToMap(JSON.parse(saved), { keepView: true });
-      updateMapStatus(JSON.parse(saved).features?.length || 0);
-    } catch { autoLoadCentrum(); }
+      const gj = JSON.parse(saved);
+      addGeoJsonToMap(gj, { keepView: true });
+      updateMapStatus(gj.features?.length || 0);
+    } catch {
+      toast("Ladda upp en GeoJSON-fil för att se fastigheter.");
+    }
   } else {
-    autoLoadCentrum();
+    toast("Ladda upp helsingborg_centrum.geojson för att se tomtgränser.");
   }
 
   // Controls
@@ -1259,6 +1294,23 @@ function renderMapView() {
   });
 
   document.getElementById("backBtn").onclick = () => { closePanel(); navigate("dashboard"); };
+
+  document.getElementById("fileInput").addEventListener("change", async e => {
+    const file = e.target.files?.[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        let geojson = JSON.parse(ev.target.result);
+        if (geojson.type === "Feature") geojson = { type: "FeatureCollection", features: [geojson] };
+        if (geojson.type !== "FeatureCollection") throw new Error("Ogiltig GeoJSON");
+        toast(`Läste ${geojson.features.length} objekt.`);
+        addGeoJsonToMap(geojson);
+        updateMapStatus(geojson.features.length);
+      } catch(err) { toast("Kunde inte läsa filen: " + err.message); }
+      e.target.value = "";
+    };
+    reader.readAsText(file);
+  });
 
   document.getElementById("nearMeMapBtn").onclick = () => {
     if (!navigator.geolocation) { toast("Din webbläsare stödjer inte platsfunktion."); return; }

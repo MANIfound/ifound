@@ -193,6 +193,86 @@ function addGeoJsonToMap(geojson, opts = {}) {
   if (parcelsLayer) { parcelsLayer.remove(); parcelsLayer = null; }
   lastGeoJson = geojson;
 
+  if (!map.getPane("parcelsPane")) {
+    map.createPane("parcelsPane");
+    map.getPane("parcelsPane").style.zIndex = 450;
+  }
+  if (!map.getPane("outlinePane")) {
+    map.createPane("outlinePane");
+    map.getPane("outlinePane").style.zIndex = 449;
+  }
+
+  const group = L.layerGroup().addTo(map);
+
+  for (const feature of (geojson.features || [])) {
+    const geom = feature?.geometry;
+    if (!geom || !['Polygon','MultiPolygon'].includes(geom.type)) continue;
+
+    const polygons = geom.type === 'Polygon'
+      ? [geom.coordinates]
+      : geom.coordinates;
+
+    for (const poly of polygons) {
+      const latLngs = poly[0].map(p => [p[1], p[0]]);
+      if (latLngs.length < 3) continue;
+
+      // Visible outline (not interactive)
+      const outline = L.polygon(latLngs, {
+        pane: "outlinePane",
+        color: "rgba(255,255,255,0.7)",
+        weight: 1,
+        fill: false,
+        interactive: false,
+        smoothFactor: 0,
+      });
+
+      // Invisible fill — catches ALL clicks inside the polygon
+      const hitArea = L.polygon(latLngs, {
+        pane: "parcelsPane",
+        color: "transparent",
+        weight: 0,
+        fill: true,
+        fillColor: "#000000",
+        fillOpacity: 0.001,
+        interactive: true,
+        smoothFactor: 0,
+      });
+
+      hitArea.on("click", () => {
+        // Briefly highlight outline on click
+        outline.setStyle({ color: "#C2622A", weight: 2 });
+        setTimeout(() => outline.setStyle({ color: "rgba(255,255,255,0.7)", weight: 1 }), 1200);
+        renderParcelPanel(feature);
+      });
+
+      hitArea.on("mouseover", () => {
+        map.getContainer().style.cursor = "pointer";
+        outline.setStyle({ color: "#C2622A", weight: 2 });
+      });
+
+      hitArea.on("mouseout", () => {
+        map.getContainer().style.cursor = "";
+        outline.setStyle({ color: "rgba(255,255,255,0.7)", weight: 1 });
+      });
+
+      group.addLayer(outline);
+      group.addLayer(hitArea);
+    }
+  }
+
+  parcelsLayer = group;
+
+  try {
+    const b = L.geoJSON(geojson).getBounds();
+    if (b?.isValid() && !opts.keepView) map.fitBounds(b, { padding: [20,20] });
+  } catch {}
+
+  try { localStorage.setItem(LS_GEOJSON, JSON.stringify(geojson)); } catch {}
+  if (!opts.silent) toast("Fastighetslager inläst — klicka på en fastighet.");
+  ensureMapMounted();
+  if (parcelsLayer) { parcelsLayer.remove(); parcelsLayer = null; }
+  lastGeoJson = geojson;
+
   parcelsLayer = L.geoJSON(geojson, {
     style: {
       color: "#ffffff",
@@ -1298,10 +1378,7 @@ function renderMapView() {
       }
       .ifound-popup .leaflet-popup-content { margin: 16px; }
       .ifound-popup .leaflet-popup-tip { background: #fff; }
-      /* Make entire parcel polygon clickable, not just the stroke */
-      #map .leaflet-overlay-pane svg path {
-        pointer-events: all !important;
-      }
+
     </style>
   `;
 
@@ -1416,6 +1493,11 @@ const CLAIMED_PROPS = [
   { id: "SÖDER 8>22B",       lat: 56.04100, lon: 12.70500, status: "rent",    name: "Söder 8:22B",       likes: 8,  interested: 3,  price: "7 500 kr/mån" },
 ];
 
+// User's own claimed property (always shown if claimedByCurrentUser)
+const OWNER_PARCEL_COORDS = {
+  "VENDELA 11": { lat: 56.04027, lon: 12.72815 },
+};
+
 let markerLayer = null;
 
 function createMarkerIcon(status) {
@@ -1467,17 +1549,22 @@ function addClaimedMarkers() {
     let lat = state.ownerLat;
     let lon = state.ownerLon;
 
-    // Try to get centroid from parcelsLayer if no stored coords
+    // Check hardcoded coords first
+    if (!lat || !lon) {
+      const ownerNorm = ownerId.toUpperCase().trim();
+      const hardcoded = OWNER_PARCEL_COORDS[ownerNorm];
+      if (hardcoded) { lat = hardcoded.lat; lon = hardcoded.lon; }
+    }
+    // Then try parcelsLayer centroid
     if ((!lat || !lon) && parcelsLayer) {
       try {
         const ownerNorm = ownerId.toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g,'');
         parcelsLayer.eachLayer(layer => {
           if (lat && lon) return;
           if (!layer.feature) return;
-          const pid = getParcelId(layer.feature);
           const fname = (layer.feature.properties?.fastighet || '').toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g,'');
-          const pidNorm = pid.toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g,'');
-          if (pid === ownerId || pidNorm === ownerNorm || fname === ownerNorm || fname.startsWith(ownerNorm)) {
+          const pid = getParcelId(layer.feature).toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g,'');
+          if (pid === ownerNorm || fname === ownerNorm || fname.startsWith(ownerNorm)) {
             const bounds = layer.getBounds?.();
             if (bounds?.isValid()) {
               const c = bounds.getCenter();

@@ -158,12 +158,29 @@ function reprojectGeoJsonIfNeeded(geojson) {
 // Map
 // =========================
 function ensureMapMounted() {
+  // If map exists but its container is no longer in the DOM, destroy and reinit
+  if (map) {
+    try {
+      const container = map.getContainer();
+      if (!document.body.contains(container)) {
+        map.remove();
+        map = null;
+      }
+    } catch {
+      map = null;
+    }
+  }
   if (map) return;
   const svgRenderer = L.svg({ padding: 0.5 });
   map = L.map("map", { zoomControl: true, renderer: svgRenderer }).setView([56.0465, 12.6945], 13);
   baseLayers.map = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" });
   baseLayers.satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Tiles &copy; Esri" });
   baseLayers.map.addTo(map);
+  // Restore last base layer
+  if (currentBase === "satellite") {
+    baseLayers.map.remove();
+    baseLayers.satellite.addTo(map);
+  }
 }
 
 function clearLayer() {
@@ -1237,7 +1254,6 @@ function renderMapView() {
             <option value="visitor" ${savedMode==="visitor"?"selected":""}>Besökarläge</option>
             <option value="owner"   ${savedMode==="owner"  ?"selected":""}>Ägarläge</option>
           </select>
-          <label class="toolbar-upload"><i class="ti ti-upload" aria-hidden="true"></i> Ladda GeoJSON<input id="fileInput" type="file" accept=".geojson,application/geo+json,application/json" /></label>
           <button id="nearMeMapBtn" class="toolbar-btn"><i class="ti ti-current-location" aria-hidden="true"></i> Nära mig</button>
           <button id="toggleMapStyleBtn" class="toolbar-btn">${currentBase==="map"?"Flygfoto":"Kartvy"}</button>
           <button id="backBtn" class="toolbar-btn"><i class="ti ti-arrow-left" aria-hidden="true"></i> Min sida</button>
@@ -1266,8 +1282,17 @@ function renderMapView() {
     baseLayers[currentBase].addTo(map);
   }
 
-  // Always auto-load fresh from GitHub
-  autoLoadCentrum();
+  // If we have cached GeoJSON use it, otherwise fetch fresh
+  const cached = localStorage.getItem(LS_GEOJSON);
+  if (cached) {
+    try {
+      const gj = JSON.parse(cached);
+      addGeoJsonToMap(gj, { keepView: true });
+      updateMapStatus(gj.features?.length || 0);
+    } catch { autoLoadCentrum(); }
+  } else {
+    autoLoadCentrum();
+  }
 
   // Controls
   document.getElementById("toggleMapStyleBtn").onclick = () => {
@@ -1284,40 +1309,31 @@ function renderMapView() {
 
   document.getElementById("backBtn").onclick = () => { closePanel(); navigate("dashboard"); };
 
-  document.getElementById("fileInput").addEventListener("change", async e => {
-    const file = e.target.files?.[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        let geojson = JSON.parse(ev.target.result);
-        if (geojson.type === "Feature") geojson = { type: "FeatureCollection", features: [geojson] };
-        if (geojson.type !== "FeatureCollection") throw new Error("Ogiltig GeoJSON");
-        toast(`Läste ${geojson.features.length} objekt.`);
-        addGeoJsonToMap(geojson);
-        updateMapStatus(geojson.features.length);
-      } catch(err) { toast("Kunde inte läsa filen: " + err.message); }
-      e.target.value = "";
-    };
-    reader.readAsText(file);
-  });
-
   document.getElementById("nearMeMapBtn").onclick = () => {
-    if (!navigator.geolocation) { toast("Din webbläsare stödjer inte platsfunktion."); return; }
     const btn = document.getElementById("nearMeMapBtn");
-    btn.innerHTML = '<i class="ti ti-loader" aria-hidden="true"></i> Söker...';
-    navigator.geolocation.getCurrentPosition(pos => {
-      const { latitude: lat, longitude: lng } = pos.coords;
-      map.setView([lat, lng], 17);
-      if (locateMarker) locateMarker.remove();
-      locateMarker = L.circleMarker([lat, lng], {
-        radius: 9, weight: 3, color: "#C2622A", fillColor: "#C2622A", fillOpacity: 0.9
-      }).addTo(map);
-      toast("Visar fastigheter nära dig.");
-      btn.innerHTML = '<i class="ti ti-current-location" aria-hidden="true"></i> Nära mig';
-    }, () => {
-      toast("Kunde inte hämta din position.");
-      btn.innerHTML = '<i class="ti ti-current-location" aria-hidden="true"></i> Nära mig';
-    }, { enableHighAccuracy: true, timeout: 8000 });
+    if (!navigator.geolocation) { toast("Din webbläsare stödjer inte platsfunktion."); return; }
+    if (!map) { toast("Kartan är inte laddad ännu."); return; }
+    btn.textContent = "Söker...";
+    btn.disabled = true;
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        map.setView([lat, lng], 16);
+        if (locateMarker) { try { locateMarker.remove(); } catch {} }
+        locateMarker = L.circleMarker([lat, lng], {
+          radius: 10, weight: 3, color: "#C2622A", fillColor: "#C2622A", fillOpacity: 0.9
+        }).addTo(map);
+        toast("Visar fastigheter nära dig.");
+        btn.innerHTML = '<i class="ti ti-current-location" aria-hidden="true"></i> Nära mig';
+        btn.disabled = false;
+      },
+      () => {
+        toast("Kunde inte hämta din position — kontrollera att platsbehörighet är tillåten.");
+        btn.innerHTML = '<i class="ti ti-current-location" aria-hidden="true"></i> Nära mig';
+        btn.disabled = false;
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
   };
 
   // Search with autocomplete

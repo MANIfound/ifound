@@ -1298,6 +1298,10 @@ function renderMapView() {
       }
       .ifound-popup .leaflet-popup-content { margin: 16px; }
       .ifound-popup .leaflet-popup-tip { background: #fff; }
+      /* Make entire parcel polygon clickable, not just the stroke */
+      #map .leaflet-overlay-pane svg path {
+        pointer-events: all !important;
+      }
     </style>
   `;
 
@@ -1451,24 +1455,44 @@ function createMarkerIcon(status) {
 function addClaimedMarkers() {
   if (!map) return;
   if (markerLayer) { markerLayer.remove(); markerLayer = null; }
-
   markerLayer = L.layerGroup().addTo(map);
 
-  const allProps = [...CLAIMED_PROPS];
-  // Only add user's own property if we have real coordinates (from parcel click)
   const state = loadState();
   const ownerId = state.ownerParcelId;
-  if (ownerId && state.ownerLat && state.ownerLon && !allProps.find(p => p.id === ownerId)) {
+  const allProps = [...CLAIMED_PROPS];
+
+  // Add user's own claimed property
+  if (ownerId) {
     const ownerName = state.parcelNames?.[ownerId] || ownerId;
-    allProps.push({
-      id: ownerId,
-      lat: state.ownerLat,
-      lon: state.ownerLon,
-      status: state.claimData?.visibility === 'sale' ? 'sale' : state.claimData?.visibility === 'rent' ? 'rent' : 'passive',
-      name: ownerName,
-      likes: state.likes?.[ownerId] || 0,
-      interested: state.interests?.[ownerId] || 0,
-    });
+    let lat = state.ownerLat;
+    let lon = state.ownerLon;
+
+    // Try to get centroid from parcelsLayer if no stored coords
+    if ((!lat || !lon) && parcelsLayer) {
+      try {
+        parcelsLayer.eachLayer(layer => {
+          if (layer.feature && getParcelId(layer.feature) === ownerId) {
+            const bounds = layer.getBounds?.();
+            if (bounds?.isValid()) {
+              const c = bounds.getCenter();
+              lat = c.lat; lon = c.lng;
+              const s = loadState(); s.ownerLat = lat; s.ownerLon = lon; saveState(s);
+            }
+          }
+        });
+      } catch {}
+    }
+
+    if (lat && lon && !allProps.find(p => p.id === ownerId)) {
+      const vis = state.claimData?.visibility;
+      allProps.push({
+        id: ownerId, lat, lon,
+        status: vis === 'sale' ? 'sale' : vis === 'rent' ? 'rent' : 'passive',
+        name: ownerName,
+        likes: state.likes?.[ownerId] || 0,
+        interested: state.interests?.[ownerId] || 0,
+      });
+    }
   }
 
   allProps.forEach(prop => {

@@ -1061,58 +1061,62 @@ function renderMapView() {
   if (!session?.email) return navigate("welcome");
   const savedMode = loadSavedMapMode();
 
-  // Save the existing Leaflet container before wiping the DOM
-  const existingMapContainer = map ? map.getContainer() : null;
-
   app.innerHTML = `
     <div class="map-page">
       <div class="map-overlay map-tl">
         <div class="glass-card map-search">
-          <input id="addressSearch" class="map-search-input" placeholder="Sök adress eller fastighet…" />
-          <button id="searchBtn" class="map-search-btn"><i class="ti ti-search"></i></button>
+          <input id="addressSearch" class="map-search-input" placeholder="Sök adress eller fastighet..." />
+          <button id="searchBtn" class="map-search-btn"><i class="ti ti-search" aria-hidden="true"></i></button>
+          <div id="searchDropdown" style="display:none;position:absolute;top:calc(100% + 8px);left:0;right:0;background:#fff;border:0.5px solid rgba(17,24,39,.10);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.10);z-index:100;overflow:hidden;max-height:280px;overflow-y:auto;"></div>
         </div>
       </div>
+
       <div class="map-overlay map-tr">
         <div class="glass-card map-toolbar">
           <select id="modeSelect" class="toolbar-select">
             <option value="visitor" ${savedMode==="visitor"?"selected":""}>Besökarläge</option>
             <option value="owner"   ${savedMode==="owner"  ?"selected":""}>Ägarläge</option>
           </select>
-          <label class="toolbar-upload"><i class="ti ti-upload"></i> Ladda karta<input id="fileInput" type="file" accept=".geojson,application/geo+json,application/json" /></label>
+          <button id="nearMeMapBtn" class="toolbar-btn"><i class="ti ti-current-location" aria-hidden="true"></i> Nära mig</button>
           <button id="toggleMapStyleBtn" class="toolbar-btn">${currentBase==="map"?"Flygfoto":"Kartvy"}</button>
-          <button id="locateBtn"         class="toolbar-btn"><i class="ti ti-current-location"></i> Hitta mig</button>
-          <button id="backBtn"           class="toolbar-btn"><i class="ti ti-arrow-left"></i> Min sida</button>
-          <button id="clearBtn"          class="toolbar-btn"><i class="ti ti-trash"></i> Rensa</button>
+          <button id="backBtn" class="toolbar-btn"><i class="ti ti-arrow-left" aria-hidden="true"></i> Min sida</button>
         </div>
       </div>
+
       <div class="map-overlay map-bl">
         <div class="glass-card map-brand">
           <div class="map-brand-name">i<em>found</em></div>
-          <div class="map-brand-sub">Utforska fastigheter</div>
+          <div class="map-brand-sub" id="mapStatus">Laddar fastigheter...</div>
         </div>
       </div>
+
       <div class="map-wrap"><div id="map"></div></div>
       <div id="panel" class="panel hidden"></div>
     </div>
   `;
 
-  // Re-attach the existing Leaflet container, or initialise fresh
-  if (existingMapContainer) {
-    const placeholder = document.getElementById("map");
-    placeholder.parentNode.replaceChild(existingMapContainer, placeholder);
-  } else {
-    ensureMapMounted();
+  ensureMapMounted();
+
+  // Sync base layer
+  ["map","satellite"].forEach(k => {
+    if (baseLayers[k] && map.hasLayer(baseLayers[k]) && currentBase !== k) map.removeLayer(baseLayers[k]);
+  });
+  if (baseLayers[currentBase] && !map.hasLayer(baseLayers[currentBase])) {
+    baseLayers[currentBase].addTo(map);
   }
 
-  ["map","satellite"].forEach(k => { if (baseLayers[k] && map.hasLayer(baseLayers[k]) && currentBase !== k) map.removeLayer(baseLayers[k]); });
-  if (baseLayers[currentBase] && !map.hasLayer(baseLayers[currentBase])) baseLayers[currentBase].addTo(map);
+  // Try loading saved GeoJSON first, then auto-load centrum file
+  const saved = localStorage.getItem(LS_GEOJSON);
+  if (saved) {
+    try {
+      addGeoJsonToMap(JSON.parse(saved), { keepView: true });
+      updateMapStatus(JSON.parse(saved).features?.length || 0);
+    } catch { autoLoadCentrum(); }
+  } else {
+    autoLoadCentrum();
+  }
 
-  try {
-    const saved = localStorage.getItem(LS_GEOJSON);
-    if (saved) { addGeoJsonToMap(JSON.parse(saved), { keepView: true, silent: true }); toast("Kartan laddad."); }
-    else toast("Ladda en GeoJSON-fil för att se fastigheter.");
-  } catch { toast("Kunde inte läsa sparad karta."); }
-
+  // Controls
   document.getElementById("toggleMapStyleBtn").onclick = () => {
     if (!map) return;
     if (baseLayers[currentBase] && map.hasLayer(baseLayers[currentBase])) map.removeLayer(baseLayers[currentBase]);
@@ -1121,135 +1125,127 @@ function renderMapView() {
     document.getElementById("toggleMapStyleBtn").textContent = currentBase === "map" ? "Flygfoto" : "Kartvy";
   };
 
-  document.getElementById("modeSelect").addEventListener("change", e => { saveMapMode(e.target.value); closePanel(); redrawLayer(); });
-  document.getElementById("backBtn").onclick  = () => { closePanel(); navigate("dashboard"); };
-  document.getElementById("clearBtn").onclick = () => { localStorage.removeItem(LS_GEOJSON); clearLayer(); closePanel(); toast("Kartlagret rensades."); };
-  // Search autocomplete
-  let searchDebounce = null;
-  let searchAbort = null;
-
-  function removeDropdown() {
-    const old = document.getElementById("searchDropdown");
-    if (old) old.remove();
-  }
-
-  function pickResult(result) {
-    removeDropdown();
-    document.getElementById("addressSearch").value = result.display_name.split(",").slice(0, 2).join(",").trim();
-    map.setView([parseFloat(result.lat), parseFloat(result.lon)], 16);
-  }
-
-  function showDropdown(results) {
-    removeDropdown();
-    const wrap = document.querySelector(".map-search");
-    if (!wrap) return;
-    const dd = document.createElement("div");
-    dd.id = "searchDropdown";
-    dd.className = "search-dropdown";
-    if (!results.length) {
-      dd.innerHTML = `<div class="search-dropdown-empty">Inga resultat hittades</div>`;
-    } else {
-      results.forEach(r => {
-        const parts = r.display_name.split(",");
-        const name = parts.slice(0, 2).join(",").trim();
-        const meta = parts.slice(2, 4).join(",").trim();
-        const item = document.createElement("div");
-        item.className = "search-dropdown-item";
-        item.innerHTML = `<i class="ti ti-map-pin"></i><div><div class="search-dropdown-name">${name}</div>${meta ? `<div class="search-dropdown-meta">${meta}</div>` : ""}</div>`;
-        item.addEventListener("mousedown", e => { e.preventDefault(); pickResult(r); });
-        dd.appendChild(item);
-      });
-    }
-    wrap.appendChild(dd);
-  }
-
-  async function fetchSuggestions(query) {
-    if (searchAbort) searchAbort.abort();
-    searchAbort = new AbortController();
-    try {
-      const url = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=se&limit=5&q=${encodeURIComponent(query)}`;
-      const res = await fetch(url, { signal: searchAbort.signal, headers: { "Accept-Language": "sv", "User-Agent": "ifound.se/1.0" } });
-      const data = await res.json();
-      showDropdown(data);
-    } catch (e) {
-      if (e.name !== "AbortError") removeDropdown();
-    }
-  }
-
-  async function doSearch() {
-    const query = document.getElementById("addressSearch").value.trim();
-    if (!query) return;
-    const btn = document.getElementById("searchBtn");
-    btn.disabled = true;
-    removeDropdown();
-    try {
-      const url = `https://nominatim.openstreetmap.org/search?format=json&countrycodes=se&limit=1&q=${encodeURIComponent(query)}`;
-      const res = await fetch(url, { headers: { "Accept-Language": "sv", "User-Agent": "ifound.se/1.0" } });
-      const data = await res.json();
-      if (!data.length) { toast("Hittade ingen adress — försök med ett mer specifikt sökord."); return; }
-      map.setView([parseFloat(data[0].lat), parseFloat(data[0].lon)], 16);
-      document.getElementById("addressSearch").value = data[0].display_name.split(",").slice(0, 2).join(",").trim();
-    } catch { toast("Sökning misslyckades — kontrollera din internetanslutning."); }
-    finally { btn.disabled = false; }
-  }
-
-  document.getElementById("addressSearch").addEventListener("input", e => {
-    clearTimeout(searchDebounce);
-    const q = e.target.value.trim();
-    if (q.length < 3) { removeDropdown(); return; }
-    searchDebounce = setTimeout(() => fetchSuggestions(q), 300);
+  document.getElementById("modeSelect").addEventListener("change", e => {
+    saveMapMode(e.target.value); closePanel(); redrawLayer();
   });
-  document.getElementById("addressSearch").addEventListener("keydown", e => {
-    if (e.key === "Enter") { clearTimeout(searchDebounce); doSearch(); }
-    if (e.key === "Escape") removeDropdown();
-  });
-  document.getElementById("addressSearch").addEventListener("blur", () => {
-    setTimeout(removeDropdown, 150);
-  });
-  document.getElementById("searchBtn").onclick = doSearch;
 
-  document.getElementById("locateBtn").onclick = () => {
+  document.getElementById("backBtn").onclick = () => { closePanel(); navigate("dashboard"); };
+
+  document.getElementById("nearMeMapBtn").onclick = () => {
     if (!navigator.geolocation) { toast("Din webbläsare stödjer inte platsfunktion."); return; }
+    const btn = document.getElementById("nearMeMapBtn");
+    btn.innerHTML = '<i class="ti ti-loader" aria-hidden="true"></i> Söker...';
     navigator.geolocation.getCurrentPosition(pos => {
       const { latitude: lat, longitude: lng } = pos.coords;
       map.setView([lat, lng], 17);
       if (locateMarker) locateMarker.remove();
-      locateMarker = L.circleMarker([lat, lng], { radius: 8, weight: 3, color: "#C2622A", fillColor: "#C2622A", fillOpacity: 0.9 }).addTo(map);
-      toast("Visar din position.");
-    }, () => toast("Kunde inte hämta din position."), { enableHighAccuracy: true, timeout: 8000 });
+      locateMarker = L.circleMarker([lat, lng], {
+        radius: 9, weight: 3, color: "#C2622A", fillColor: "#C2622A", fillOpacity: 0.9
+      }).addTo(map);
+      toast("Visar fastigheter nära dig.");
+      btn.innerHTML = '<i class="ti ti-current-location" aria-hidden="true"></i> Nära mig';
+    }, () => {
+      toast("Kunde inte hämta din position.");
+      btn.innerHTML = '<i class="ti ti-current-location" aria-hidden="true"></i> Nära mig';
+    }, { enableHighAccuracy: true, timeout: 8000 });
   };
 
-  document.getElementById("fileInput").addEventListener("change", e => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = evt => {
-      try {
-        let geojson = JSON.parse(evt.target.result);
-        if (geojson.type === "Feature") geojson = { type: "FeatureCollection", features: [geojson] };
-        if (geojson.type !== "FeatureCollection" || !Array.isArray(geojson.features))
-          throw new Error("Inte en giltig FeatureCollection");
-        toast(`Läste ${geojson.features.length} objekt.`);
-        geojson = reprojectGeoJsonIfNeeded(geojson);
-        addGeoJsonToMap(geojson);
-        localStorage.setItem(LS_GEOJSON, JSON.stringify(geojson));
-      } catch (err) {
-        toast("Kunde inte läsa filen — " + (err.message || "ogiltigt format"));
-      }
-      e.target.value = "";
-    };
-    reader.onerror = () => { toast("Filläsning misslyckades."); e.target.value = ""; };
-    reader.readAsText(file, "UTF-8");
+  // Search with autocomplete
+  const searchInput = document.getElementById("addressSearch");
+  const dropdown   = document.getElementById("searchDropdown");
+  let searchTimer  = null;
+
+  searchInput.addEventListener("input", () => {
+    const q = searchInput.value.trim();
+    clearTimeout(searchTimer);
+    if (q.length < 3) { dropdown.style.display = "none"; return; }
+    searchTimer = setTimeout(() => mapSearch(q, dropdown, searchInput), 300);
+  });
+
+  searchInput.addEventListener("keydown", e => {
+    if (e.key === "Escape") { dropdown.style.display = "none"; }
+    if (e.key === "Enter") {
+      const first = dropdown.querySelector("div[data-lat]");
+      if (first) first.click();
+    }
+  });
+
+  document.addEventListener("click", e => {
+    if (!dropdown.contains(e.target) && e.target !== searchInput) dropdown.style.display = "none";
   });
 
   setTimeout(() => { try { map.invalidateSize(); } catch {} }, 120);
 }
 
+function autoLoadCentrum() {
+  const statusEl = document.getElementById("mapStatus");
+  if (statusEl) statusEl.textContent = "Hämtar fastighetsdata...";
+
+  // Load from GitHub repo
+  const url = "https://raw.githubusercontent.com/MANIfound/ifound/main/helsingborg_centrum.geojson";
+
+  fetch(url)
+    .then(r => {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    })
+    .then(geojson => {
+      geojson = reprojectGeoJsonIfNeeded(geojson);
+      addGeoJsonToMap(geojson, { keepView: false });
+      updateMapStatus(geojson.features?.length || 0);
+      try { localStorage.setItem(LS_GEOJSON, JSON.stringify(geojson)); } catch {}
+    })
+    .catch(err => {
+      console.error(err);
+      if (statusEl) statusEl.textContent = "Kunde inte ladda fastighetsdata";
+      toast("Kunde inte hämta fastighetsdata — kontrollera anslutningen.");
+    });
+}
+
+function updateMapStatus(count) {
+  const el = document.getElementById("mapStatus");
+  if (el) el.textContent = count.toLocaleString("sv-SE") + " fastigheter laddade";
+}
+
+async function mapSearch(query, dropdown, input) {
+  dropdown.style.display = "block";
+  dropdown.innerHTML = '<div style="padding:12px 16px;font-size:12px;color:#9CA3AF;">Söker...</div>';
+
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=6&countrycodes=se&accept-language=sv`;
+    const res = await fetch(url);
+    const results = await res.json();
+
+    if (!results.length) {
+      dropdown.innerHTML = '<div style="padding:12px 16px;font-size:12px;color:#9CA3AF;">Inga resultat</div>';
+      return;
+    }
+
+    dropdown.innerHTML = results.map(r => {
+      const name = r.display_name.split(",").slice(0,2).join(", ");
+      return `<div data-lat="${r.lat}" data-lon="${r.lon}"
+        style="padding:11px 16px;font-size:13px;color:#111827;cursor:pointer;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;align-items:center;gap:10px;"
+        onmouseover="this.style.background='#F9F6F1'" onmouseout="this.style.background=''"
+        onclick="mapSelectLocation('${r.display_name.replace(/'/g,"\\'").split(',').slice(0,2).join(',')}', ${r.lat}, ${r.lon})">
+        <i class="ti ti-map-pin" style="font-size:14px;color:#C2622A;flex-shrink:0;" aria-hidden="true"></i>
+        <span>${name}</span>
+      </div>`;
+    }).join('');
+  } catch {
+    dropdown.innerHTML = '<div style="padding:12px 16px;font-size:12px;color:#9CA3AF;">Sökning misslyckades</div>';
+  }
+}
+
+function mapSelectLocation(name, lat, lon) {
+  const input    = document.getElementById("addressSearch");
+  const dropdown = document.getElementById("searchDropdown");
+  if (input) input.value = name.split(",")[0];
+  if (dropdown) dropdown.style.display = "none";
+  if (map) map.setView([parseFloat(lat), parseFloat(lon)], 17);
+  toast("Visar " + name.split(",")[0]);
+}
 
 
-// =========================
-// CLAIM MODAL
-// =========================
 function openClaimModal() {
   const existing = document.getElementById('claim-modal-overlay');
   if (existing) existing.remove();

@@ -200,18 +200,18 @@ function addGeoJsonToMap(geojson, opts = {}) {
       weight: 1,
       opacity: 0.8,
       fill: true,
-      fillColor: "#000000",
-      fillOpacity: 0,   // invisible fill but still catches clicks
+      fillColor: "#ffffff",
+      fillOpacity: 0.001, // near-invisible but catches pointer events in SVG
     },
     onEachFeature: (feature, layer) => {
       layer.on("click", () => renderParcelPanel(feature));
       layer.on("mouseover", () => {
         map.getContainer().style.cursor = "pointer";
-        layer.setStyle({ color: "#C2622A", weight: 2.5, fillColor: "#C2622A", fillOpacity: 0.06 });
+        layer.setStyle({ color: "#C2622A", weight: 2, fillColor: "#C2622A", fillOpacity: 0.08 });
       });
       layer.on("mouseout", () => {
         map.getContainer().style.cursor = "";
-        layer.setStyle({ color: "#ffffff", weight: 1, fillColor: "#000000", fillOpacity: 0 });
+        layer.setStyle({ color: "#ffffff", weight: 1, fillColor: "#ffffff", fillOpacity: 0.001 });
       });
     },
   }).addTo(map);
@@ -1403,13 +1403,13 @@ function renderMapView() {
 
 // Mock claimed properties for demo — in production these come from database
 const CLAIMED_PROPS = [
-  { id: "RÅDHUSET 3>1",       lat: 56.04676, lon: 12.69298, status: "passive",  name: "Rådhuset 3:1",       likes: 18, interested: 4 },
-  { id: "PÅLSJÖ 4>7",         lat: 56.05820, lon: 12.70450, status: "sale",     name: "Pålsjö 4:7",        likes: 31, interested: 11, price: "4 200 000 kr" },
-  { id: "LARÖD 3>19",         lat: 56.07210, lon: 12.71830, status: "passive",  name: "Laröd 3:19",        likes: 41, interested: 9 },
-  { id: "SÖDER 8>22",         lat: 56.04020, lon: 12.69240, status: "rent",     name: "Söder 8:22",        likes: 14, interested: 5, price: "9 800 kr/mån" },
-  { id: "FREDRIKSDAL 6>1",    lat: 56.06110, lon: 12.70520, status: "sale",     name: "Fredriksdal 6:1",   likes: 19, interested: 6, price: "5 750 000 kr" },
-  { id: "RAUS PLANTAGE 7>2",  lat: 56.02180, lon: 12.66430, status: "passive",  name: "Raus Plantage 7:2", likes: 6,  interested: 2 },
-  { id: "VIKEN STRAND 4>2",   lat: 56.15430, lon: 12.57820, status: "rent",     name: "Viken Strand 4:2",  likes: 58, interested: 12, price: "14 500 kr/mån" },
+  { id: "RÅDHUSET 3>1",       lat: 56.04500, lon: 12.69400, status: "passive",  name: "Rådhuset 3:1",       likes: 18, interested: 4 },
+  { id: "PÅLSJÖ 4>7",         lat: 56.06800, lon: 12.70800, status: "sale",     name: "Pålsjö 4:7",        likes: 31, interested: 11, price: "4 200 000 kr" },
+  { id: "LARÖD 3>19",         lat: 56.08500, lon: 12.72800, status: "passive",  name: "Laröd 3:19",        likes: 41, interested: 9 },
+  { id: "SÖDER 8>22",         lat: 56.03200, lon: 12.68700, status: "rent",     name: "Söder 8:22",        likes: 14, interested: 5, price: "9 800 kr/mån" },
+  { id: "FREDRIKSDAL 6>1",    lat: 56.05600, lon: 12.72000, status: "sale",     name: "Fredriksdal 6:1",   likes: 19, interested: 6, price: "5 750 000 kr" },
+  { id: "RAUS PLANTAGE 7>2",  lat: 56.01500, lon: 12.65000, status: "passive",  name: "Raus Plantage 7:2", likes: 6,  interested: 2 },
+  { id: "KULLA 1>4",          lat: 56.07800, lon: 12.74200, status: "passive",  name: "Kulla 1:4",         likes: 24, interested: 7 },
 ];
 
 let markerLayer = null;

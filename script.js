@@ -1161,12 +1161,162 @@ function renderMapView() {
   setTimeout(() => { try { map.invalidateSize(); } catch {} }, 120);
 }
 
+
+// =========================
+// ADMIN VIEW
+// =========================
+function renderAdmin() {
+  const users = loadUsers();
+  const state = loadState();
+
+  const userList = Object.values(users).filter(u => u.email !== "admin@ifound.se");
+  const totalLikes = Object.values(state.likes || {}).reduce((a,b) => a+b, 0);
+  const totalInterests = Object.values(state.interests || {}).reduce((a,b) => a+b, 0);
+  const claimedCount = state.ownerParcelId ? 1 : 0;
+
+  // Mock data to make it feel real
+  const mockUsers = [
+    { name:"Anna Lindqvist",  email:"anna@example.se",   joined:"2025-06-12", claims:1, likes:3 },
+    { name:"Marcus Holm",     email:"marcus@example.se",  joined:"2025-06-14", claims:0, likes:7 },
+    { name:"Sara Björk",      email:"sara@example.se",    joined:"2025-06-15", claims:1, likes:2 },
+    { name:"Johan Eriksson",  email:"johan@example.se",   joined:"2025-06-17", claims:0, likes:5 },
+    { name:"Lena Svensson",   email:"lena@example.se",    joined:"2025-06-18", claims:1, likes:1 },
+    ...userList.map(u => ({ name:u.name, email:u.email, joined:"2025-06-19", claims: state.ownerParcelId ? 1 : 0, likes: Object.keys(state.myLikes||{}).length }))
+  ];
+
+  const mockClaimed = [
+    { prop:"Pålsjö 4:7",        user:"Anna Lindqvist",  date:"2025-06-12", visible:"Privat",   likes:18, interested:4 },
+    { prop:"Laröd 3:19",        user:"Sara Björk",      date:"2025-06-15", visible:"Synlig",   likes:41, interested:9 },
+    { prop:"Fredriksdal 6:1",   user:"Lena Svensson",   date:"2025-06-18", visible:"Till salu",likes:19, interested:6 },
+    ...(state.ownerParcelId ? [{ prop: state.parcelNames?.[state.ownerParcelId] || state.ownerParcelId, user: userList[0]?.name || "Du", date:"2025-06-19", visible:"Privat", likes: state.likes?.[state.ownerParcelId]||0, interested: state.interests?.[state.ownerParcelId]||0 }] : [])
+  ];
+
+  app.innerHTML = `
+    <div style="min-height:100vh;background:#F9F6F1;">
+
+      <!-- Nav -->
+      <nav style="height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:#111827;border-bottom:0.5px solid rgba(255,255,255,.08);position:sticky;top:0;z-index:50;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <svg width="18" height="23" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#C2622A"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#C2622A"/></svg>
+          <span style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:#fff;">i<em style="font-style:normal;color:#C2622A;">found</em></span>
+          <span style="font-size:11px;font-weight:600;background:rgba(194,98,42,.2);color:#C2622A;border-radius:999px;padding:3px 10px;letter-spacing:.06em;">ADMIN</span>
+        </div>
+        <button onclick="clearSession();navigate('welcome');" style="font-size:12px;color:rgba(255,255,255,.5);background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;">Logga ut</button>
+      </nav>
+
+      <div style="max-width:1100px;margin:0 auto;padding:28px 20px 60px;">
+
+        <!-- Page header -->
+        <div style="margin-bottom:28px;">
+          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#C2622A;margin-bottom:6px;">Kontrollpanel</div>
+          <div style="font-size:28px;font-weight:700;letter-spacing:-.04em;color:#111827;">Admin — ifound.se</div>
+          <div style="font-size:13px;color:#9CA3AF;margin-top:4px;">Helsingborg Beta · Skissversion</div>
+        </div>
+
+        <!-- Stats strip -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:28px;">
+          ${[
+            { num: mockUsers.length, lbl:"Användare", icon:"ti-users" },
+            { num: mockClaimed.length, lbl:"Claimade fastigheter", icon:"ti-home-check" },
+            { num: totalLikes + 116, lbl:"Totalt antal gillar", icon:"ti-heart" },
+            { num: totalInterests + 34, lbl:"Intresseanmälningar", icon:"ti-star" },
+          ].map(s => `
+            <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;padding:20px;display:flex;align-items:center;gap:14px;">
+              <div style="width:42px;height:42px;border-radius:10px;background:#FEF0E7;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i class="ti ${s.icon}" style="font-size:19px;color:#C2622A;"></i>
+              </div>
+              <div>
+                <div style="font-size:26px;font-weight:700;letter-spacing:-.04em;color:#111827;line-height:1;">${s.num}</div>
+                <div style="font-size:11px;color:#9CA3AF;margin-top:3px;">${s.lbl}</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px;">
+
+          <!-- Users table -->
+          <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:16px;overflow:hidden;">
+            <div style="padding:18px 20px;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;align-items:center;justify-content:space-between;">
+              <div style="font-size:14px;font-weight:600;letter-spacing:-.02em;color:#111827;">Användare</div>
+              <div style="font-size:11px;color:#9CA3AF;">${mockUsers.length} totalt</div>
+            </div>
+            <div style="overflow-y:auto;max-height:320px;">
+              ${mockUsers.map((u,i) => `
+                <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:0.5px solid rgba(17,24,39,.05);${i===mockUsers.length-1?'border-bottom:none;':''}">
+                  <div style="width:32px;height:32px;border-radius:50%;background:#FEF0E7;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#C2622A;flex-shrink:0;">${u.name[0]}</div>
+                  <div style="flex:1;min-width:0;">
+                    <div style="font-size:13px;font-weight:600;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${u.name}</div>
+                    <div style="font-size:11px;color:#9CA3AF;">${u.email}</div>
+                  </div>
+                  <div style="text-align:right;flex-shrink:0;">
+                    ${u.claims ? '<span style="font-size:10px;font-weight:600;background:#F0FDF4;color:#16a34a;padding:2px 7px;border-radius:999px;">Ägare</span>' : '<span style="font-size:10px;color:#9CA3AF;">Besökare</span>'}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- Claimed properties -->
+          <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:16px;overflow:hidden;">
+            <div style="padding:18px 20px;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;align-items:center;justify-content:space-between;">
+              <div style="font-size:14px;font-weight:600;letter-spacing:-.02em;color:#111827;">Claimade fastigheter</div>
+              <div style="font-size:11px;color:#9CA3AF;">${mockClaimed.length} totalt</div>
+            </div>
+            <div style="overflow-y:auto;max-height:320px;">
+              ${mockClaimed.map((c,i) => `
+                <div style="padding:12px 20px;border-bottom:0.5px solid rgba(17,24,39,.05);${i===mockClaimed.length-1?'border-bottom:none;':''}">
+                  <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px;">
+                    <div style="font-size:13px;font-weight:600;color:#111827;">${c.prop}</div>
+                    <span style="font-size:10px;font-weight:600;padding:2px 7px;border-radius:999px;flex-shrink:0;margin-left:8px;${
+                      c.visible === 'Privat' ? 'background:#F3F4F6;color:#6B7280;' :
+                      c.visible === 'Synlig' ? 'background:#EFF6FF;color:#2563eb;' :
+                      'background:#F0FDF4;color:#16a34a;'
+                    }">${c.visible}</span>
+                  </div>
+                  <div style="font-size:11px;color:#9CA3AF;">${c.user} · ${c.likes} gillar · ${c.interested} intresserade</div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Activity feed -->
+        <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:16px;overflow:hidden;">
+          <div style="padding:18px 20px;border-bottom:0.5px solid rgba(17,24,39,.06);">
+            <div style="font-size:14px;font-weight:600;letter-spacing:-.02em;color:#111827;">Senaste aktivitet</div>
+          </div>
+          ${[
+            { icon:"ti-user-plus",  color:"#16a34a", bg:"#F0FDF4", text:"Marcus Holm registrerade sig",              time:"14 min sedan" },
+            { icon:"ti-heart",      color:"#C2622A", bg:"#FEF0E7", text:"Ny gillning på Laröd 3:19",                 time:"32 min sedan" },
+            { icon:"ti-home-check", color:"#2563eb", bg:"#EFF6FF", text:"Sara Björk claimade Laröd 3:19",            time:"2 h sedan" },
+            { icon:"ti-star",       color:"#7c3aed", bg:"#F5F3FF", text:"Nytt intresse på Fredriksdal 6:1",          time:"3 h sedan" },
+            { icon:"ti-user-plus",  color:"#16a34a", bg:"#F0FDF4", text:"Lena Svensson registrerade sig",            time:"5 h sedan" },
+            { icon:"ti-heart",      color:"#C2622A", bg:"#FEF0E7", text:"Ny gillning på Pålsjö 4:7",                 time:"Igår" },
+          ].map((a,i,arr) => `
+            <div style="display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:0.5px solid rgba(17,24,39,.05);${i===arr.length-1?'border-bottom:none;':''}">
+              <div style="width:36px;height:36px;border-radius:9px;background:${a.bg};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i class="ti ${a.icon}" style="font-size:17px;color:${a.color};"></i>
+              </div>
+              <div style="flex:1;font-size:13px;color:#374151;">${a.text}</div>
+              <div style="font-size:11px;color:#9CA3AF;white-space:nowrap;">${a.time}</div>
+            </div>
+          `).join('')}
+        </div>
+
+      </div>
+    </div>
+  `;
+}
+
 // =========================
 // Render & boot
 // =========================
 function render() {
   const session = loadSession();
   if (!session?.email) { renderWelcome(); return; }
+  if (session.email === "admin@ifound.se") { renderAdmin(); return; }
   if (currentView === "map") { renderMapView(); return; }
   if (currentView === "feed") { renderFeed(); return; }
   if (currentView.startsWith("property_")) { renderPropertyView(); return; }
@@ -1176,6 +1326,12 @@ function render() {
 window.addEventListener("keydown", ev => { if (currentView === "map" && ev.key === "Escape") closePanel(); });
 
 (() => {
+  // Pre-register admin account
+  const users = loadUsers();
+  if (!users["admin@ifound.se"]) {
+    users["admin@ifound.se"] = { name: "Admin", email: "admin@ifound.se", password: "ifound2025" };
+    saveUsers(users);
+  }
   const session = loadSession();
   currentView = session?.email ? "dashboard" : "welcome";
   render();

@@ -4,7 +4,7 @@
 const LS_USERS   = "prop_users_v1";
 const LS_SESSION = "prop_session_v1";
 const LS_STATE   = "prop_state_v3";
-const LS_GEOJSON = "prop_geojson_helsingborg_v1";
+const LS_GEOJSON = "prop_geojson_helsingborg_v4";
 const LS_MAP_MODE= "prop_map_mode_v1";
 
 // =========================
@@ -1266,19 +1266,8 @@ function renderMapView() {
     baseLayers[currentBase].addTo(map);
   }
 
-  // Load saved GeoJSON if exists, otherwise prompt upload
-  const saved = localStorage.getItem(LS_GEOJSON);
-  if (saved) {
-    try {
-      const gj = JSON.parse(saved);
-      addGeoJsonToMap(gj, { keepView: true });
-      updateMapStatus(gj.features?.length || 0);
-    } catch {
-      toast("Ladda upp en GeoJSON-fil för att se fastigheter.");
-    }
-  } else {
-    toast("Ladda upp helsingborg_centrum.geojson för att se tomtgränser.");
-  }
+  // Always auto-load fresh from GitHub
+  autoLoadCentrum();
 
   // Controls
   document.getElementById("toggleMapStyleBtn").onclick = () => {

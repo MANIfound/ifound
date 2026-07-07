@@ -398,6 +398,160 @@ function readImageAsDataUrl(file) {
 }
 
 
+
+// =========================
+// PROPERTY VIEW (Besökarvy)
+// =========================
+const PROP_DATA = [
+  { id:0, name:"Laröd 3:19",        meta:"Gård · 5 200 kvm · Laröd",         badge:"pb-hot",   type:"Passiv",    likes:41, interested:9,  img:"https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&q=80&auto=format", imgs:["https://images.unsplash.com/photo-1449844908441-8829872d2607?w=800&q=80&auto=format","https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800&q=80&auto=format"], desc:"En magnifik gård i lantligt läge med generösa ytor, äldre karaktärsbyggnad och stora grönområden. Fastigheten är inte aktiv till salu men ägaren är öppen för intresse." },
+  { id:1, name:"Raus Plantage 7:2",  meta:"Gård · 4 800 kvm · Raus",          badge:"pb-new",   type:"Ny claim",  likes:6,  interested:2,  img:"https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=800&q=80&auto=format", imgs:[], desc:"Nyligen claimad fastighet — ägaren har valt att hålla sin profil privat för tillfället." },
+  { id:2, name:"Kulla 1:4",          meta:"Tomt · 2 400 kvm · Höganäs",       badge:"pb-hot",   type:"Passiv",    likes:24, interested:7,  img:"https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=800&q=80&auto=format", imgs:[], desc:"Stor obebyggd tomt med fantastiskt läge. Perfekt för den som drömmer om att bygga sitt drömhus i naturskön miljö." },
+  { id:3, name:"Pålsjö 4:7",         meta:"Villa · 240 kvm · Pålsjö",         badge:"pb-quiet", type:"Passiv",    likes:18, interested:4,  img:"https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=800&q=80&auto=format", imgs:["https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800&q=80&auto=format"], desc:"Välskött villa i ett av Helsingborgs mest eftertraktade lägen. Ägaren är inte aktiv till salu men tar gärna emot intresse." },
+  { id:4, name:"Fredriksdal 6:1",    meta:"Villa · 195 kvm · Helsingborg",    badge:"pb-sale",  type:"Till salu", likes:19, interested:6,  img:"https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800&q=80&auto=format", imgs:["https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=800&q=80&auto=format"], desc:"Rymlig villa med charmig trädgård nära Fredriksdals museer. 5 rum, nytt kök 2022, garage.", price:"5 750 000 kr" },
+  { id:5, name:"Söder 8:22",         meta:"Lägenhet · 72 kvm · Helsingborg",  badge:"pb-rent",  type:"Uthyrning", likes:14, interested:0,  img:"https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&q=80&auto=format", imgs:[], desc:"Modern lägenhet på Söder med balkong och öppen planlösning. Tillgänglig från 1 september.", price:"9 800 kr/mån" },
+  { id:6, name:"Viken Strand 4:2",   meta:"Kusthus · 145 kvm · Viken",        badge:"pb-hot",   type:"Passiv",    likes:58, interested:12, img:"https://images.unsplash.com/photo-1449844908441-8829872d2607?w=800&q=80&auto=format", imgs:[], desc:"Drömläge direkt mot havet i Viken. Ägaren bor kvar men är nyfiken på vem som är intresserad." },
+  { id:7, name:"Pålsjö 12:8",        meta:"Villa · 220 kvm · Pålsjö",         badge:"pb-sale",  type:"Till salu", likes:31, interested:11, img:"https://images.unsplash.com/photo-1523217582562-09d0def993a6?w=800&q=80&auto=format", imgs:[], desc:"Exklusiv villa i Pålsjö med parkliknande tomt. 6 rum, pool, dubbelgarage.", price:"4 200 000 kr" },
+];
+
+function navigateProp(id) {
+  currentView = "property_" + id;
+  render();
+}
+
+function renderPropertyView() {
+  const session = loadSession();
+  if (!session?.email) return navigate("welcome");
+
+  const idStr = currentView.replace("property_", "");
+  const prop = PROP_DATA[parseInt(idStr)];
+  if (!prop) return navigate("feed");
+
+  const state = loadState();
+  const iLiked = !!state.myLikes?.[prop.id];
+  const iInterested = !!state.myInterests?.[prop.id];
+  const isPrivate = prop.id === 1; // Raus is private
+
+  const badgeColors = {
+    "Passiv":    "background:#F3F4F6;color:#6B7280;",
+    "Ny claim":  "background:#F0FDF4;color:#16a34a;",
+    "Till salu": "background:#EFF6FF;color:#2563eb;",
+    "Uthyrning": "background:#F5F3FF;color:#7c3aed;",
+  };
+
+  app.innerHTML = `
+    <div style="min-height:100vh;background:#F9F6F1;">
+      <nav class="dashboard-nav">
+        <div class="nav-left">
+          <button onclick="navigate('feed')" class="btn-ghost" style="font-size:12px;padding:7px 13px;display:flex;align-items:center;gap:6px;">
+            <i class="ti ti-arrow-left"></i> Tillbaka
+          </button>
+        </div>
+        <div class="nav-right">
+          <button class="btn-ghost" style="font-size:12px;padding:7px 13px;" onclick="shareProperty('${prop.name}')">
+            <i class="ti ti-share"></i>
+          </button>
+        </div>
+      </nav>
+
+      <!-- Hero image -->
+      <div style="position:relative;height:320px;overflow:hidden;">
+        <img src="${prop.img}" alt="${prop.name}" style="width:100%;height:100%;object-fit:cover;display:block;" />
+        <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.5) 0%,transparent 50%);"></div>
+        <div style="position:absolute;bottom:20px;left:20px;right:20px;">
+          <span style="font-size:11px;font-weight:600;padding:4px 10px;border-radius:999px;${badgeColors[prop.type] || ''}">${prop.type}</span>
+          <div style="font-size:26px;font-weight:700;letter-spacing:-.04em;color:#fff;margin-top:8px;line-height:1.1;">${prop.name}</div>
+          <div style="font-size:13px;color:rgba(255,255,255,.75);margin-top:4px;">${prop.meta}</div>
+        </div>
+      </div>
+
+      <!-- Extra images -->
+      ${prop.imgs && prop.imgs.length ? `
+        <div style="display:flex;gap:4px;padding:4px;background:#111;overflow-x:auto;">
+          ${prop.imgs.map(src => `<img src="${src}" style="height:80px;width:120px;object-fit:cover;border-radius:6px;flex-shrink:0;" />`).join('')}
+        </div>
+      ` : ''}
+
+      <!-- Content -->
+      <div style="max-width:680px;margin:0 auto;padding:24px 16px 100px;">
+
+        <!-- Stats -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:24px;">
+          <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:24px;font-weight:700;letter-spacing:-.04em;color:#111827;">${prop.likes}</div>
+            <div style="font-size:11px;color:#9CA3AF;margin-top:3px;text-transform:uppercase;letter-spacing:.06em;font-weight:500;">Gillar</div>
+          </div>
+          <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:24px;font-weight:700;letter-spacing:-.04em;color:#111827;">${prop.interested}</div>
+            <div style="font-size:11px;color:#9CA3AF;margin-top:3px;text-transform:uppercase;letter-spacing:.06em;font-weight:500;">Intresserade</div>
+          </div>
+          <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:12px;padding:16px;text-align:center;">
+            <div style="font-size:24px;font-weight:700;letter-spacing:-.04em;color:#111827;">${Math.floor(prop.likes * 3.2)}</div>
+            <div style="font-size:11px;color:#9CA3AF;margin-top:3px;text-transform:uppercase;letter-spacing:.06em;font-weight:500;">Visningar</div>
+          </div>
+        </div>
+
+        ${prop.price ? `
+          <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;padding:20px;margin-bottom:16px;">
+            <div style="font-size:12px;color:#9CA3AF;font-weight:500;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px;">Pris</div>
+            <div style="font-size:28px;font-weight:700;letter-spacing:-.04em;color:#111827;">${prop.price}</div>
+          </div>
+        ` : ''}
+
+        <!-- Description -->
+        ${isPrivate ? `
+          <div style="background:#F9F6F1;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;padding:20px;margin-bottom:16px;text-align:center;">
+            <i class="ti ti-lock" style="font-size:28px;color:#9CA3AF;display:block;margin-bottom:10px;"></i>
+            <div style="font-size:14px;font-weight:600;color:#111827;margin-bottom:6px;">Profilen är privat</div>
+            <div style="font-size:13px;color:#9CA3AF;line-height:1.6;">Ägaren har valt att inte visa upp sin bostad ännu. Du kan fortfarande gilla och visa intresse.</div>
+          </div>
+        ` : `
+          <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;padding:20px;margin-bottom:16px;">
+            <div style="font-size:12px;color:#9CA3AF;font-weight:500;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px;">Om fastigheten</div>
+            <div style="font-size:14px;color:#374151;line-height:1.7;">${prop.desc}</div>
+          </div>
+        `}
+
+      </div>
+
+      <!-- Sticky action bar -->
+      <div style="position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:0.5px solid rgba(17,24,39,.08);padding:12px 16px;display:flex;gap:10px;z-index:50;">
+        <button id="propLikeBtn" onclick="propToggleLike(${prop.id})"
+          style="flex:1;padding:13px;border-radius:12px;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;border:1.5px solid ${iLiked ? '#2563eb' : 'rgba(17,24,39,.12)'};background:${iLiked ? '#EFF6FF' : '#fff'};color:${iLiked ? '#2563eb' : '#111827'};display:flex;align-items:center;justify-content:center;gap:8px;">
+          <i class="ti ti-thumb-up"></i> ${iLiked ? 'Gillad' : 'Gilla'}
+        </button>
+        <button id="propInterestBtn" onclick="propToggleInterest(${prop.id})"
+          style="flex:1;padding:13px;border-radius:12px;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;border:1.5px solid ${iInterested ? '#C2622A' : 'rgba(17,24,39,.12)'};background:${iInterested ? '#FEF0E7' : '#fff'};color:${iInterested ? '#C2622A' : '#111827'};display:flex;align-items:center;justify-content:center;gap:8px;">
+          <i class="ti ti-star"></i> ${iInterested ? 'Intresserad' : 'Visa intresse'}
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function propToggleLike(id) {
+  const s = loadState();
+  s.myLikes = s.myLikes || {};
+  const already = !!s.myLikes[id];
+  if (already) { delete s.myLikes[id]; toast("Gillning borttagen."); }
+  else { s.myLikes[id] = true; toast("Fastigheten är gillad!"); }
+  saveState(s);
+  renderPropertyView();
+}
+
+function propToggleInterest(id) {
+  const s = loadState();
+  s.myInterests = s.myInterests || {};
+  const already = !!s.myInterests[id];
+  if (already) { delete s.myInterests[id]; toast("Intresse borttaget."); }
+  else { s.myInterests[id] = true; toast("Intresse markerat — ägaren ser detta!"); }
+  saveState(s);
+  renderPropertyView();
+}
+
+function shareProperty(name) {
+  toast("Dela " + name + " — kommer snart!");
+}
+
 // =========================
 // FEED VIEW (Pinterest)
 // =========================
@@ -415,12 +569,14 @@ function renderFeed() {
   ];
 
   const pins = [
-    { id:0, name:"Laröd 3:19",        meta:"Gård · 5 200 kvm",         badge:"pb-hot",   badgeText:"41 gillar", likes:41, interested:9,  svg: houseSvgs[0] },
-    { id:1, name:"Raus Plantage 7:2",  meta:"Gård · 4 800 kvm",         badge:"pb-new",   badgeText:"Ny claim",  likes:6,  interested:2,  svg: houseSvgs[1] },
-    { id:2, name:"Kulla 1:4",          meta:"Tomt · 2 400 kvm",         badge:"pb-hot",   badgeText:"Populär",   likes:24, interested:7,  svg: houseSvgs[2] },
-    { id:3, name:"Pålsjö 4:7",         meta:"Villa · 240 kvm",          badge:"pb-quiet", badgeText:"Passiv",    likes:18, interested:4,  svg: houseSvgs[3] },
-    { id:4, name:"Fredriksdal 6:1",    meta:"Villa · 5,75 mkr",         badge:"pb-sale",  badgeText:"Till salu", likes:19, interested:6,  svg: houseSvgs[4] },
-    { id:5, name:"Söder 8:22",         meta:"Lägenhet · 9 800 kr/mån",  badge:"pb-rent",  badgeText:"Uthyrning", likes:14, interested:0,  svg: houseSvgs[5] },
+    { id:0, name:"Laröd 3:19",        meta:"Gård · 5 200 kvm",         badge:"pb-hot",   badgeText:"41 gillar", likes:41, interested:9,  img:"https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400&q=75&auto=format", imgH:260 },
+    { id:1, name:"Raus Plantage 7:2",  meta:"Gård · 4 800 kvm",         badge:"pb-new",   badgeText:"Ny claim",  likes:6,  interested:2,  img:"https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=400&q=75&auto=format", imgH:180 },
+    { id:2, name:"Kulla 1:4",          meta:"Tomt · 2 400 kvm",         badge:"pb-hot",   badgeText:"Populär",   likes:24, interested:7,  img:"https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=400&q=75&auto=format", imgH:160 },
+    { id:3, name:"Pålsjö 4:7",         meta:"Villa · 240 kvm",          badge:"pb-quiet", badgeText:"Passiv",    likes:18, interested:4,  img:"https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=400&q=75&auto=format", imgH:220 },
+    { id:4, name:"Fredriksdal 6:1",    meta:"Villa · 5,75 mkr",         badge:"pb-sale",  badgeText:"Till salu", likes:19, interested:6,  img:"https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=400&q=75&auto=format", imgH:180 },
+    { id:5, name:"Söder 8:22",         meta:"Lägenhet · 9 800 kr/mån",  badge:"pb-rent",  badgeText:"Uthyrning", likes:14, interested:0,  img:"https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=400&q=75&auto=format", imgH:200 },
+    { id:6, name:"Viken Strand 4:2",   meta:"Kusthus · 145 kvm",        badge:"pb-hot",   badgeText:"58 gillar", likes:58, interested:12, img:"https://images.unsplash.com/photo-1449844908441-8829872d2607?w=400&q=75&auto=format", imgH:240 },
+    { id:7, name:"Pålsjö 12:8",        meta:"Villa · 220 kvm",          badge:"pb-sale",  badgeText:"Till salu", likes:31, interested:11, img:"https://images.unsplash.com/photo-1523217582562-09d0def993a6?w=400&q=75&auto=format", imgH:170 },
   ];
 
   const state = loadState();
@@ -488,9 +644,9 @@ function renderFeed() {
       <!-- Masonry grid -->
       <div class="masonry-grid" id="masonryGrid">
         ${pins.map(p => `
-          <div class="pin-card" onclick="toast('Öppnar ${p.name}...')">
+          <div class="pin-card" onclick="navigateProp(${p.id})">
             <div class="pin-img-wrap">
-              ${p.svg}
+              <img src="${p.img}" alt="${p.name}" style="width:100%;height:${p.imgH}px;object-fit:cover;display:block;" loading="lazy" />
               <div class="pin-top">
                 <div class="pin-badge ${p.badge}">${p.badgeText}</div>
                 <button class="pin-like-btn ${myLikes[p.id] ? 'liked' : ''}"
@@ -691,6 +847,9 @@ function renderDashboard() {
         <div class="hero-section">
           ${images.length ? `<img src="${images[0]}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" alt="Bostad" />` : houseSvg}
           <div class="hero-overlay"></div>
+          <button onclick="document.getElementById('homeImageInput').click()" style="position:absolute;top:14px;right:14px;z-index:3;background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.4);color:#fff;border-radius:10px;padding:7px 13px;font-size:12px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;display:flex;align-items:center;gap:6px;backdrop-filter:blur(8px);">
+            <i class="ti ti-camera"></i> ${images.length ? 'Byt bild' : 'Lägg till bild'}
+          </button>
           <div class="hero-content">
             <div class="status-row">
               <button class="status-pill active-passive" id="sp-passive" onclick="setStatus('passive')">Passiv</button>
@@ -1010,6 +1169,7 @@ function render() {
   if (!session?.email) { renderWelcome(); return; }
   if (currentView === "map") { renderMapView(); return; }
   if (currentView === "feed") { renderFeed(); return; }
+  if (currentView.startsWith("property_")) { renderPropertyView(); return; }
   renderDashboard();
 }
 

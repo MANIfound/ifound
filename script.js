@@ -199,17 +199,19 @@ function addGeoJsonToMap(geojson, opts = {}) {
       color: "#ffffff",
       weight: 1,
       opacity: 0.8,
-      fill: false,
+      fill: true,
+      fillColor: "#000000",
+      fillOpacity: 0,   // invisible fill but still catches clicks
     },
     onEachFeature: (feature, layer) => {
       layer.on("click", () => renderParcelPanel(feature));
       layer.on("mouseover", () => {
         map.getContainer().style.cursor = "pointer";
-        layer.setStyle({ color: "#C2622A", weight: 2 });
+        layer.setStyle({ color: "#C2622A", weight: 2.5, fillColor: "#C2622A", fillOpacity: 0.06 });
       });
       layer.on("mouseout", () => {
         map.getContainer().style.cursor = "";
-        layer.setStyle({ color: "#ffffff", weight: 1, fill: false });
+        layer.setStyle({ color: "#ffffff", weight: 1, fillColor: "#000000", fillOpacity: 0 });
       });
     },
   }).addTo(map);
@@ -442,8 +444,25 @@ function renderParcelPanel(feature) {
       ${statsHtml}
     `);
     document.getElementById("setMineBtn").onclick = () => {
-      const s = loadState(); s.ownerParcelId = pid; s.parcelNames = s.parcelNames || {}; s.parcelNames[pid] = name;
-      saveState(s); toast("Fastigheten kopplad till ditt konto."); redrawLayer(); renderParcelPanel(feature);
+      const s = loadState();
+      s.ownerParcelId = pid;
+      s.parcelNames = s.parcelNames || {};
+      s.parcelNames[pid] = name;
+      // Store centroid for marker placement
+      try {
+        const coords = feature?.geometry?.coordinates?.[0] || [];
+        if (coords.length) {
+          const lons = coords.map(p => p[0]);
+          const lats = coords.map(p => p[1]);
+          s.ownerLon = lons.reduce((a,b)=>a+b,0)/lons.length;
+          s.ownerLat = lats.reduce((a,b)=>a+b,0)/lats.length;
+        }
+      } catch {}
+      saveState(s);
+      toast("Fastigheten kopplad till ditt konto.");
+      redrawLayer();
+      addClaimedMarkers();
+      renderParcelPanel(feature);
     };
     document.getElementById("closePanelBtn").onclick = closePanel;
     return;
@@ -1386,10 +1405,10 @@ function renderMapView() {
 const CLAIMED_PROPS = [
   { id: "RÅDHUSET 3>1",       lat: 56.04676, lon: 12.69298, status: "passive",  name: "Rådhuset 3:1",       likes: 18, interested: 4 },
   { id: "PÅLSJÖ 4>7",         lat: 56.05820, lon: 12.70450, status: "sale",     name: "Pålsjö 4:7",        likes: 31, interested: 11, price: "4 200 000 kr" },
-  { id: "LARÖD 3>19",         lat: 56.07210, lon: 12.70830, status: "passive",  name: "Laröd 3:19",        likes: 41, interested: 9 },
-  { id: "SÖDER 8>22",         lat: 56.04120, lon: 12.69540, status: "rent",     name: "Söder 8:22",        likes: 14, interested: 5, price: "9 800 kr/mån" },
-  { id: "FREDRIKSDAL 6>1",    lat: 56.05110, lon: 12.70120, status: "sale",     name: "Fredriksdal 6:1",   likes: 19, interested: 6, price: "5 750 000 kr" },
-  { id: "RAUS PLANTAGE 7>2",  lat: 56.03980, lon: 12.67230, status: "passive",  name: "Raus Plantage 7:2", likes: 6,  interested: 2 },
+  { id: "LARÖD 3>19",         lat: 56.07210, lon: 12.71830, status: "passive",  name: "Laröd 3:19",        likes: 41, interested: 9 },
+  { id: "SÖDER 8>22",         lat: 56.04020, lon: 12.69240, status: "rent",     name: "Söder 8:22",        likes: 14, interested: 5, price: "9 800 kr/mån" },
+  { id: "FREDRIKSDAL 6>1",    lat: 56.06110, lon: 12.70520, status: "sale",     name: "Fredriksdal 6:1",   likes: 19, interested: 6, price: "5 750 000 kr" },
+  { id: "RAUS PLANTAGE 7>2",  lat: 56.02180, lon: 12.66430, status: "passive",  name: "Raus Plantage 7:2", likes: 6,  interested: 2 },
   { id: "VIKEN STRAND 4>2",   lat: 56.15430, lon: 12.57820, status: "rent",     name: "Viken Strand 4:2",  likes: 58, interested: 12, price: "14 500 kr/mån" },
 ];
 
@@ -1435,17 +1454,16 @@ function addClaimedMarkers() {
 
   markerLayer = L.layerGroup().addTo(map);
 
-  // Add user's own claimed property if exists
+  const allProps = [...CLAIMED_PROPS];
+  // Only add user's own property if we have real coordinates (from parcel click)
   const state = loadState();
   const ownerId = state.ownerParcelId;
-  const ownerName = ownerId ? state.parcelNames?.[ownerId] || ownerId : null;
-
-  const allProps = [...CLAIMED_PROPS];
-  if (ownerId && !allProps.find(p => p.id === ownerId)) {
-    // Add user's own property at map center if no coordinates known
+  if (ownerId && state.ownerLat && state.ownerLon && !allProps.find(p => p.id === ownerId)) {
+    const ownerName = state.parcelNames?.[ownerId] || ownerId;
     allProps.push({
       id: ownerId,
-      lat: 56.0465, lon: 12.6945,
+      lat: state.ownerLat,
+      lon: state.ownerLon,
       status: state.claimData?.visibility === 'sale' ? 'sale' : state.claimData?.visibility === 'rent' ? 'rent' : 'passive',
       name: ownerName,
       likes: state.likes?.[ownerId] || 0,

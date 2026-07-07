@@ -167,15 +167,70 @@ function ensureMapMounted() {
 }
 
 function clearLayer() {
-  if (parcelsLayer) {
-    if (parcelsLayer.remove) parcelsLayer.remove();
-    parcelsLayer = null;
-  }
+  if (parcelsLayer) { parcelsLayer.remove(); parcelsLayer = null; }
   lastGeoJson = null;
 }
 function redrawLayer() { if (lastGeoJson) addGeoJsonToMap(lastGeoJson, { keepView: true, silent: true }); }
 
 function addGeoJsonToMap(geojson, opts = {}) {
+  ensureMapMounted();
+  if (parcelsLayer) { parcelsLayer.remove(); parcelsLayer = null; }
+  lastGeoJson = geojson;
+
+  if (!map.getPane("parcelsPane")) {
+    map.createPane("parcelsPane");
+    map.getPane("parcelsPane").style.zIndex = 450;
+  }
+
+  const state = loadState();
+
+  function getStyle(pid) {
+    if (state.ownerParcelId === pid) return { color: "#22c55e", weight: 2.5, fillColor: "#22c55e", fillOpacity: 0.18 };
+    if (state.myInterests?.[pid])    return { color: "#a78bfa", weight: 2,   fillColor: "#8b5cf6", fillOpacity: 0.14 };
+    if (state.myLikes?.[pid])        return { color: "#93c5fd", weight: 2,   fillColor: "#60a5fa", fillOpacity: 0.10 };
+    return null; // default style
+  }
+
+  const defaultStyle = {
+    color: "rgba(255,255,255,0.75)",
+    weight: 1,
+    fill: false,       // NO fill = no triangulation
+    smoothFactor: 0,   // NO smoothing = exact coordinates
+    interactive: true,
+  };
+
+  parcelsLayer = L.geoJSON(geojson, {
+    pane: "parcelsPane",
+    smoothFactor: 0,
+    style: (feature) => {
+      const pid = getParcelId(feature);
+      const special = getStyle(pid);
+      if (special) return { ...special, smoothFactor: 0 };
+      return defaultStyle;
+    },
+    onEachFeature: (feature, layer) => {
+      const pid = getParcelId(feature);
+      layer.on("mouseover", () => {
+        map.getContainer().style.cursor = "pointer";
+        layer.setStyle({ color: "#C2622A", weight: 2 });
+        if (layer.bringToFront) layer.bringToFront();
+      });
+      layer.on("mouseout", () => {
+        map.getContainer().style.cursor = "";
+        const special = getStyle(pid);
+        layer.setStyle(special ? { ...special, smoothFactor: 0 } : defaultStyle);
+      });
+      layer.on("click", () => renderParcelPanel(feature));
+    },
+  }).addTo(map);
+
+  try {
+    const b = parcelsLayer.getBounds();
+    if (b?.isValid() && !opts.keepView) map.fitBounds(b, { padding: [20, 20] });
+  } catch {}
+
+  try { localStorage.setItem(LS_GEOJSON, JSON.stringify(geojson)); } catch {}
+  if (!opts.silent) toast("Fastighetslager inläst — klicka på en fastighet.");
   ensureMapMounted();
   if (parcelsLayer) { parcelsLayer.remove(); parcelsLayer = null; }
   lastGeoJson = geojson;

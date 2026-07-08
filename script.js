@@ -197,10 +197,6 @@ function addGeoJsonToMap(geojson, opts = {}) {
     map.createPane("parcelsPane");
     map.getPane("parcelsPane").style.zIndex = 450;
   }
-  if (!map.getPane("outlinePane")) {
-    map.createPane("outlinePane");
-    map.getPane("outlinePane").style.zIndex = 449;
-  }
 
   const group = L.layerGroup().addTo(map);
 
@@ -208,251 +204,63 @@ function addGeoJsonToMap(geojson, opts = {}) {
     const geom = feature?.geometry;
     if (!geom || !['Polygon','MultiPolygon'].includes(geom.type)) continue;
 
-    const polygons = geom.type === 'Polygon'
-      ? [geom.coordinates]
-      : geom.coordinates;
+    const polygons = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
 
     for (const poly of polygons) {
-      const latLngs = poly[0].map(p => [p[1], p[0]]);
-      if (latLngs.length < 3) continue;
+      const latlngs = poly[0].map(p => [p[1], p[0]]);
+      if (latlngs.length < 3) continue;
 
-      // Visible outline (not interactive)
-      const outline = L.polygon(latLngs, {
-        pane: "outlinePane",
-        color: "rgba(255,255,255,0.7)",
-        weight: 1,
-        fill: false,
-        interactive: false,
-        smoothFactor: 0,
-      });
-
-      // Invisible fill — catches ALL clicks inside the polygon
-      const hitArea = L.polygon(latLngs, {
+      const layer = L.polygon(latlngs, {
         pane: "parcelsPane",
-        color: "transparent",
-        weight: 0,
+        color: "rgba(255,255,255,0.75)",
+        weight: 1,
         fill: true,
-        fillColor: "#000000",
+        fillColor: "#ffffff",
         fillOpacity: 0.001,
-        interactive: true,
         smoothFactor: 0,
+        interactive: true,
       });
 
-      hitArea.on("click", () => {
-        // Briefly highlight outline on click
-        outline.setStyle({ color: "#C2622A", weight: 2 });
-        setTimeout(() => outline.setStyle({ color: "rgba(255,255,255,0.7)", weight: 1 }), 1200);
+      layer.on('add', function() {
+        const el = this.getElement();
+        if (el) el.style.pointerEvents = 'all';
+      });
+
+      layer.on("click", () => {
+        layer.setStyle({ color: "#C2622A", weight: 2 });
+        setTimeout(() => layer.setStyle({ color: "rgba(255,255,255,0.75)", weight: 1 }), 1000);
         renderParcelPanel(feature);
       });
 
-      hitArea.on("mouseover", () => {
+      layer.on("mouseover", () => {
         map.getContainer().style.cursor = "pointer";
-        outline.setStyle({ color: "#C2622A", weight: 2 });
+        layer.setStyle({ color: "#C2622A", weight: 2, fillOpacity: 0.06 });
       });
 
-      hitArea.on("mouseout", () => {
+      layer.on("mouseout", () => {
         map.getContainer().style.cursor = "";
-        outline.setStyle({ color: "rgba(255,255,255,0.7)", weight: 1 });
+        layer.setStyle({ color: "rgba(255,255,255,0.75)", weight: 1, fillOpacity: 0.001 });
       });
 
-      group.addLayer(outline);
-      group.addLayer(hitArea);
+      group.addLayer(layer);
     }
   }
 
   parcelsLayer = group;
 
+  setTimeout(() => {
+    const pane = map.getPane("parcelsPane");
+    if (pane) {
+      pane.querySelectorAll("path").forEach(path => {
+        path.style.pointerEvents = "all";
+      });
+    }
+  }, 300);
+
   try {
     const b = L.geoJSON(geojson).getBounds();
     if (b?.isValid() && !opts.keepView) map.fitBounds(b, { padding: [20,20] });
   } catch {}
-
-  try { localStorage.setItem(LS_GEOJSON, JSON.stringify(geojson)); } catch {}
-  if (!opts.silent) toast("Fastighetslager inläst — klicka på en fastighet.");
-  ensureMapMounted();
-  if (parcelsLayer) { parcelsLayer.remove(); parcelsLayer = null; }
-  lastGeoJson = geojson;
-
-  parcelsLayer = L.geoJSON(geojson, {
-    style: {
-      color: "#ffffff",
-      weight: 1,
-      opacity: 0.8,
-      fill: true,
-      fillColor: "#000000",
-      fillOpacity: 0.02,
-    },
-    interactive: true,
-    onEachFeature: (feature, layer) => {
-      layer.on("click", () => renderParcelPanel(feature));
-      layer.on("mouseover", () => {
-        map.getContainer().style.cursor = "pointer";
-        layer.setStyle({ color: "#C2622A", weight: 2, fillColor: "#C2622A", fillOpacity: 0.08 });
-      });
-      layer.on("mouseout", () => {
-        map.getContainer().style.cursor = "";
-        layer.setStyle({ color: "#ffffff", weight: 1, fillColor: "#ffffff", fillOpacity: 0.01 });
-      });
-    },
-  }).addTo(map);
-
-  try {
-    const b = parcelsLayer.getBounds();
-    if (b?.isValid() && !opts.keepView) map.fitBounds(b, { padding: [20, 20] });
-  } catch {}
-
-  try { localStorage.setItem(LS_GEOJSON, JSON.stringify(geojson)); } catch {}
-  if (!opts.silent) toast("Fastighetslager inläst — klicka på en fastighet.");
-  ensureMapMounted();
-  if (parcelsLayer) { parcelsLayer.remove(); parcelsLayer = null; }
-  lastGeoJson = geojson;
-
-  if (!map.getPane("parcelsPane")) {
-    map.createPane("parcelsPane");
-    map.getPane("parcelsPane").style.zIndex = 450;
-  }
-
-  const state = loadState();
-
-  function getStyle(pid) {
-    if (state.ownerParcelId === pid) return { color: "#22c55e", weight: 2.5, fillColor: "#22c55e", fillOpacity: 0.18 };
-    if (state.myInterests?.[pid])    return { color: "#a78bfa", weight: 2,   fillColor: "#8b5cf6", fillOpacity: 0.14 };
-    if (state.myLikes?.[pid])        return { color: "#93c5fd", weight: 2,   fillColor: "#60a5fa", fillOpacity: 0.10 };
-    return null; // default style
-  }
-
-  const defaultStyle = {
-    color: "rgba(255,255,255,0.75)",
-    weight: 1,
-    fill: false,       // NO fill = no triangulation
-    smoothFactor: 0,   // NO smoothing = exact coordinates
-    interactive: true,
-  };
-
-  parcelsLayer = L.geoJSON(geojson, {
-    pane: "parcelsPane",
-    smoothFactor: 0,
-    style: (feature) => {
-      const pid = getParcelId(feature);
-      const special = getStyle(pid);
-      if (special) return { ...special, smoothFactor: 0 };
-      return defaultStyle;
-    },
-    onEachFeature: (feature, layer) => {
-      const pid = getParcelId(feature);
-      layer.on("mouseover", () => {
-        map.getContainer().style.cursor = "pointer";
-        layer.setStyle({ color: "#C2622A", weight: 2 });
-        if (layer.bringToFront) layer.bringToFront();
-      });
-      layer.on("mouseout", () => {
-        map.getContainer().style.cursor = "";
-        const special = getStyle(pid);
-        layer.setStyle(special ? { ...special, smoothFactor: 0 } : defaultStyle);
-      });
-      layer.on("click", () => renderParcelPanel(feature));
-    },
-  }).addTo(map);
-
-  try {
-    const b = parcelsLayer.getBounds();
-    if (b?.isValid() && !opts.keepView) map.fitBounds(b, { padding: [20, 20] });
-  } catch {}
-
-  try { localStorage.setItem(LS_GEOJSON, JSON.stringify(geojson)); } catch {}
-  if (!opts.silent) toast("Fastighetslager inläst — klicka på en fastighet.");
-  ensureMapMounted();
-  if (parcelsLayer) { parcelsLayer.remove(); parcelsLayer = null; }
-  lastGeoJson = geojson;
-
-  if (!map.getPane("parcelsPane")) {
-    map.createPane("parcelsPane");
-    map.getPane("parcelsPane").style.zIndex = 450;
-  }
-
-  function getStyle(feature) {
-    const state = loadState();
-    const pid = getParcelId(feature);
-    if (state.ownerParcelId === pid) return { color: "#22c55e", weight: 2.5, fillColor: "#22c55e", fillOpacity: 0.18, fill: true };
-    if (state.myInterests?.[pid])    return { color: "#a78bfa", weight: 2,   fillColor: "#8b5cf6", fillOpacity: 0.14, fill: true };
-    if (state.myLikes?.[pid])        return { color: "#93c5fd", weight: 2,   fillColor: "#60a5fa", fillOpacity: 0.10, fill: true };
-    return { color: "rgba(255,255,255,0.7)", weight: 1, fill: false };
-  }
-
-  // Use L.polyline for outlines — bypasses Leaflet polygon fill triangulation
-  const layerGroup = L.layerGroup({ pane: "parcelsPane" });
-
-  for (const feature of (geojson.features || [])) {
-    const geom = feature?.geometry;
-    if (!geom) continue;
-
-    const style = getStyle(feature);
-    const rings = [];
-
-    if (geom.type === "Polygon") {
-      rings.push(...geom.coordinates);
-    } else if (geom.type === "MultiPolygon") {
-      for (const poly of geom.coordinates) rings.push(...poly);
-    } else continue;
-
-    const outerRings = [];
-    for (const ring of rings) {
-      // Convert [lon, lat] to L.LatLng [lat, lon]
-      const latLngs = ring.map(p => [p[1], p[0]]);
-      if (latLngs.length < 3) continue;
-
-      let layer;
-      if (style.fill) {
-        // Filled polygon for liked/owned
-        layer = L.polygon(latLngs, {
-          pane: "parcelsPane",
-          color: style.color,
-          weight: style.weight,
-          fillColor: style.fillColor,
-          fillOpacity: style.fillOpacity,
-          smoothFactor: 0,
-        });
-      } else {
-        // Pure polyline — no fill, no triangulation
-        layer = L.polyline(latLngs, {
-          pane: "parcelsPane",
-          color: style.color,
-          weight: style.weight,
-          opacity: 0.8,
-          smoothFactor: 0,
-        });
-      }
-
-      layer.on("click", () => renderParcelPanel(feature));
-      layer.on("mouseover", () => {
-        map.getContainer().style.cursor = "pointer";
-        layer.setStyle({ color: "#C2622A", weight: 2 });
-      });
-      layer.on("mouseout", () => {
-        map.getContainer().style.cursor = "";
-        layer.setStyle({ color: style.color, weight: style.weight });
-      });
-
-      layerGroup.addLayer(layer);
-      outerRings.push(latLngs);
-    }
-  }
-
-  layerGroup.addTo(map);
-  parcelsLayer = layerGroup;
-
-  // Fit bounds on first load
-  if (!opts.keepView && geojson.features?.length) {
-    try {
-      const allCoords = [];
-      for (const f of geojson.features) {
-        const geom = f?.geometry;
-        if (geom?.type === "Polygon") allCoords.push(...geom.coordinates[0].map(p => [p[1], p[0]]));
-        else if (geom?.type === "MultiPolygon") allCoords.push(...geom.coordinates[0][0].map(p => [p[1], p[0]]));
-      }
-      if (allCoords.length) map.fitBounds(L.latLngBounds(allCoords), { padding: [20, 20] });
-    } catch {}
-  }
 
   try { localStorage.setItem(LS_GEOJSON, JSON.stringify(geojson)); } catch {}
   if (!opts.silent) toast("Fastighetslager inläst — klicka på en fastighet.");

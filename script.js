@@ -714,6 +714,7 @@ function renderWelcome() {
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
           <span style="font-size:11px;font-weight:600;color:#C2622A;background:rgba(194,98,42,.15);border-radius:999px;padding:3px 10px;letter-spacing:.06em;">BETA · Helsingborg</span>
+          <button onclick="navigate('brokerWelcome')" style="padding:8px 18px;border-radius:9px;border:0.5px solid rgba(255,255,255,.2);background:transparent;color:rgba(255,255,255,.7);font-size:13px;font-weight:500;cursor:pointer;font-family:'Inter',sans-serif;margin-right:8px;">För mäklare</button>
           <button onclick="document.getElementById('auth-section').scrollIntoView({behavior:'smooth'})" style="padding:8px 18px;border-radius:9px;border:none;background:#C2622A;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">Kom igång</button>
         </div>
       </nav>
@@ -2482,13 +2483,319 @@ function rejectClaim(email) {
   renderAdmin();
 }
 
+
+// =========================
+// MÄKLARPORTAL
+// =========================
+
+const MOCK_BROKER_ACCOUNTS = {
+  "maklare@fastighetsbyran.se": { password: "demo2025", name: "Anna Lindqvist", firm: "Fastighetsbyrån AB", logo: "FA", verified: true },
+  "erik@stadsmäklarna.se":      { password: "demo2025", name: "Erik Strand",     firm: "Stadsmäklarna",    logo: "SM", verified: true },
+};
+
+const MOCK_BROKER_LISTINGS = [
+  { id: "b1", address: "Pålsjövägen 12", area: "Pålsjö", type: "Villa", sqm: 185, rooms: 5, price: "4 750 000 kr", status: "active", likes: 31, interested: 8, views: 142, messages: 3, img: "https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=400&q=70" },
+  { id: "b2", address: "Kungsörsgatan 7", area: "Söder",  type: "Lägenhet", sqm: 78, rooms: 3, price: "2 100 000 kr", status: "active", likes: 19, interested: 5, views: 88,  messages: 1, img: "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=400&q=70" },
+  { id: "b3", address: "Larödsvägen 44", area: "Laröd",  type: "Gård", sqm: 320, rooms: 7, price: "6 900 000 kr", status: "active", likes: 44, interested: 12, views: 201, messages: 5, img: "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400&q=70" },
+  { id: "b4", address: "Fredriksdalsgatan 3", area: "Fredriksdal", type: "Villa", sqm: 210, rooms: 6, price: "5 200 000 kr", status: "draft", likes: 0, interested: 0, views: 0, messages: 0, img: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=400&q=70" },
+];
+
+function isBroker() {
+  const s = loadSession();
+  return !!MOCK_BROKER_ACCOUNTS[s?.email];
+}
+
+function getBroker() {
+  const s = loadSession();
+  return MOCK_BROKER_ACCOUNTS[s?.email] || null;
+}
+
+function renderBrokerWelcome() {
+  app.innerHTML = `
+    <div style="min-height:100vh;background:#0F1117;font-family:'Inter',sans-serif;display:flex;flex-direction:column;">
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:24px;">
+        <div style="width:100%;max-width:400px;">
+          <div style="text-align:center;margin-bottom:32px;">
+            <div style="display:inline-flex;align-items:center;gap:9px;margin-bottom:20px;">
+              <svg width="22" height="27" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#C2622A"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#C2622A"/></svg>
+              <span style="font-size:22px;font-weight:700;letter-spacing:-.04em;color:#fff;">i<em style="font-style:normal;color:#C2622A;">found</em></span>
+            </div>
+            <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(194,98,42,.15);border:1px solid rgba(194,98,42,.3);color:#C2622A;border-radius:999px;padding:4px 12px;font-size:11px;font-weight:600;letter-spacing:.06em;margin-bottom:16px;">
+              <i class="ti ti-building" style="font-size:12px;" aria-hidden="true"></i> MÄKLARPORTAL
+            </div>
+            <div style="font-size:24px;font-weight:700;letter-spacing:-.04em;color:#fff;margin-bottom:8px;">Logga in</div>
+            <div style="font-size:13px;color:rgba(255,255,255,.4);">Hantera dina objekt och leads</div>
+          </div>
+
+          <div style="background:rgba(255,255,255,.04);border:0.5px solid rgba(255,255,255,.1);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:14px;">
+            <div>
+              <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.4);margin-bottom:6px;">E-post</label>
+              <input id="brokerEmail" style="width:100%;background:rgba(255,255,255,.06);border:0.5px solid rgba(255,255,255,.12);border-radius:9px;padding:10px 13px;font-size:13px;font-family:'Inter',sans-serif;color:#fff;outline:none;" placeholder="din@maklarfirma.se" />
+            </div>
+            <div>
+              <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.4);margin-bottom:6px;">Lösenord</label>
+              <input id="brokerPass" type="password" style="width:100%;background:rgba(255,255,255,.06);border:0.5px solid rgba(255,255,255,.12);border-radius:9px;padding:10px 13px;font-size:13px;font-family:'Inter',sans-serif;color:#fff;outline:none;" placeholder="••••••••" />
+            </div>
+            <button id="brokerLoginBtn" style="width:100%;padding:13px;border-radius:11px;border:none;background:#C2622A;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;margin-top:4px;">
+              Logga in som mäklare
+            </button>
+            <div style="font-size:11px;color:rgba(255,255,255,.25);text-align:center;">Demo: maklare@fastighetsbyran.se / demo2025</div>
+          </div>
+
+          <div style="text-align:center;margin-top:20px;">
+            <button onclick="navigate('welcome')" style="background:transparent;border:none;color:rgba(255,255,255,.35);font-size:12px;cursor:pointer;font-family:'Inter',sans-serif;">
+              Tillbaka till ifound.se
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("brokerLoginBtn").onclick = () => {
+    const email = document.getElementById("brokerEmail").value.trim().toLowerCase();
+    const pass  = document.getElementById("brokerPass").value;
+    const broker = MOCK_BROKER_ACCOUNTS[email];
+    if (!broker || broker.password !== pass) { toast("Fel e-post eller lösenord."); return; }
+    saveSession({ email, isBroker: true });
+    navigate("broker");
+  };
+}
+
+function renderBrokerDashboard() {
+  const broker = getBroker();
+  if (!broker) { navigate("brokerWelcome"); return; }
+
+  const active = MOCK_BROKER_LISTINGS.filter(l => l.status === "active");
+  const drafts = MOCK_BROKER_LISTINGS.filter(l => l.status === "draft");
+  const totalLikes = MOCK_BROKER_LISTINGS.reduce((a,l) => a + l.likes, 0);
+  const totalInterested = MOCK_BROKER_LISTINGS.reduce((a,l) => a + l.interested, 0);
+  const totalMessages = MOCK_BROKER_LISTINGS.reduce((a,l) => a + l.messages, 0);
+
+  app.innerHTML = `
+    <div style="min-height:100vh;background:#0F1117;font-family:'Inter',sans-serif;">
+      <nav style="height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:rgba(255,255,255,.03);border-bottom:0.5px solid rgba(255,255,255,.08);position:sticky;top:0;z-index:50;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <svg width="18" height="23" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#C2622A"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#C2622A"/></svg>
+          <span style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:#fff;">i<em style="font-style:normal;color:#C2622A;">found</em></span>
+          <span style="font-size:10px;font-weight:700;background:rgba(194,98,42,.2);color:#C2622A;border-radius:999px;padding:3px 9px;letter-spacing:.08em;">MÄKLARE</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="width:32px;height:32px;border-radius:50%;background:rgba(194,98,42,.2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#C2622A;">${broker.logo}</div>
+          <button onclick="clearSession();navigate('brokerWelcome');" style="font-size:12px;color:rgba(255,255,255,.35);background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;">Logga ut</button>
+        </div>
+      </nav>
+
+      <div style="max-width:900px;margin:0 auto;padding:28px 20px 60px;">
+
+        <div style="margin-bottom:28px;">
+          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#C2622A;margin-bottom:6px;">Välkommen</div>
+          <div style="font-size:26px;font-weight:700;letter-spacing:-.04em;color:#fff;">${broker.name}</div>
+          <div style="font-size:13px;color:rgba(255,255,255,.4);margin-top:3px;">${broker.firm}</div>
+        </div>
+
+        <!-- Stats -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:28px;">
+          ${[
+            { num: active.length, lbl: "Aktiva objekt", icon: "ti-home-check" },
+            { num: totalLikes,     lbl: "Totalt gillar",  icon: "ti-heart" },
+            { num: totalInterested, lbl: "Intressenter",  icon: "ti-star" },
+            { num: totalMessages,  lbl: "Meddelanden",    icon: "ti-message" },
+          ].map(s => `
+            <div style="background:rgba(255,255,255,.04);border:0.5px solid rgba(255,255,255,.08);border-radius:14px;padding:16px;">
+              <div style="width:36px;height:36px;border-radius:9px;background:rgba(194,98,42,.15);display:flex;align-items:center;justify-content:center;margin-bottom:10px;">
+                <i class="ti ${s.icon}" style="font-size:17px;color:#C2622A;" aria-hidden="true"></i>
+              </div>
+              <div style="font-size:26px;font-weight:700;letter-spacing:-.04em;color:#fff;line-height:1;">${s.num}</div>
+              <div style="font-size:11px;color:rgba(255,255,255,.35);margin-top:4px;">${s.lbl}</div>
+            </div>
+          `).join('')}
+        </div>
+
+        <!-- Listings header -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div style="font-size:16px;font-weight:600;letter-spacing:-.03em;color:#fff;">Mina objekt</div>
+          <button id="addListingBtn" style="display:flex;align-items:center;gap:7px;background:#C2622A;color:#fff;border:none;border-radius:9px;padding:8px 16px;font-size:12px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
+            <i class="ti ti-plus" aria-hidden="true"></i> Lägg till objekt
+          </button>
+        </div>
+
+        <!-- Listings -->
+        <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:28px;">
+          ${MOCK_BROKER_LISTINGS.map(l => `
+            <div style="background:rgba(255,255,255,.04);border:0.5px solid rgba(255,255,255,.08);border-radius:14px;padding:16px;display:flex;gap:16px;align-items:center;">
+              <img src="${l.img}" style="width:72px;height:72px;border-radius:10px;object-fit:cover;flex-shrink:0;" />
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+                  <div style="font-size:14px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${l.address}</div>
+                  <span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:999px;flex-shrink:0;${l.status === 'active' ? 'background:rgba(22,163,74,.15);color:#4ade80;' : 'background:rgba(255,255,255,.08);color:rgba(255,255,255,.4);'}">${l.status === 'active' ? 'Aktiv' : 'Utkast'}</span>
+                </div>
+                <div style="font-size:12px;color:rgba(255,255,255,.35);margin-bottom:8px;">${l.area} · ${l.type} · ${l.sqm} kvm · ${l.price}</div>
+                <div style="display:flex;gap:14px;">
+                  <span style="font-size:11px;color:rgba(255,255,255,.35);display:flex;align-items:center;gap:4px;"><i class="ti ti-heart" style="font-size:12px;" aria-hidden="true"></i> ${l.likes}</span>
+                  <span style="font-size:11px;color:rgba(255,255,255,.35);display:flex;align-items:center;gap:4px;"><i class="ti ti-star" style="font-size:12px;" aria-hidden="true"></i> ${l.interested}</span>
+                  <span style="font-size:11px;color:rgba(255,255,255,.35);display:flex;align-items:center;gap:4px;"><i class="ti ti-eye" style="font-size:12px;" aria-hidden="true"></i> ${l.views}</span>
+                  ${l.messages ? `<span style="font-size:11px;color:#C2622A;display:flex;align-items:center;gap:4px;font-weight:600;"><i class="ti ti-message" style="font-size:12px;" aria-hidden="true"></i> ${l.messages} nya</span>` : ''}
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
+                <button onclick="brokerViewMessages('${l.id}')" style="padding:7px 14px;border-radius:8px;border:0.5px solid rgba(255,255,255,.12);background:transparent;font-size:12px;font-weight:600;color:#fff;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;">Se detaljer</button>
+                <button onclick="brokerEditListing('${l.id}')" style="padding:7px 14px;border-radius:8px;border:0.5px solid rgba(255,255,255,.08);background:transparent;font-size:12px;color:rgba(255,255,255,.4);cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;">Redigera</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+
+        <!-- Messages inbox -->
+        <div style="font-size:16px;font-weight:600;letter-spacing:-.03em;color:#fff;margin-bottom:16px;">Senaste meddelanden</div>
+        <div style="background:rgba(255,255,255,.04);border:0.5px solid rgba(255,255,255,.08);border-radius:14px;overflow:hidden;">
+          ${[
+            { obj:"Laröd 44", msg:"Hej! Vi är mycket intresserade av fastigheten. Är det möjligt att boka en visning?", time:"Idag 09:14" },
+            { obj:"Laröd 44", msg:"Vilken är lägsta accepterade bud? Vi är en familj på 4 som söker större boende.", time:"Igår 18:32" },
+            { obj:"Pålsjövägen 12", msg:"Finns det möjlighet till en privat visning denna vecka?", time:"Igår 11:05" },
+            { obj:"Kungsörsgatan 7", msg:"Är taket nytt? Vi är intresserade men vill veta mer om renoveringsbehovet.", time:"2 dagar sedan" },
+          ].map((m,i,arr) => `
+            <div style="display:flex;gap:14px;padding:14px 18px;border-bottom:${i<arr.length-1?'0.5px solid rgba(255,255,255,.06)':'none'};">
+              <div style="width:36px;height:36px;border-radius:50%;background:rgba(194,98,42,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i class="ti ti-user" style="font-size:16px;color:#C2622A;" aria-hidden="true"></i>
+              </div>
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:12px;font-weight:600;color:#C2622A;margin-bottom:3px;">${m.obj}</div>
+                <div style="font-size:13px;color:rgba(255,255,255,.65);line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">"${m.msg}"</div>
+                <div style="font-size:11px;color:rgba(255,255,255,.25);margin-top:4px;">${m.time} · Anonymt</div>
+              </div>
+              <button onclick="toast('Svara — kommer snart!')" style="padding:6px 12px;border-radius:8px;border:0.5px solid rgba(255,255,255,.12);background:transparent;font-size:11px;font-weight:600;color:rgba(255,255,255,.5);cursor:pointer;font-family:'Inter',sans-serif;flex-shrink:0;align-self:center;">Svara</button>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("addListingBtn").onclick = () => navigate("brokerAddListing");
+}
+
+function renderBrokerAddListing() {
+  const broker = getBroker();
+  if (!broker) { navigate("brokerWelcome"); return; }
+
+  app.innerHTML = `
+    <div style="min-height:100vh;background:#0F1117;font-family:'Inter',sans-serif;">
+      <nav style="height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:rgba(255,255,255,.03);border-bottom:0.5px solid rgba(255,255,255,.08);position:sticky;top:0;z-index:50;">
+        <button onclick="navigate('broker')" style="display:flex;align-items:center;gap:7px;background:transparent;border:none;color:rgba(255,255,255,.5);font-size:13px;cursor:pointer;font-family:'Inter',sans-serif;">
+          <i class="ti ti-arrow-left" aria-hidden="true"></i> Tillbaka
+        </button>
+        <div style="font-size:14px;font-weight:600;color:#fff;">Lägg till objekt</div>
+        <div style="width:60px;"></div>
+      </nav>
+
+      <div style="max-width:560px;margin:0 auto;padding:32px 20px 60px;">
+        <div style="font-size:22px;font-weight:700;letter-spacing:-.04em;color:#fff;margin-bottom:4px;">Nytt objekt</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.4);margin-bottom:28px;">Fyll i uppgifterna nedan. Du kan redigera när som helst.</div>
+
+        <div style="display:flex;flex-direction:column;gap:18px;">
+
+          <div style="background:rgba(255,255,255,.04);border:0.5px solid rgba(255,255,255,.08);border-radius:14px;padding:20px;">
+            <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:14px;">Fastighetsuppgifter</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              ${[
+                {lbl:"Adress", ph:"Storgatan 12", full:true},
+                {lbl:"Område", ph:"Pålsjö"},
+                {lbl:"Typ", ph:"Villa"},
+                {lbl:"Storlek (kvm)", ph:"185"},
+                {lbl:"Antal rum", ph:"5"},
+                {lbl:"Utgångspris", ph:"4 750 000 kr"},
+              ].map(f => `
+                <div style="${f.full ? 'grid-column:1/-1;' : ''}">
+                  <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.35);margin-bottom:5px;">${f.lbl}</label>
+                  <input style="width:100%;background:rgba(255,255,255,.06);border:0.5px solid rgba(255,255,255,.1);border-radius:8px;padding:9px 12px;font-size:13px;font-family:'Inter',sans-serif;color:#fff;outline:none;" placeholder="${f.ph}" />
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <div style="background:rgba(255,255,255,.04);border:0.5px solid rgba(255,255,255,.08);border-radius:14px;padding:20px;">
+            <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:14px;">Beskrivning</div>
+            <textarea style="width:100%;background:rgba(255,255,255,.06);border:0.5px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 12px;font-size:13px;font-family:'Inter',sans-serif;color:#fff;outline:none;min-height:100px;resize:vertical;line-height:1.6;" placeholder="Beskriv fastigheten — läge, skick, renoveringar..."></textarea>
+          </div>
+
+          <div style="background:rgba(255,255,255,.04);border:0.5px solid rgba(255,255,255,.08);border-radius:14px;padding:20px;">
+            <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:6px;">Synlighet</div>
+            <div style="font-size:12px;color:rgba(255,255,255,.35);margin-bottom:14px;">Hur ska objektet visas på ifound?</div>
+            <div style="display:flex;flex-direction:column;gap:8px;" id="visibilityOpts">
+              ${[
+                {val:"passive", lbl:"Passiv", desc:"Syns på kartan men utan pris eller kontakt."},
+                {val:"active",  lbl:"Till salu", desc:"Visar pris och kontaktformulär för intressenter."},
+                {val:"coming",  lbl:"Coming soon", desc:"Syns som 'Kommer snart' — bygg intresse innan publicering."},
+              ].map((o,i) => `
+                <div onclick="brokerSelVis(this,'${o.val}')" data-vis="${o.val}" style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:10px;border:1.5px solid ${i===1?'#C2622A':'rgba(255,255,255,.1)'};background:${i===1?'rgba(194,98,42,.08)':'transparent'};cursor:pointer;">
+                  <div style="width:17px;height:17px;border-radius:50%;border:2px solid ${i===1?'#C2622A':'rgba(255,255,255,.2)'};flex-shrink:0;margin-top:1px;background:${i===1?'#C2622A':'transparent'};display:flex;align-items:center;justify-content:center;">
+                    ${i===1?'<div style="width:5px;height:5px;border-radius:50%;background:#fff;"></div>':''}
+                  </div>
+                  <div>
+                    <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:2px;">${o.lbl}</div>
+                    <div style="font-size:11px;color:rgba(255,255,255,.35);">${o.desc}</div>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <button id="publishBtn" style="width:100%;padding:14px;border-radius:12px;border:none;background:#C2622A;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
+            Publicera objekt
+          </button>
+          <button onclick="navigate('broker')" style="width:100%;padding:12px;border-radius:12px;border:0.5px solid rgba(255,255,255,.1);background:transparent;font-size:13px;color:rgba(255,255,255,.4);font-family:'Inter',sans-serif;cursor:pointer;">
+            Spara som utkast
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById("publishBtn").onclick = () => {
+    toast("Objekt publicerat! Syns nu på ifound-kartan.");
+    setTimeout(() => navigate("broker"), 1200);
+  };
+}
+
+function brokerSelVis(el, val) {
+  document.querySelectorAll('[data-vis]').forEach(opt => {
+    opt.style.borderColor = 'rgba(255,255,255,.1)';
+    opt.style.background = 'transparent';
+    const radio = opt.querySelector('div');
+    if (radio) { radio.style.borderColor = 'rgba(255,255,255,.2)'; radio.style.background = 'transparent'; radio.innerHTML = ''; }
+  });
+  el.style.borderColor = '#C2622A';
+  el.style.background = 'rgba(194,98,42,.08)';
+  const radio = el.querySelector('div');
+  if (radio) { radio.style.borderColor = '#C2622A'; radio.style.background = '#C2622A'; radio.innerHTML = '<div style="width:5px;height:5px;border-radius:50%;background:#fff;"></div>'; }
+}
+
+function brokerViewMessages(id) {
+  const listing = MOCK_BROKER_LISTINGS.find(l => l.id === id);
+  if (!listing) return;
+  toast(`${listing.messages || 0} meddelanden för ${listing.address}`);
+}
+
+function brokerEditListing(id) {
+  toast("Redigera objekt — kommer snart!");
+}
+
 // =========================
 // Render & boot
 // =========================
 function render() {
   const session = loadSession();
-  if (!session?.email) { renderWelcome(); return; }
+  if (!session?.email) {
+    if (currentView === "brokerWelcome") { renderBrokerWelcome(); return; }
+    renderWelcome(); return;
+  }
   if (session.email === "admin@ifound.se") { renderAdmin(); return; }
+  if (isBroker()) {
+    if (currentView === "brokerAddListing") { renderBrokerAddListing(); return; }
+    if (currentView === "broker" || currentView === "dashboard") { renderBrokerDashboard(); return; }
+    renderBrokerDashboard(); return;
+  }
   if (currentView === "map") { renderMapView(); return; }
   if (currentView === "feed") { renderFeed(); return; }
   if (currentView.startsWith("property_")) { renderPropertyView(); return; }

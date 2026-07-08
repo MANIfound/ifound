@@ -924,8 +924,8 @@ function renderPropertyView() {
           </button>
         </div>
         <div class="nav-right">
-          <button class="btn-ghost" style="font-size:12px;padding:7px 13px;" onclick="shareProperty('${prop.name}')">
-            <i class="ti ti-share"></i>
+          <button class="btn-ghost" style="font-size:12px;padding:7px 13px;display:flex;align-items:center;gap:5px;" onclick="shareProperty('${prop.name}')">
+            <i class="ti ti-share" aria-hidden="true"></i> Dela
           </button>
         </div>
       </nav>
@@ -990,6 +990,26 @@ function renderPropertyView() {
 
       </div>
 
+      <!-- Similar listings -->
+      <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;padding:20px;margin-bottom:16px;">
+        <div style="font-size:13px;font-weight:600;color:#111827;margin-bottom:14px;">Liknande objekt i området</div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          ${PROP_DATA.filter(p => p.id !== prop.id).slice(0,3).map(p => `
+            <div onclick="navigateProp(${p.id})" style="display:flex;gap:12px;align-items:center;cursor:pointer;padding:10px;border-radius:10px;border:0.5px solid rgba(17,24,39,.07);">
+              <img src="${p.img}" style="width:56px;height:56px;border-radius:8px;object-fit:cover;flex-shrink:0;" />
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:13px;font-weight:600;color:#111827;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
+                <div style="font-size:11px;color:#9CA3AF;margin-top:2px;">${p.meta}</div>
+                <div style="font-size:11px;color:#9CA3AF;margin-top:4px;display:flex;gap:10px;">
+                  <span>${p.likes} gillar</span><span>${p.interested} intresserade</span>
+                </div>
+              </div>
+              <i class="ti ti-chevron-right" style="font-size:16px;color:#D1D5DB;flex-shrink:0;" aria-hidden="true"></i>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
       <!-- Sticky action bar -->
       <div style="position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:0.5px solid rgba(17,24,39,.08);padding:12px 16px;display:flex;gap:10px;z-index:50;">
         <button id="propLikeBtn" onclick="propToggleLike(${prop.id})"
@@ -1026,7 +1046,15 @@ function propToggleInterest(id) {
 }
 
 function shareProperty(name) {
-  toast("Dela " + name + " — kommer snart!");
+  const url = window.location.href.split('?')[0] + '?prop=' + encodeURIComponent(name);
+  if (navigator.share) {
+    navigator.share({ title: name + ' — ifound', text: 'Kolla in den här fastigheten på ifound!', url });
+  } else if (navigator.clipboard) {
+    navigator.clipboard.writeText(url);
+    toast("Länk kopierad!");
+  } else {
+    toast("Dela: " + url);
+  }
 }
 
 // =========================
@@ -1637,7 +1665,7 @@ let markerLayer = null;
 function createMarkerIcon(status) {
   // SVG icons for each status
   const icons = {
-    passive: `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36">
+    passive: `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="34" viewBox="0 0 28 36">
       <path d="M14 0C6.3 0 0 6.3 0 14C0 24.5 14 36 14 36S28 24.5 28 14C28 6.3 21.7 0 14 0Z" fill="#6B7280"/>
       <circle cx="14" cy="14" r="6" fill="white" opacity="0.9"/>
     </svg>`,
@@ -1651,7 +1679,16 @@ function createMarkerIcon(status) {
 
     rent: `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="38" viewBox="0 0 30 38">
       <path d="M15 0C6.7 0 0 6.7 0 15C0 26.3 15 38 15 38S30 26.3 30 15C30 6.7 23.3 0 15 0Z" fill="#2563eb"/>
-      <text x="15" y="20" text-anchor="middle" font-size="14" fill="white" font-family="sans-serif">🔑</text>
+      <polygon points="7,16 15,8 23,16" fill="white" opacity=".95"/>
+      <rect x="9" y="16" width="12" height="9" rx="1" fill="white" opacity=".95"/>
+      <rect x="12" y="19" width="5" height="6" rx=".5" fill="#2563eb"/>
+    </svg>`,
+
+    broker_sale: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 64 78">
+      <path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#C2622A"/>
+      <polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/>
+      <rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/>
+      <rect x="27" y="37" width="10" height="12" rx="1" fill="#C2622A"/>
     </svg>`,
   };
 
@@ -2689,24 +2726,51 @@ function renderBrokerAddListing() {
         <div style="width:60px;"></div>
       </nav>
 
-      <div style="max-width:560px;margin:0 auto;padding:32px 20px 60px;">
+      <div style="max-width:620px;margin:0 auto;padding:32px 20px 80px;">
         <div style="font-size:22px;font-weight:700;letter-spacing:-.04em;color:#fff;margin-bottom:4px;">Nytt objekt</div>
-        <div style="font-size:13px;color:rgba(255,255,255,.4);margin-bottom:28px;">Fyll i uppgifterna nedan. Du kan redigera när som helst.</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.4);margin-bottom:28px;">Fyll i uppgifterna nedan — liknande en Hemnet-annons.</div>
 
-        <div style="display:flex;flex-direction:column;gap:18px;">
+        <div style="display:flex;flex-direction:column;gap:16px;">
 
+          <!-- Bilder -->
+          <div style="background:rgba(255,255,255,.04);border:0.5px solid rgba(255,255,255,.08);border-radius:14px;padding:20px;">
+            <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:4px;">Bilder</div>
+            <div style="font-size:12px;color:rgba(255,255,255,.35);margin-bottom:14px;">Första bilden blir huvudbild. Max 20 bilder.</div>
+            <div id="imagePreview" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+              ${["https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=200&q=60",
+                 "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=200&q=60",
+                 "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=200&q=60"].map((src,i) => `
+                <div style="position:relative;border-radius:8px;overflow:hidden;aspect-ratio:1;">
+                  <img src="${src}" style="width:100%;height:100%;object-fit:cover;" />
+                  ${i===0?'<div style="position:absolute;bottom:4px;left:4px;background:rgba(0,0,0,.6);color:#fff;font-size:9px;font-weight:600;padding:2px 6px;border-radius:4px;">HUVUDBILD</div>':''}
+                </div>
+              `).join('')}
+              <label style="border:1.5px dashed rgba(255,255,255,.15);border-radius:8px;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;gap:4px;">
+                <i class="ti ti-plus" style="font-size:20px;color:rgba(255,255,255,.3);" aria-hidden="true"></i>
+                <span style="font-size:10px;color:rgba(255,255,255,.3);">Lägg till</span>
+                <input type="file" accept="image/*" multiple style="display:none;" />
+              </label>
+            </div>
+          </div>
+
+          <!-- Fastighetsuppgifter -->
           <div style="background:rgba(255,255,255,.04);border:0.5px solid rgba(255,255,255,.08);border-radius:14px;padding:20px;">
             <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:14px;">Fastighetsuppgifter</div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
               ${[
                 {lbl:"Adress", ph:"Storgatan 12", full:true},
-                {lbl:"Område", ph:"Pålsjö"},
-                {lbl:"Typ", ph:"Villa"},
+                {lbl:"Område/stadsdel", ph:"Pålsjö", full:true},
+                {lbl:"Bostadstyp", ph:"Villa"},
+                {lbl:"Upplåtelseform", ph:"Äganderätt"},
                 {lbl:"Storlek (kvm)", ph:"185"},
+                {lbl:"Tomtarea (kvm)", ph:"820"},
                 {lbl:"Antal rum", ph:"5"},
-                {lbl:"Utgångspris", ph:"4 750 000 kr"},
+                {lbl:"Byggår", ph:"1965"},
+                {lbl:"Utgångspris", ph:"4 750 000 kr", full:true},
+                {lbl:"Driftkostnad (kr/mån)", ph:"4 500"},
+                {lbl:"Månadsavgift", ph:"—"},
               ].map(f => `
-                <div style="${f.full ? 'grid-column:1/-1;' : ''}">
+                <div style="${f.full?'grid-column:1/-1;':''}">
                   <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.35);margin-bottom:5px;">${f.lbl}</label>
                   <input style="width:100%;background:rgba(255,255,255,.06);border:0.5px solid rgba(255,255,255,.1);border-radius:8px;padding:9px 12px;font-size:13px;font-family:'Inter',sans-serif;color:#fff;outline:none;" placeholder="${f.ph}" />
                 </div>
@@ -2714,23 +2778,83 @@ function renderBrokerAddListing() {
             </div>
           </div>
 
+          <!-- Beskrivning -->
           <div style="background:rgba(255,255,255,.04);border:0.5px solid rgba(255,255,255,.08);border-radius:14px;padding:20px;">
             <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:14px;">Beskrivning</div>
-            <textarea style="width:100%;background:rgba(255,255,255,.06);border:0.5px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 12px;font-size:13px;font-family:'Inter',sans-serif;color:#fff;outline:none;min-height:100px;resize:vertical;line-height:1.6;" placeholder="Beskriv fastigheten — läge, skick, renoveringar..."></textarea>
+            <textarea style="width:100%;background:rgba(255,255,255,.06);border:0.5px solid rgba(255,255,255,.1);border-radius:8px;padding:10px 12px;font-size:13px;font-family:'Inter',sans-serif;color:#fff;outline:none;min-height:140px;resize:vertical;line-height:1.7;" placeholder="Beskriv fastigheten utförligt — läge, skick, renoveringar, trädgård, närmiljö..."></textarea>
           </div>
 
+          <!-- Planritning -->
           <div style="background:rgba(255,255,255,.04);border:0.5px solid rgba(255,255,255,.08);border-radius:14px;padding:20px;">
-            <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:6px;">Synlighet</div>
+            <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:4px;">Planritning</div>
+            <div style="font-size:12px;color:rgba(255,255,255,.35);margin-bottom:14px;">Ladda upp planritning som PDF eller bild.</div>
+            <label id="planLabel" style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.04);border:1.5px dashed rgba(255,255,255,.15);border-radius:10px;padding:16px;cursor:pointer;">
+              <div style="width:40px;height:40px;border-radius:9px;background:rgba(194,98,42,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i class="ti ti-file-upload" style="font-size:19px;color:#C2622A;" aria-hidden="true"></i>
+              </div>
+              <div>
+                <div style="font-size:13px;font-weight:600;color:#fff;" id="planName">Klicka för att ladda upp</div>
+                <div style="font-size:11px;color:rgba(255,255,255,.35);margin-top:2px;">PDF, JPG eller PNG · Max 10 MB</div>
+              </div>
+              <input id="planInput" type="file" accept=".pdf,image/*" style="display:none;" />
+            </label>
+          </div>
+
+          <!-- Visning -->
+          <div style="background:rgba(255,255,255,.04);border:0.5px solid rgba(255,255,255,.08);border-radius:14px;padding:20px;">
+            <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:14px;">Visning</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              ${[
+                {lbl:"Datum", ph:"2025-09-15", type:"date"},
+                {lbl:"Tid", ph:"13:00–15:00", type:"text"},
+                {lbl:"Anmälningslänk (valfritt)", ph:"https://...", full:true},
+                {lbl:"Övrigt om visning", ph:"Parkering finns längs Storgatan", full:true},
+              ].map(f => `
+                <div style="${f.full?'grid-column:1/-1;':''}">
+                  <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.35);margin-bottom:5px;">${f.lbl}</label>
+                  <input type="${f.type||'text'}" style="width:100%;background:rgba(255,255,255,.06);border:0.5px solid rgba(255,255,255,.1);border-radius:8px;padding:9px 12px;font-size:13px;font-family:'Inter',sans-serif;color:#fff;outline:none;" placeholder="${f.ph}" />
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- Ansvarig mäklare -->
+          <div style="background:rgba(255,255,255,.04);border:0.5px solid rgba(255,255,255,.08);border-radius:14px;padding:20px;">
+            <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:14px;">Ansvarig mäklare</div>
+            <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;padding:14px;background:rgba(255,255,255,.04);border-radius:10px;border:0.5px solid rgba(255,255,255,.08);">
+              <div style="width:44px;height:44px;border-radius:50%;background:rgba(194,98,42,.2);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#C2622A;flex-shrink:0;">${broker.logo}</div>
+              <div style="flex:1;">
+                <div style="font-size:14px;font-weight:600;color:#fff;">${broker.name}</div>
+                <div style="font-size:12px;color:rgba(255,255,255,.4);">${broker.firm}</div>
+              </div>
+              <button onclick="toast('Byt mäklare — kommer snart!')" style="padding:6px 12px;border-radius:7px;border:0.5px solid rgba(255,255,255,.12);background:transparent;font-size:11px;color:rgba(255,255,255,.4);cursor:pointer;font-family:'Inter',sans-serif;">Byt</button>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              ${[
+                {lbl:"Telefon", ph:"070-123 45 67"},
+                {lbl:"E-post", ph:"anna@fastighetsbyraan.se"},
+              ].map(f => `
+                <div>
+                  <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.35);margin-bottom:5px;">${f.lbl}</label>
+                  <input style="width:100%;background:rgba(255,255,255,.06);border:0.5px solid rgba(255,255,255,.1);border-radius:8px;padding:9px 12px;font-size:13px;font-family:'Inter',sans-serif;color:#fff;outline:none;" placeholder="${f.ph}" />
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+          <!-- Synlighet -->
+          <div style="background:rgba(255,255,255,.04);border:0.5px solid rgba(255,255,255,.08);border-radius:14px;padding:20px;">
+            <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:4px;">Synlighet</div>
             <div style="font-size:12px;color:rgba(255,255,255,.35);margin-bottom:14px;">Hur ska objektet visas på ifound?</div>
             <div style="display:flex;flex-direction:column;gap:8px;" id="visibilityOpts">
               ${[
-                {val:"passive", lbl:"Passiv", desc:"Syns på kartan men utan pris eller kontakt."},
-                {val:"active",  lbl:"Till salu", desc:"Visar pris och kontaktformulär för intressenter."},
-                {val:"coming",  lbl:"Coming soon", desc:"Syns som 'Kommer snart' — bygg intresse innan publicering."},
+                {val:"coming", lbl:"Coming soon", desc:"Bygg intresse innan officiell publicering. Syns utan pris."},
+                {val:"active", lbl:"Till salu",   desc:"Visar pris, visningsdatum och kontaktformulär."},
+                {val:"passive",lbl:"Passiv",       desc:"Syns på kartan utan att aktivt marknadsföra."},
               ].map((o,i) => `
-                <div onclick="brokerSelVis(this,'${o.val}')" data-vis="${o.val}" style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:10px;border:1.5px solid ${i===1?'#C2622A':'rgba(255,255,255,.1)'};background:${i===1?'rgba(194,98,42,.08)':'transparent'};cursor:pointer;">
-                  <div style="width:17px;height:17px;border-radius:50%;border:2px solid ${i===1?'#C2622A':'rgba(255,255,255,.2)'};flex-shrink:0;margin-top:1px;background:${i===1?'#C2622A':'transparent'};display:flex;align-items:center;justify-content:center;">
-                    ${i===1?'<div style="width:5px;height:5px;border-radius:50%;background:#fff;"></div>':''}
+                <div onclick="brokerSelVis(this,'${o.val}')" data-vis="${o.val}" style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:10px;border:1.5px solid ${i===0?'#C2622A':'rgba(255,255,255,.1)'};background:${i===0?'rgba(194,98,42,.08)':'transparent'};cursor:pointer;">
+                  <div style="width:17px;height:17px;border-radius:50%;border:2px solid ${i===0?'#C2622A':'rgba(255,255,255,.2)'};flex-shrink:0;margin-top:1px;background:${i===0?'#C2622A':'transparent'};display:flex;align-items:center;justify-content:center;">
+                    ${i===0?'<div style="width:5px;height:5px;border-radius:50%;background:#fff;"></div>':''}
                   </div>
                   <div>
                     <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:2px;">${o.lbl}</div>
@@ -2741,8 +2865,8 @@ function renderBrokerAddListing() {
             </div>
           </div>
 
-          <button id="publishBtn" style="width:100%;padding:14px;border-radius:12px;border:none;background:#C2622A;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
-            Publicera objekt
+          <button id="publishBtn" style="width:100%;padding:14px;border-radius:12px;border:none;background:#C2622A;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+            <i class="ti ti-send" aria-hidden="true"></i> Publicera objekt
           </button>
           <button onclick="navigate('broker')" style="width:100%;padding:12px;border-radius:12px;border:0.5px solid rgba(255,255,255,.1);background:transparent;font-size:13px;color:rgba(255,255,255,.4);font-family:'Inter',sans-serif;cursor:pointer;">
             Spara som utkast
@@ -2753,9 +2877,17 @@ function renderBrokerAddListing() {
   `;
 
   document.getElementById("publishBtn").onclick = () => {
-    toast("Objekt publicerat! Syns nu på ifound-kartan.");
+    toast("Objekt publicerat! Syns nu på ifound.");
     setTimeout(() => navigate("broker"), 1200);
   };
+
+  document.getElementById("planInput").addEventListener("change", e => {
+    const file = e.target.files?.[0];
+    if (file) {
+      document.getElementById("planName").textContent = file.name;
+      toast("Planritning uppladdad: " + file.name);
+    }
+  });
 }
 
 function brokerSelVis(el, val) {

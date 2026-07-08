@@ -276,6 +276,104 @@ function zoomToParcel(parcelId) {
 }
 
 
+
+// =========================
+// INTRESSE-MODAL
+// =========================
+function openInterestModal(feature, pid, name) {
+  const existing = document.getElementById('interest-modal-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'interest-modal-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;';
+
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:20px;padding:28px;width:100%;max-width:420px;box-shadow:0 24px 64px rgba(0,0,0,.2);font-family:'Inter',sans-serif;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;">
+        <div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#C2622A;margin-bottom:4px;">Visa intresse</div>
+          <div style="font-size:18px;font-weight:700;letter-spacing:-.03em;color:#111827;">${name}</div>
+        </div>
+        <button onclick="closeInterestModal()" style="width:32px;height:32px;border-radius:50%;border:none;background:#F3F4F6;cursor:pointer;font-size:16px;color:#6B7280;display:flex;align-items:center;justify-content:center;flex-shrink:0;">✕</button>
+      </div>
+
+      <div style="background:#F9F6F1;border-radius:12px;padding:14px 16px;margin-bottom:20px;font-size:13px;color:#6B7280;line-height:1.6;">
+        Ditt intresse sparas på fastigheten. Om ägaren ännu inte är med på ifound kommer de att se det när de går med och claimar sin fastighet.
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#6B7280;margin-bottom:6px;">Meddelande till ägaren <span style="font-weight:400;text-transform:none;letter-spacing:0;">(valfritt)</span></label>
+        <textarea id="interestMessage" style="width:100%;border:0.5px solid rgba(17,24,39,.12);border-radius:9px;padding:11px 13px;font-size:13px;font-family:'Inter',sans-serif;color:#111827;outline:none;min-height:100px;resize:vertical;line-height:1.6;background:#fff;" placeholder="Ex: Jag är intresserad av att köpa denna fastighet om ni någonsin funderar på att sälja. Hör gärna av er!"></textarea>
+        <div style="font-size:11px;color:#9CA3AF;margin-top:5px;">Meddelandet är anonymt tills du väljer att avslöja din identitet.</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <button id="sendInterestBtn" style="width:100%;padding:13px;border-radius:11px;border:none;background:#C2622A;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+          <i class="ti ti-star" aria-hidden="true"></i> Skicka intresse
+        </button>
+        <button onclick="sendInterestWithoutMessage('${pid}', '${name}')" style="width:100%;padding:11px;border-radius:11px;border:0.5px solid rgba(17,24,39,.12);background:transparent;color:#6B7280;font-size:13px;font-weight:500;font-family:'Inter',sans-serif;cursor:pointer;">
+          Bara markera intresse utan meddelande
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeInterestModal(); });
+
+  document.getElementById('sendInterestBtn').onclick = () => {
+    const msg = document.getElementById('interestMessage').value.trim();
+    saveInterest(pid, name, msg);
+  };
+}
+
+function closeInterestModal() {
+  const overlay = document.getElementById('interest-modal-overlay');
+  if (overlay) overlay.remove();
+}
+
+function sendInterestWithoutMessage(pid, name) {
+  saveInterest(pid, name, '');
+}
+
+function saveInterest(pid, name, message) {
+  const s = loadState();
+  s.myInterests = s.myInterests || {};
+  s.parcelNames = s.parcelNames || {};
+  s.parcelNames[pid] = name;
+  s.interests = s.interests || {};
+
+  if (!s.myInterests[pid]) {
+    s.interests[pid] = (s.interests[pid] || 0) + 1;
+    s.myInterests[pid] = true;
+  }
+
+  // Save message if provided
+  if (message) {
+    s.interestMessages = s.interestMessages || {};
+    s.interestMessages[pid] = s.interestMessages[pid] || [];
+    s.interestMessages[pid].push({
+      message,
+      sentAt: new Date().toISOString(),
+      anonymous: true,
+    });
+  }
+
+  saveState(s);
+  closeInterestModal();
+  redrawLayer();
+
+  if (message) {
+    toast("Intresse och meddelande skickat till ägaren!");
+  } else {
+    toast("Intresse markerat!");
+  }
+
+  // Re-render panel if still open
+  renderParcelPanel({ properties: { fastighet: name }, geometry: null, _pid: pid });
+}
+
 // =========================
 // AVSTYCKNING / DRAW
 // =========================
@@ -571,11 +669,20 @@ function renderParcelPanel(feature) {
   };
 
   document.getElementById("interestBtn").onclick = () => {
-    const s = loadState(); const already = !!s.myInterests?.[pid];
-    s.myInterests = s.myInterests || {}; s.parcelNames = s.parcelNames || {}; s.parcelNames[pid] = name;
-    if (already) { delete s.myInterests[pid]; s.interests[pid] = Math.max(0, (s.interests[pid] || 1) - 1); toast("Intressemarkering borttagen."); }
-    else { s.interests[pid] = (s.interests[pid] || 0) + 1; s.myInterests[pid] = true; toast("Intresse markerat."); }
-    saveState(s); redrawLayer(); renderParcelPanel(feature);
+    const s = loadState();
+    if (s.myInterests?.[pid]) {
+      // Already interested — toggle off
+      delete s.myInterests[pid];
+      s.interests[pid] = Math.max(0, (s.interests[pid] || 1) - 1);
+      delete (s.interestMessages || {})[pid];
+      saveState(s);
+      toast("Intressemarkering borttagen.");
+      redrawLayer();
+      renderParcelPanel(feature);
+    } else {
+      // Open modal to add interest + optional message
+      openInterestModal(feature, pid, name);
+    }
   };
 
   document.getElementById("subdivisionBtn").onclick = () => {
@@ -1281,6 +1388,20 @@ function renderDashboard() {
           <div>
             <div class="card" style="margin-bottom:12px;">
               <div class="card-title">Aktivitet</div>
+              ${ownerId && state.interestMessages?.[ownerId]?.length ? `
+                <div style="margin-bottom:12px;padding:12px;background:#FEF0E7;border-radius:10px;">
+                  <div style="font-size:12px;font-weight:700;color:#C2622A;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+                    <i class="ti ti-message" style="font-size:14px;"></i>
+                    ${state.interestMessages[ownerId].length} meddelande${state.interestMessages[ownerId].length > 1 ? 'n' : ''} från intressenter
+                  </div>
+                  ${state.interestMessages[ownerId].map(m => `
+                    <div style="background:#fff;border-radius:8px;padding:10px 12px;margin-bottom:6px;font-size:12px;color:#374151;line-height:1.5;border:0.5px solid rgba(194,98,42,.15);">
+                      "${m.message}"
+                      <div style="font-size:10px;color:#9CA3AF;margin-top:4px;">${new Date(m.sentAt).toLocaleDateString('sv-SE')} · Anonymt</div>
+                    </div>
+                  `).join('')}
+                </div>
+              ` : ''}
               <div class="act-row"><div class="act-dot"></div>Utforska fastigheter på kartan</div>
               <div class="act-row"><div class="act-dot"></div>Markera intresse på objekt du gillar</div>
               <div class="act-row"><div class="act-dot"></div>Välj ägarläge och koppla din fastighet</div>
@@ -1844,6 +1965,37 @@ function submitClaim() {
   render();
 }
 
+
+function renderInterestMessages() {
+  const s = loadState();
+  const msgs = s.interestMessages || {};
+  const names = s.parcelNames || {};
+  const allMsgs = [];
+  for (const [pid, arr] of Object.entries(msgs)) {
+    for (const m of arr) {
+      allMsgs.push({ pid, parcel: names[pid] || pid, ...m });
+    }
+  }
+  allMsgs.sort((a,b) => new Date(b.sentAt) - new Date(a.sentAt));
+
+  if (!allMsgs.length) {
+    return '<div style="padding:16px 20px;font-size:13px;color:#9CA3AF;">Inga meddelanden ännu.</div>';
+  }
+
+  return allMsgs.map(m => `
+    <div style="padding:14px 20px;border-bottom:0.5px solid rgba(17,24,39,.05);display:flex;gap:12px;align-items:flex-start;">
+      <div style="width:36px;height:36px;border-radius:9px;background:#FEF0E7;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <i class="ti ti-message" style="font-size:16px;color:#C2622A;" aria-hidden="true"></i>
+      </div>
+      <div style="flex:1;">
+        <div style="font-size:12px;font-weight:600;color:#C2622A;margin-bottom:3px;">${m.parcel}</div>
+        <div style="font-size:13px;color:#374151;line-height:1.5;">&ldquo;${m.message}&rdquo;</div>
+        <div style="font-size:11px;color:#9CA3AF;margin-top:4px;">${new Date(m.sentAt).toLocaleDateString('sv-SE')} · Anonymt</div>
+      </div>
+    </div>
+  `).join('');
+}
+
 // =========================
 // ADMIN VIEW
 // =========================
@@ -2094,7 +2246,16 @@ function renderAdmin() {
         ${pendingClaimsHtml}
       </div>
 
-            <div style="background:#FEF2F2;border:0.5px solid rgba(220,38,38,.15);border-radius:14px;padding:18px 20px;">
+            <!-- Interest messages section -->
+      <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;overflow:hidden;">
+        <div style="padding:14px 20px;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;align-items:center;justify-content:space-between;">
+          <div style="font-size:13px;font-weight:600;color:#111827;">Meddelanden från intressenter</div>
+          <div style="font-size:11px;color:#9CA3AF;">Anonyma tills ägaren svarar</div>
+        </div>
+        ${renderInterestMessages()}
+      </div>
+
+      <div style="background:#FEF2F2;border:0.5px solid rgba(220,38,38,.15);border-radius:14px;padding:18px 20px;">
         <div style="display:flex;align-items:flex-start;gap:14px;">
           <div style="width:40px;height:40px;border-radius:10px;background:#FEE2E2;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
             <i class="ti ti-flag" style="font-size:18px;color:#dc2626;" aria-hidden="true"></i>

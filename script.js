@@ -275,6 +275,194 @@ function zoomToParcel(parcelId) {
   renderParcelPanel(found.feature);
 }
 
+
+// =========================
+// AVSTYCKNING / DRAW
+// =========================
+let drawControl = null;
+let drawnItems = null;
+let activeDrawFeature = null;
+
+function startDrawSubdivision(feature) {
+  // Remove existing draw if any
+  stopDraw();
+  activeDrawFeature = feature;
+
+  // Init drawn items layer
+  drawnItems = new L.FeatureGroup().addTo(map);
+
+  // Custom draw control — only polygon
+  drawControl = new L.Control.Draw({
+    position: 'topright',
+    draw: {
+      polygon: {
+        allowIntersection: false,
+        showArea: true,
+        shapeOptions: {
+          color: '#C2622A',
+          weight: 2,
+          fillColor: '#C2622A',
+          fillOpacity: 0.15,
+        },
+        guideLayers: [],
+        snapDistance: 10,
+      },
+      rectangle: {
+        shapeOptions: {
+          color: '#C2622A',
+          weight: 2,
+          fillColor: '#C2622A',
+          fillOpacity: 0.15,
+        },
+      },
+      circle: false,
+      circlemarker: false,
+      marker: false,
+      polyline: false,
+    },
+    edit: { featureGroup: drawnItems },
+  });
+
+  map.addControl(drawControl);
+
+  // Show instructions
+  const panel = document.getElementById("panel");
+  if (panel) {
+    panel.innerHTML = `
+      <button class="panel-close" id="cancelDrawBtn">✕</button>
+      <div class="panel-eyebrow">Avstyckning</div>
+      <div class="panel-name" style="font-size:15px;">${prettyName(feature)}</div>
+      <div style="margin:12px 0;padding:12px;background:#FEF0E7;border-radius:10px;font-size:12px;color:#92400E;line-height:1.6;">
+        <strong>Rita det område du är intresserad av.</strong><br>
+        Klicka på kartan för att markera hörnen. Dubbelklicka för att avsluta.
+      </div>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button id="drawPolygonBtn" class="panel-btn" style="flex:1;background:#C2622A;color:#fff;border-color:#C2622A;">
+          <i class="ti ti-vector-triangle"></i> Rita polygon
+        </button>
+        <button id="drawRectBtn" class="panel-btn" style="flex:1;">
+          <i class="ti ti-rectangle"></i> Rita rektangel
+        </button>
+      </div>
+      <div id="drawStatus" style="font-size:12px;color:#9CA3AF;text-align:center;margin-top:8px;min-height:20px;"></div>
+    `;
+    panel.classList.remove("hidden");
+  }
+
+  document.getElementById("cancelDrawBtn").onclick = () => {
+    stopDraw();
+    closePanel();
+  };
+
+  document.getElementById("drawPolygonBtn").onclick = () => {
+    new L.Draw.Polygon(map, drawControl.options.draw.polygon).enable();
+    document.getElementById("drawStatus").textContent = "Klicka på kartan för att starta — dubbelklicka för att avsluta";
+  };
+
+  document.getElementById("drawRectBtn").onclick = () => {
+    new L.Draw.Rectangle(map, drawControl.options.draw.rectangle).enable();
+    document.getElementById("drawStatus").textContent = "Klicka och dra för att rita ett område";
+  };
+
+  // Listen for drawn shape
+  map.on(L.Draw.Event.CREATED, onDrawCreated);
+}
+
+function onDrawCreated(e) {
+  if (drawnItems) drawnItems.addLayer(e.layer);
+  showSubdivisionConfirm(e.layer);
+}
+
+function showSubdivisionConfirm(layer) {
+  const area = L.GeometryUtil ? L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]) : null;
+  const areaText = area ? `Ca ${Math.round(area)} m²` : "";
+  const propName = activeDrawFeature ? prettyName(activeDrawFeature) : "fastigheten";
+
+  const panel = document.getElementById("panel");
+  if (panel) {
+    panel.innerHTML = `
+      <button class="panel-close" id="closeConfirmBtn">✕</button>
+      <div class="panel-eyebrow">Bekräfta intresse</div>
+      <div class="panel-name" style="font-size:15px;">${propName}</div>
+      <div style="margin:12px 0;padding:12px;background:#F0FDF4;border-radius:10px;font-size:13px;color:#166534;line-height:1.6;">
+        <i class="ti ti-check" style="color:#16a34a;"></i> <strong>Område markerat</strong>${areaText ? ' — ' + areaText : ''}<br>
+        Skicka ditt intresse till fastighetsägaren?
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div>
+          <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#6B7280;display:block;margin-bottom:5px;">Meddelande (valfritt)</label>
+          <textarea id="subdivisionMsg" class="input" placeholder="Berätta lite om ditt intresse..." style="min-height:70px;font-size:13px;"></textarea>
+        </div>
+        <button id="sendSubdivisionBtn" class="btn-primary" style="width:100%;justify-content:center;">
+          <i class="ti ti-send"></i> Skicka intresse
+        </button>
+        <button id="redrawBtn" style="background:transparent;border:none;font-size:12px;color:#9CA3AF;cursor:pointer;font-family:'Inter',sans-serif;">
+          Rita om
+        </button>
+      </div>
+    `;
+  }
+
+  document.getElementById("closeConfirmBtn").onclick = () => { stopDraw(); closePanel(); };
+
+  document.getElementById("redrawBtn").onclick = () => {
+    if (drawnItems) drawnItems.clearLayers();
+    startDrawSubdivision(activeDrawFeature);
+  };
+
+  document.getElementById("sendSubdivisionBtn").onclick = () => {
+    const msg = document.getElementById("subdivisionMsg").value.trim();
+    sendSubdivisionInterest(activeDrawFeature, layer, msg);
+  };
+}
+
+function sendSubdivisionInterest(feature, layer, message) {
+  const pid = getParcelId(feature);
+  const name = prettyName(feature);
+
+  // Save to state
+  const state = loadState();
+  state.subdivisionInterests = state.subdivisionInterests || {};
+  state.subdivisionInterests[pid] = {
+    parcel: name,
+    area: layer.toGeoJSON(),
+    message,
+    sentAt: new Date().toISOString(),
+  };
+  saveState(state);
+
+  // Keep drawn area visible but styled as "sent"
+  layer.setStyle({ color: "#16a34a", fillColor: "#16a34a", fillOpacity: 0.12, weight: 2 });
+
+  stopDraw(false); // keep drawn layer
+
+  const panel = document.getElementById("panel");
+  if (panel) {
+    panel.innerHTML = `
+      <div style="text-align:center;padding:20px 16px;">
+        <div style="width:48px;height:48px;border-radius:50%;background:#F0FDF4;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+          <i class="ti ti-check" style="font-size:24px;color:#16a34a;"></i>
+        </div>
+        <div style="font-size:16px;font-weight:700;letter-spacing:-.03em;color:#111827;margin-bottom:8px;">Intresse skickat!</div>
+        <div style="font-size:13px;color:#6B7280;line-height:1.6;margin-bottom:20px;">
+          Fastighetsägaren av <strong>${name}</strong> ser ditt intresse för avstyckning. Det markerade området visas på kartan.
+        </div>
+        <button onclick="closePanel()" class="btn-primary" style="width:100%;justify-content:center;">Stäng</button>
+      </div>
+    `;
+    panel.classList.remove("hidden");
+  }
+
+  toast("Intresse för avstyckning skickat!");
+}
+
+function stopDraw(clearLayers = true) {
+  map.off(L.Draw.Event.CREATED, onDrawCreated);
+  if (drawControl) { map.removeControl(drawControl); drawControl = null; }
+  if (clearLayers && drawnItems) { drawnItems.remove(); drawnItems = null; }
+  activeDrawFeature = null;
+}
+
 // =========================
 // Panel
 // =========================
@@ -366,6 +554,11 @@ function renderParcelPanel(feature) {
       <button id="likeBtn"     class="panel-btn ${iLiked      ? "active-like"     : ""}"><i class="ti ti-thumb-up"></i> ${iLiked ? "Gillad" : "Gilla"}</button>
       <button id="interestBtn" class="panel-btn ${iInterested ? "active-interest" : ""}"><i class="ti ti-star"></i> ${iInterested ? "Intresserad" : "Markera intresse"}</button>
     </div>
+    <div style="margin-top:8px;">
+      <button id="subdivisionBtn" class="panel-btn" style="width:100%;${state.subdivisionInterests?.[pid] ? 'background:#F0FDF4;border-color:#16a34a;color:#16a34a;' : ''}">
+        <i class="ti ti-cut"></i> ${state.subdivisionInterests?.[pid] ? "Avstyckning — intresse skickat" : "Intresserad av att stycka av tomt"}
+      </button>
+    </div>
     ${statsHtml}
   `);
 
@@ -383,6 +576,17 @@ function renderParcelPanel(feature) {
     if (already) { delete s.myInterests[pid]; s.interests[pid] = Math.max(0, (s.interests[pid] || 1) - 1); toast("Intressemarkering borttagen."); }
     else { s.interests[pid] = (s.interests[pid] || 0) + 1; s.myInterests[pid] = true; toast("Intresse markerat."); }
     saveState(s); redrawLayer(); renderParcelPanel(feature);
+  };
+
+  document.getElementById("subdivisionBtn").onclick = () => {
+    const s = loadState();
+    if (s.subdivisionInterests?.[pid]) {
+      toast("Du har redan skickat ett intresse för avstyckning av denna fastighet.");
+      return;
+    }
+    closePanel();
+    toast("Rita det område du är intresserad av på kartan.");
+    setTimeout(() => startDrawSubdivision(feature), 200);
   };
 
   document.getElementById("closePanelBtn").onclick = closePanel;

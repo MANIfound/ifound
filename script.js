@@ -2617,7 +2617,14 @@ function renderBrokerDashboard() {
           <span style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:#fff;">i<em style="font-style:normal;color:#C2622A;">found</em></span>
           <span style="font-size:10px;font-weight:700;background:rgba(194,98,42,.2);color:#C2622A;border-radius:999px;padding:3px 9px;letter-spacing:.08em;">MÄKLARE</span>
         </div>
-        <div style="display:flex;align-items:center;gap:12px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button onclick="navigate('feed')" style="font-size:12px;color:rgba(255,255,255,.45);background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;gap:5px;">
+            <i class="ti ti-layout-grid" style="font-size:14px;" aria-hidden="true"></i> Utforska
+          </button>
+          <button onclick="navigate('map')" style="font-size:12px;color:rgba(255,255,255,.45);background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;gap:5px;">
+            <i class="ti ti-map-2" style="font-size:14px;" aria-hidden="true"></i> Karta
+          </button>
+          <div style="width:1px;height:20px;background:rgba(255,255,255,.1);"></div>
           <div style="width:32px;height:32px;border-radius:50%;background:rgba(194,98,42,.2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#C2622A;">${broker.logo}</div>
           <button onclick="clearSession();navigate('brokerWelcome');" style="font-size:12px;color:rgba(255,255,255,.35);background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;">Logga ut</button>
         </div>
@@ -2728,7 +2735,7 @@ function renderBrokerAddListing() {
 
       <div style="max-width:620px;margin:0 auto;padding:32px 20px 80px;">
         <div style="font-size:22px;font-weight:700;letter-spacing:-.04em;color:#fff;margin-bottom:4px;">Nytt objekt</div>
-        <div style="font-size:13px;color:rgba(255,255,255,.4);margin-bottom:28px;">Fyll i uppgifterna nedan — liknande en Hemnet-annons.</div>
+        <div style="font-size:13px;color:rgba(255,255,255,.4);margin-bottom:28px;">Fyll i uppgifterna nedan. Du kan redigera när som helst.</div>
 
         <div style="display:flex;flex-direction:column;gap:16px;">
 

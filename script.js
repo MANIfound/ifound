@@ -2066,19 +2066,32 @@ async function mapSearch(query, dropdown, input) {
       return;
     }
 
-    dropdown.innerHTML = results.map(r => {
+    // Store results for click handler
+    window._mapSearchResults = results;
+
+    dropdown.innerHTML = results.map((r, idx) => {
       const name = r.display_name.split(",").slice(0,2).join(", ");
-      const safeName = r.display_name.replace(/'/g,"\\'").split(',').slice(0,2).join(',');
-      const bbox = r.boundingbox ? JSON.stringify(r.boundingbox) : 'null';
-      const hasGeo = r.geojson ? 'true' : 'false';
-      return `<div data-lat="${r.lat}" data-lon="${r.lon}"
+      return `<div data-idx="${idx}"
         style="padding:11px 16px;font-size:13px;color:#111827;cursor:pointer;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;align-items:center;gap:10px;"
-        onmouseover="this.style.background='#F9F6F1'" onmouseout="this.style.background=''"
-        onclick="mapSelectLocation('${safeName}', ${r.lat}, ${r.lon}, ${bbox}, ${r.geojson ? JSON.stringify(r.geojson).replace(/'/g,"\\'") : 'null'})">
+        onmouseover="this.style.background='#F9F6F1'" onmouseout="this.style.background=''">
         <i class="ti ti-map-pin" style="font-size:14px;color:#CC2936;flex-shrink:0;" aria-hidden="true"></i>
         <span>${name}</span>
       </div>`;
     }).join('');
+
+    // Add click handlers after render
+    dropdown.querySelectorAll('[data-idx]').forEach(el => {
+      el.addEventListener('click', () => {
+        const r = window._mapSearchResults[parseInt(el.dataset.idx)];
+        if (!r) return;
+        mapSelectLocation(
+          r.display_name.split(',').slice(0,2).join(','),
+          r.lat, r.lon,
+          r.boundingbox || null,
+          r.geojson || null
+        );
+      });
+    });
   } catch {
     dropdown.innerHTML = '<div style="padding:12px 16px;font-size:12px;color:#9CA3AF;">Sökning misslyckades</div>';
   }

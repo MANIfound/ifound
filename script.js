@@ -1181,20 +1181,21 @@ function renderWelcome() {
     currentView = "map";
     render();
     setTimeout(() => {
+      // Invalidate map size after render
+      if (typeof map !== 'undefined' && map) {
+        try { map.invalidateSize(); } catch {}
+      }
       const searchInput = document.getElementById("addressSearch");
       if (searchInput) {
         searchInput.value = q;
-        // Trigger search
         const event = new Event("input", { bubbles: true });
         searchInput.dispatchEvent(event);
-        // Auto-select first result after delay
         setTimeout(() => {
-          const first = document.querySelector("#searchDropdown div[data-lat]") ||
-                        document.querySelector("#searchDropdown div[onclick]");
+          const first = document.querySelector("#searchDropdown [data-idx]");
           if (first) first.click();
-        }, 800);
+        }, 900);
       }
-    }, 400);
+    }, 500);
   };
 
   document.getElementById("landingSearch").addEventListener("keydown", e => {
@@ -2107,7 +2108,17 @@ function mapSelectLocation(name, lat, lon, bbox, geojson) {
   if (bbox) {
     // Zoom to area bounds
     const bounds = [[parseFloat(bbox[0]), parseFloat(bbox[2])], [parseFloat(bbox[1]), parseFloat(bbox[3])]];
-    if (map) map.fitBounds(bounds, { padding: [40, 40] });
+    if (map) {
+      map.fitBounds(bounds, { padding: [40, 40] });
+      // Reload parcels if layer missing after navigation
+      if (!parcelsLayer) {
+        const cached = localStorage.getItem(LS_GEOJSON);
+        if (cached) {
+          try { addGeoJsonToMap(JSON.parse(cached), { keepView: true, silent: true }); } catch {}
+        } else { autoLoadCentrum(); }
+        setTimeout(addClaimedMarkers, 600);
+      }
+    }
 
     // Draw area highlight
     if (window._areaHighlight) { window._areaHighlight.remove(); window._areaHighlight = null; }
@@ -2162,7 +2173,7 @@ function showMapAreaCard(areaName, bounds) {
 
   const card = document.createElement('div');
   card.id = 'map-area-card';
-  card.style.cssText = 'position:absolute;top:70px;left:50%;transform:translateX(-50%);z-index:1000;background:#fff;border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.15);width:340px;overflow:hidden;font-family:"Inter",sans-serif;';
+  card.style.cssText = 'position:fixed;top:80px;right:16px;z-index:1000;background:#fff;border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.15);width:300px;overflow:hidden;font-family:"Inter",sans-serif;';
 
   card.innerHTML = `
     <div style="padding:14px 16px 10px;border-bottom:0.5px solid #F0F0F0;display:flex;align-items:center;justify-content:space-between;">
@@ -2191,14 +2202,8 @@ function showMapAreaCard(areaName, bounds) {
     </div>
   `;
 
-  // Append to map container
-  const mapContainer = document.querySelector('.map-wrap') || document.querySelector('#map')?.parentElement;
-  if (mapContainer) {
-    mapContainer.style.position = 'relative';
-    mapContainer.appendChild(card);
-  } else {
-    document.getElementById('map')?.after(card);
-  }
+  // Append to body (fixed position)
+  document.body.appendChild(card);
 }
 
 function closeMapAreaCard() {

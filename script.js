@@ -642,10 +642,29 @@ function renderParcelPanel(feature) {
     return;
   }
 
+  // Find image from CLAIMED_PROPS or PROP_DATA
+  const claimedProp = CLAIMED_PROPS.find(p => {
+    const pNorm = p.id.toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g,'');
+    const nNorm = pid.toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g,'');
+    return pNorm === nNorm || p.name.toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g,'') === nNorm;
+  });
+  const panelImg = claimedProp?.img || null;
+
   openPanel(`
     <button class="panel-close" id="closePanelBtn">✕</button>
-    <div class="panel-eyebrow">Besökarläge</div>
-    <div class="panel-name">${name}</div>
+    ${panelImg ? `
+      <div style="margin:-16px -16px 14px;height:140px;overflow:hidden;border-radius:14px 14px 0 0;position:relative;">
+        <img src="${panelImg}" style="width:100%;height:100%;object-fit:cover;display:block;" />
+        <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.4) 0%,transparent 60%);"></div>
+        <div style="position:absolute;bottom:10px;left:14px;">
+          <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.08em;">Besökarläge</div>
+          <div style="font-size:16px;font-weight:700;color:#fff;letter-spacing:-.03em;">${name}</div>
+        </div>
+      </div>
+    ` : `
+      <div class="panel-eyebrow">Besökarläge</div>
+      <div class="panel-name">${name}</div>
+    `}
     <div class="panel-mode">Spara intresse och följ objektet.</div>
     <div class="panel-meta">${metaRows}</div>
     <div class="panel-actions">
@@ -702,6 +721,22 @@ function renderParcelPanel(feature) {
 // =========================
 // WELCOME VIEW
 // =========================
+
+function switchTab(tab) {
+  const isLogin = tab === 'login';
+  const tLogin = document.getElementById('tabLogin');
+  const tReg   = document.getElementById('tabReg');
+  const fLogin = document.getElementById('loginForm');
+  const fReg   = document.getElementById('regForm');
+  if (!tLogin || !tReg || !fLogin || !fReg) return;
+  const activeStyle  = 'flex:1;padding:9px;border-radius:8px;border:none;background:#fff;color:#111827;font-size:13px;font-weight:600;cursor:pointer;font-family:Inter,sans-serif;box-shadow:0 1px 4px rgba(0,0,0,.08);';
+  const passiveStyle = 'flex:1;padding:9px;border-radius:8px;border:none;background:transparent;color:#6B7280;font-size:13px;font-weight:500;cursor:pointer;font-family:Inter,sans-serif;';
+  tLogin.style.cssText = isLogin  ? activeStyle : passiveStyle;
+  tReg.style.cssText   = !isLogin ? activeStyle : passiveStyle;
+  fLogin.style.display = isLogin  ? 'flex' : 'none';
+  fReg.style.display   = !isLogin ? 'flex' : 'none';
+}
+
 function renderWelcome() {
   app.innerHTML = `
     <div style="min-height:100vh;background:#0F1117;font-family:'Inter',sans-serif;">
@@ -838,17 +873,7 @@ function renderWelcome() {
     </div>
   `;
 
-  function switchTab(tab) {
-    const isLogin = tab === 'login';
-    document.getElementById('tabLogin').style.cssText = isLogin
-      ? 'flex:1;padding:9px;border-radius:8px;border:none;background:#fff;color:#111827;font-size:13px;font-weight:600;cursor:pointer;font-family:Inter,sans-serif;box-shadow:0 1px 4px rgba(0,0,0,.08);'
-      : 'flex:1;padding:9px;border-radius:8px;border:none;background:transparent;color:#6B7280;font-size:13px;font-weight:500;cursor:pointer;font-family:Inter,sans-serif;';
-    document.getElementById('tabReg').style.cssText = !isLogin
-      ? 'flex:1;padding:9px;border-radius:8px;border:none;background:#fff;color:#111827;font-size:13px;font-weight:600;cursor:pointer;font-family:Inter,sans-serif;box-shadow:0 1px 4px rgba(0,0,0,.08);'
-      : 'flex:1;padding:9px;border-radius:8px;border:none;background:transparent;color:#6B7280;font-size:13px;font-weight:500;cursor:pointer;font-family:Inter,sans-serif;';
-    document.getElementById('loginForm').style.display = isLogin ? 'flex' : 'none';
-    document.getElementById('regForm').style.display = !isLogin ? 'flex' : 'none';
-  }
+  // switchTab is global — defined outside
 
   document.getElementById("loginBtn").onclick = () => {
     const email = document.getElementById("loginEmail").value.trim().toLowerCase();
@@ -2600,7 +2625,32 @@ function isBroker() {
 
 function getBroker() {
   const s = loadSession();
-  return MOCK_BROKER_ACCOUNTS[s?.email] || null;
+  if (!s?.email) return null;
+  // Check mock accounts first
+  if (MOCK_BROKER_ACCOUNTS[s.email]) return MOCK_BROKER_ACCOUNTS[s.email];
+  // Check registered brokers
+  const users = loadUsers();
+  const u = users[s.email];
+  if (u?.isBroker) return u;
+  return null;
+}
+
+
+function switchBrokerTab(tab) {
+  const isLogin = tab === 'login';
+  const tLogin = document.getElementById('bTabLogin');
+  const tReg   = document.getElementById('bTabReg');
+  const fLogin = document.getElementById('bLoginForm');
+  const fReg   = document.getElementById('bRegForm');
+  if (!tLogin) return;
+  tLogin.style.background = isLogin  ? '#C2622A' : 'transparent';
+  tLogin.style.color      = isLogin  ? '#fff' : 'rgba(255,255,255,.5)';
+  tLogin.style.fontWeight = isLogin  ? '600' : '500';
+  tReg.style.background   = !isLogin ? '#C2622A' : 'transparent';
+  tReg.style.color        = !isLogin ? '#fff' : 'rgba(255,255,255,.5)';
+  tReg.style.fontWeight   = !isLogin ? '600' : '500';
+  fLogin.style.display    = isLogin  ? 'flex' : 'none';
+  fReg.style.display      = !isLogin ? 'flex' : 'none';
 }
 
 function renderBrokerWelcome() {
@@ -2620,7 +2670,14 @@ function renderBrokerWelcome() {
             <div style="font-size:13px;color:rgba(255,255,255,.4);">Hantera dina objekt och leads</div>
           </div>
 
-          <div style="background:rgba(255,255,255,.04);border:0.5px solid rgba(255,255,255,.1);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:14px;">
+          <!-- Tab switcher -->
+          <div style="display:flex;background:rgba(255,255,255,.06);border-radius:10px;padding:3px;margin-bottom:16px;">
+            <button id="bTabLogin" onclick="switchBrokerTab('login')" style="flex:1;padding:8px;border-radius:8px;border:none;background:#C2622A;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">Logga in</button>
+            <button id="bTabReg"   onclick="switchBrokerTab('reg')"   style="flex:1;padding:8px;border-radius:8px;border:none;background:transparent;color:rgba(255,255,255,.5);font-size:13px;font-weight:500;cursor:pointer;font-family:'Inter',sans-serif;">Skapa konto</button>
+          </div>
+
+          <!-- Login form -->
+          <div id="bLoginForm" style="display:flex;flex-direction:column;gap:14px;">
             <div>
               <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.4);margin-bottom:6px;">E-post</label>
               <input id="brokerEmail" style="width:100%;background:rgba(255,255,255,.06);border:0.5px solid rgba(255,255,255,.12);border-radius:9px;padding:10px 13px;font-size:13px;font-family:'Inter',sans-serif;color:#fff;outline:none;" placeholder="din@maklarfirma.se" />
@@ -2629,10 +2686,34 @@ function renderBrokerWelcome() {
               <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.4);margin-bottom:6px;">Lösenord</label>
               <input id="brokerPass" type="password" style="width:100%;background:rgba(255,255,255,.06);border:0.5px solid rgba(255,255,255,.12);border-radius:9px;padding:10px 13px;font-size:13px;font-family:'Inter',sans-serif;color:#fff;outline:none;" placeholder="••••••••" />
             </div>
-            <button id="brokerLoginBtn" style="width:100%;padding:13px;border-radius:11px;border:none;background:#C2622A;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;margin-top:4px;">
-              Logga in som mäklare
+            <button id="brokerLoginBtn" style="width:100%;padding:13px;border-radius:11px;border:none;background:#C2622A;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
+              Logga in
             </button>
             <div style="font-size:11px;color:rgba(255,255,255,.25);text-align:center;">Demo: maklare@fastighetsbyran.se / demo2025</div>
+          </div>
+
+          <!-- Register form -->
+          <div id="bRegForm" style="display:none;flex-direction:column;gap:14px;">
+            <div>
+              <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.4);margin-bottom:6px;">Namn</label>
+              <input id="bRegName" style="width:100%;background:rgba(255,255,255,.06);border:0.5px solid rgba(255,255,255,.12);border-radius:9px;padding:10px 13px;font-size:13px;font-family:'Inter',sans-serif;color:#fff;outline:none;" placeholder="Anna Lindqvist" />
+            </div>
+            <div>
+              <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.4);margin-bottom:6px;">Mäklarfirma</label>
+              <input id="bRegFirm" style="width:100%;background:rgba(255,255,255,.06);border:0.5px solid rgba(255,255,255,.12);border-radius:9px;padding:10px 13px;font-size:13px;font-family:'Inter',sans-serif;color:#fff;outline:none;" placeholder="Fastighetsbyrån AB" />
+            </div>
+            <div>
+              <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.4);margin-bottom:6px;">E-post</label>
+              <input id="bRegEmail" type="email" style="width:100%;background:rgba(255,255,255,.06);border:0.5px solid rgba(255,255,255,.12);border-radius:9px;padding:10px 13px;font-size:13px;font-family:'Inter',sans-serif;color:#fff;outline:none;" placeholder="anna@maklarfirma.se" />
+            </div>
+            <div>
+              <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.4);margin-bottom:6px;">Lösenord</label>
+              <input id="bRegPass" type="password" style="width:100%;background:rgba(255,255,255,.06);border:0.5px solid rgba(255,255,255,.12);border-radius:9px;padding:10px 13px;font-size:13px;font-family:'Inter',sans-serif;color:#fff;outline:none;" placeholder="Min 6 tecken" />
+            </div>
+            <button id="brokerRegBtn" style="width:100%;padding:13px;border-radius:11px;border:none;background:#C2622A;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
+              Skapa mäklarkonto
+            </button>
+            <div style="font-size:11px;color:rgba(255,255,255,.25);text-align:center;">Kontot aktiveras inom 24h efter verifiering.</div>
           </div>
 
           <div style="text-align:center;margin-top:20px;">
@@ -2649,8 +2730,42 @@ function renderBrokerWelcome() {
     const email = document.getElementById("brokerEmail").value.trim().toLowerCase();
     const pass  = document.getElementById("brokerPass").value;
     const broker = MOCK_BROKER_ACCOUNTS[email];
-    if (!broker || broker.password !== pass) { toast("Fel e-post eller lösenord."); return; }
+    // Also check registered brokers in users store
+    const users = loadUsers();
+    const registeredBroker = users[email];
+    if (broker && broker.password === pass) {
+      saveSession({ email, isBroker: true });
+      navigate("broker");
+    } else if (registeredBroker?.isBroker && registeredBroker.password === pass) {
+      saveSession({ email, isBroker: true });
+      navigate("broker");
+    } else {
+      toast("Fel e-post eller lösenord.");
+    }
+  };
+
+  document.getElementById("brokerRegBtn").onclick = () => {
+    const name  = document.getElementById("bRegName").value.trim();
+    const firm  = document.getElementById("bRegFirm").value.trim();
+    const email = document.getElementById("bRegEmail").value.trim().toLowerCase();
+    const pass  = document.getElementById("bRegPass").value;
+    if (!name || !firm || !email.includes("@") || pass.length < 6) {
+      toast("Fyll i alla fält korrekt (lösenord min 6 tecken).");
+      return;
+    }
+    const users = loadUsers();
+    if (users[email] || MOCK_BROKER_ACCOUNTS[email]) {
+      toast("Det finns redan ett konto på den e-posten.");
+      return;
+    }
+    users[email] = {
+      name, email, password: pass,
+      firm, logo: name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(),
+      isBroker: true, verified: false,
+    };
+    saveUsers(users);
     saveSession({ email, isBroker: true });
+    toast("Konto skapat — välkommen " + name + "!");
     navigate("broker");
   };
 }

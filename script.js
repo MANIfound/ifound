@@ -1570,8 +1570,10 @@ function renderMapView() {
         padding: 0;
         overflow: hidden;
       }
-      .ifound-popup .leaflet-popup-content { margin: 16px; }
+      .ifound-popup .leaflet-popup-content { margin: 0 !important; width: auto !important; }
+      .ifound-popup .leaflet-popup-tip-container { margin-top: -1px; }
       .ifound-popup .leaflet-popup-tip { background: #fff; }
+      .ifound-popup .leaflet-popup-close-button { color: #fff !important; font-size: 18px !important; padding: 6px 8px !important; z-index: 10; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
 
     </style>
   `;
@@ -1678,13 +1680,13 @@ function renderMapView() {
 
 // Mock claimed properties for demo — in production these come from database
 const CLAIMED_PROPS = [
-  { id: "RÅDHUSET 3>1",      lat: 56.04661, lon: 12.69311, status: "passive", name: "Rådhuset 3:1",      likes: 18, interested: 4 },
-  { id: "PÅLSJÖ 1>27",       lat: 56.07200, lon: 12.70200, status: "sale",    name: "Pålsjö 1:27",       likes: 31, interested: 11, price: "4 200 000 kr" },
-  { id: "SÖDER 1>102",       lat: 56.03324, lon: 12.71180, status: "rent",    name: "Söder 1:102",       likes: 14, interested: 5,  price: "9 800 kr/mån" },
-  { id: "FREDRIKSDAL 1>1",   lat: 56.06038, lon: 12.72680, status: "sale",    name: "Fredriksdal 1:1",   likes: 19, interested: 6,  price: "5 750 000 kr" },
-  { id: "LARÖD 49>126",      lat: 56.08092, lon: 12.71870, status: "passive", name: "Laröd 49:126",      likes: 41, interested: 9 },
-  { id: "KULLA 1>4",         lat: 56.06800, lon: 12.73500, status: "passive", name: "Kulla 1:4",         likes: 24, interested: 7 },
-  { id: "SÖDER 8>22B",       lat: 56.04100, lon: 12.70500, status: "rent",    name: "Söder 8:22B",       likes: 8,  interested: 3,  price: "7 500 kr/mån" },
+  { id: "RÅDHUSET 3>1",      lat: 56.04661, lon: 12.69311, status: "passive", name: "Rådhuset 3:1",      likes: 18, interested: 4,  area: "Villa · Centrum",       img: "https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=400&q=60" },
+  { id: "PÅLSJÖ 1>27",       lat: 56.07200, lon: 12.70200, status: "sale",    name: "Pålsjö 1:27",       likes: 31, interested: 11, price: "4 200 000 kr", area: "Villa · Pålsjö",         img: "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400&q=60" },
+  { id: "SÖDER 1>102",       lat: 56.03324, lon: 12.71180, status: "rent",    name: "Söder 1:102",       likes: 14, interested: 5,  price: "9 800 kr/mån",  area: "Lägenhet · Söder",       img: "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=400&q=60" },
+  { id: "FREDRIKSDAL 1>1",   lat: 56.06038, lon: 12.72680, status: "sale",    name: "Fredriksdal 1:1",   likes: 19, interested: 6,  price: "5 750 000 kr", area: "Villa · Fredriksdal",    img: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=400&q=60" },
+  { id: "LARÖD 49>126",      lat: 56.08092, lon: 12.71870, status: "passive", name: "Laröd 49:126",      likes: 41, interested: 9,  area: "Gård · Laröd · 5 200 kvm", img: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=400&q=60" },
+  { id: "KULLA 1>4",         lat: 56.06800, lon: 12.73500, status: "passive", name: "Kulla 1:4",         likes: 24, interested: 7,  area: "Tomt · 2 400 kvm",      img: "https://images.unsplash.com/photo-1449844908441-8829872d2607?w=400&q=60" },
+  { id: "SÖDER 8>22B",       lat: 56.04100, lon: 12.70500, status: "rent",    name: "Söder 8:22B",       likes: 8,  interested: 3,  price: "7 500 kr/mån",  area: "Lägenhet · Söder",       img: "https://images.unsplash.com/photo-1523217582562-09d0def993a6?w=400&q=60" },
 ];
 
 // User's own claimed property (always shown if claimedByCurrentUser)
@@ -1798,23 +1800,45 @@ function addClaimedMarkers() {
     const statusLabel = { passive: 'Passiv', sale: 'Till salu', rent: 'Uthyrning' }[prop.status] || 'Passiv';
     const statusColor = { passive: '#6B7280', sale: '#C2622A', rent: '#2563eb' }[prop.status] || '#6B7280';
 
+    // Find matching PROP_DATA entry for image
+    const propDataMatch = (typeof PROP_DATA !== 'undefined') ? PROP_DATA.find(p =>
+      p.name.toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g,'') === prop.name.toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g,'')
+    ) : null;
+    const imgSrc = prop.img || propDataMatch?.img || null;
+    const area = prop.area || propDataMatch?.meta || '';
+
     marker.bindPopup(`
-      <div style="font-family:'Inter',sans-serif;min-width:200px;padding:4px;">
-        <div style="font-size:11px;font-weight:600;color:${statusColor};text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">${statusLabel}</div>
-        <div style="font-size:15px;font-weight:700;letter-spacing:-.03em;color:#111827;margin-bottom:6px;">${prop.name}</div>
-        ${prop.price ? `<div style="font-size:14px;font-weight:600;color:#111827;margin-bottom:8px;">${prop.price}</div>` : ''}
-        <div style="display:flex;gap:14px;padding-top:8px;border-top:1px solid #F3F4F6;">
-          <div style="text-align:center;">
-            <div style="font-size:18px;font-weight:700;color:#111827;">${prop.likes}</div>
-            <div style="font-size:10px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.05em;">Gillar</div>
+      <div style="font-family:'Inter',sans-serif;width:220px;overflow:hidden;">
+        ${imgSrc ? `
+          <div style="margin:-1px -1px 0;height:130px;overflow:hidden;border-radius:12px 12px 0 0;">
+            <img src="${imgSrc}" style="width:100%;height:100%;object-fit:cover;display:block;" />
           </div>
-          <div style="text-align:center;">
-            <div style="font-size:18px;font-weight:700;color:#111827;">${prop.interested}</div>
-            <div style="font-size:10px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.05em;">Intresserade</div>
+        ` : `
+          <div style="margin:-1px -1px 0;height:80px;background:linear-gradient(135deg,#1a2533,#2a1a08);border-radius:12px 12px 0 0;display:flex;align-items:center;justify-content:center;">
+            <svg width="32" height="40" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#C2622A" opacity=".6"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".8"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".8"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#C2622A" opacity=".6"/></svg>
+          </div>
+        `}
+        <div style="padding:12px 14px 14px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+            <span style="font-size:10px;font-weight:700;color:${statusColor};text-transform:uppercase;letter-spacing:.08em;background:${statusColor}18;padding:2px 7px;border-radius:999px;">${statusLabel}</span>
+            ${prop.price ? `<span style="font-size:12px;font-weight:700;color:#111827;">${prop.price}</span>` : ''}
+          </div>
+          <div style="font-size:14px;font-weight:700;letter-spacing:-.03em;color:#111827;margin-bottom:2px;">${prop.name}</div>
+          ${area ? `<div style="font-size:11px;color:#9CA3AF;margin-bottom:10px;">${area}</div>` : '<div style="margin-bottom:10px;"></div>'}
+          <div style="display:flex;gap:0;border-top:0.5px solid #F3F4F6;padding-top:10px;">
+            <div style="flex:1;text-align:center;">
+              <div style="font-size:17px;font-weight:700;color:#111827;line-height:1;">${prop.likes}</div>
+              <div style="font-size:9px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.06em;margin-top:2px;">Gillar</div>
+            </div>
+            <div style="width:0.5px;background:#F3F4F6;"></div>
+            <div style="flex:1;text-align:center;">
+              <div style="font-size:17px;font-weight:700;color:#111827;line-height:1;">${prop.interested}</div>
+              <div style="font-size:9px;color:#9CA3AF;text-transform:uppercase;letter-spacing:.06em;margin-top:2px;">Intresserade</div>
+            </div>
           </div>
         </div>
       </div>
-    `, { maxWidth: 240, className: 'ifound-popup' });
+    `, { maxWidth: 240, className: 'ifound-popup', offset: [0, -8] });
 
     markerLayer.addLayer(marker);
   });

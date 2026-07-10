@@ -816,6 +816,204 @@ function closeAuthModal() {
 }
 
 
+
+// =========================
+// AREA SEARCH OVERLAY
+// =========================
+async function showAreaSearch(query) {
+  // Show loading overlay
+  const overlay = document.createElement('div');
+  overlay.id = 'area-search-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:9500;display:flex;flex-direction:column;background:#F9F6F1;font-family:"Inter",sans-serif;';
+
+  overlay.innerHTML = `
+    <div style="height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:#fff;border-bottom:1px solid #EBEBEB;flex-shrink:0;">
+      <button onclick="closeAreaSearch()" style="display:flex;align-items:center;gap:7px;background:transparent;border:none;font-size:13px;color:#666;cursor:pointer;font-family:'Inter',sans-serif;">
+        <i class="ti ti-arrow-left" aria-hidden="true"></i> Tillbaka
+      </button>
+      <div style="font-size:14px;font-weight:600;color:#1A1A1A;" id="areaTitle">Söker efter "${query}"...</div>
+      <div style="width:80px;"></div>
+    </div>
+    <div style="flex:1;display:grid;grid-template-columns:1fr 340px;overflow:hidden;">
+      <!-- Map side -->
+      <div style="position:relative;">
+        <div id="areaMap" style="width:100%;height:100%;"></div>
+        <div id="areaMapStatus" style="position:absolute;bottom:12px;left:12px;background:rgba(255,255,255,.9);border-radius:8px;padding:7px 12px;font-size:12px;color:#666;backdrop-filter:blur(8px);">
+          Laddar karta...
+        </div>
+      </div>
+      <!-- Results side -->
+      <div style="border-left:1px solid #EBEBEB;overflow-y:auto;background:#fff;">
+        <div style="padding:16px 16px 8px;">
+          <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#999;margin-bottom:12px;">Fastigheter i området</div>
+          <div id="areaResults" style="display:flex;flex-direction:column;gap:10px;">
+            <div style="text-align:center;padding:40px 16px;color:#BBB;font-size:13px;">Söker...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  // Init map
+  await new Promise(r => setTimeout(r, 100));
+
+  const areaMap = L.map('areaMap', {
+    zoomControl: true,
+    attributionControl: false,
+  }).setView([56.046, 12.694], 13);
+
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    maxZoom: 19
+  }).addTo(areaMap);
+
+  // Search with Nominatim
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query + ' Helsingborg')}&format=json&limit=3&polygon_geojson=1&accept-language=sv`);
+    const results = await res.json();
+
+    if (!results.length) {
+      document.getElementById('areaTitle').textContent = 'Inga resultat för "' + query + '"';
+      document.getElementById('areaResults').innerHTML = '<div style="text-align:center;padding:40px 16px;color:#BBB;font-size:13px;">Hittade inget område. Prova en annan sökning.</div>';
+      return;
+    }
+
+    const place = results[0];
+    const name = place.display_name.split(',')[0];
+    document.getElementById('areaTitle').textContent = name;
+    document.getElementById('areaMapStatus').textContent = name;
+
+    // Fit map to bbox
+    const bbox = place.boundingbox; // [minlat, maxlat, minlon, maxlon]
+    const bounds = [[parseFloat(bbox[0]), parseFloat(bbox[2])], [parseFloat(bbox[1]), parseFloat(bbox[3])]];
+    areaMap.fitBounds(bounds, { padding: [30, 30] });
+
+    // Draw area polygon if available
+    if (place.geojson) {
+      L.geoJSON(place.geojson, {
+        style: {
+          color: '#CC2936',
+          weight: 2.5,
+          fillColor: '#CC2936',
+          fillOpacity: 0.08,
+          dashArray: '6,4',
+        }
+      }).addTo(areaMap);
+    } else {
+      // Fallback: draw bbox rectangle
+      L.rectangle(bounds, {
+        color: '#CC2936',
+        weight: 2,
+        fillColor: '#CC2936',
+        fillOpacity: 0.06,
+        dashArray: '6,4',
+      }).addTo(areaMap);
+    }
+
+    // Load parcels in area
+    const cached = localStorage.getItem('prop_geojson_helsingborg_v4');
+    if (cached) {
+      try {
+        const geojson = JSON.parse(cached);
+        const minLat = parseFloat(bbox[0]), maxLat = parseFloat(bbox[1]);
+        const minLon = parseFloat(bbox[2]), maxLon = parseFloat(bbox[3]);
+
+        // Filter parcels in bbox
+        const inArea = (geojson.features || []).filter(f => {
+          const g = f.geometry;
+          if (!g) return false;
+          const coords = g.type === 'Polygon' ? g.coordinates[0] : g.type === 'MultiPolygon' ? g.coordinates[0][0] : null;
+          if (!coords?.length) return false;
+          const lons = coords.map(p => p[0]);
+          const lats = coords.map(p => p[1]);
+          const cx = lons.reduce((a,b)=>a+b)/lons.length;
+          const cy = lats.reduce((a,b)=>a+b)/lats.length;
+          return cx >= minLon && cx <= maxLon && cy >= minLat && cy <= maxLat;
+        });
+
+        // Draw parcels
+        if (inArea.length) {
+          const parcelLayer = L.geoJSON({ type:'FeatureCollection', features: inArea }, {
+            style: { color:'rgba(255,255,255,0.7)', weight:1, fill:true, fillColor:'#fff', fillOpacity:0.01 },
+            smoothFactor: 0,
+            onEachFeature: (feature, layer) => {
+              layer.on('click', () => {
+                closeAreaSearch();
+                currentView = 'map';
+                render();
+              });
+              layer.on('mouseover', () => layer.setStyle({ color:'#CC2936', weight:2, fillOpacity:0.08 }));
+              layer.on('mouseout', () => layer.setStyle({ color:'rgba(255,255,255,0.7)', weight:1, fillOpacity:0.01 }));
+            }
+          }).addTo(areaMap);
+
+          // Fix pointer events
+          setTimeout(() => {
+            const pane = areaMap.getPanes().overlayPane;
+            if (pane) pane.querySelectorAll('path').forEach(p => p.style.pointerEvents = 'all');
+          }, 300);
+
+          document.getElementById('areaMapStatus').textContent = inArea.length.toLocaleString('sv-SE') + ' fastigheter i ' + name;
+        }
+
+        // Show mini feed of demo properties in area
+        const DEMO = [
+          { name:"Laröd 3:19",       meta:"Gård · 5 200 kvm",  likes:41, img:"https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=200&q=60" },
+          { name:"Pålsjö 4:7",       meta:"Villa · 240 kvm",   likes:18, img:"https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=200&q=60" },
+          { name:"Fredriksdal 6:1",  meta:"Villa · 5,75 mkr",  likes:19, img:"https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=200&q=60" },
+          { name:"Söder 8:22",       meta:"Lägenhet · Söder",  likes:14, img:"https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=200&q=60" },
+        ];
+
+        const resultsEl = document.getElementById('areaResults');
+        if (resultsEl) {
+          resultsEl.innerHTML = `
+            <div style="font-size:12px;color:#999;margin-bottom:8px;">${inArea.length} tomter hittade</div>
+            ${DEMO.map(p => `
+              <div onclick="closeAreaSearch();currentView='feed';render();" style="display:flex;gap:10px;align-items:center;cursor:pointer;padding:10px;border-radius:10px;border:0.5px solid #EBEBEB;background:#FAFAF8;">
+                <img src="${p.img}" style="width:52px;height:52px;border-radius:8px;object-fit:cover;flex-shrink:0;" />
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:13px;font-weight:600;color:#1A1A1A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
+                  <div style="font-size:11px;color:#999;margin-top:2px;">${p.meta}</div>
+                  <div style="font-size:11px;color:#999;margin-top:4px;">♡ ${p.likes}</div>
+                </div>
+                <i class="ti ti-chevron-right" style="font-size:14px;color:#DDD;" aria-hidden="true"></i>
+              </div>
+            `).join('')}
+            <button onclick="closeAreaSearch();currentView='feed';render();" style="width:100%;padding:10px;border-radius:10px;border:1.5px solid #CC2936;background:transparent;color:#CC2936;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;margin-top:4px;">
+              Se alla fastigheter i ${name}
+            </button>
+          `;
+        }
+
+      } catch(e) {
+        console.warn('Area filter error:', e);
+      }
+    } else {
+      // No cached parcels — show demo results only
+      const resultsEl = document.getElementById('areaResults');
+      if (resultsEl) {
+        resultsEl.innerHTML = `
+          <div style="font-size:12px;color:#999;margin-bottom:12px;">Öppna kartan för att se alla tomter</div>
+          <button onclick="closeAreaSearch();currentView='map';render();" style="width:100%;padding:10px;border-radius:10px;border:1.5px solid #CC2936;background:transparent;color:#CC2936;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
+            Visa ${name} på kartan
+          </button>
+        `;
+      }
+    }
+
+  } catch(e) {
+    console.error('Area search error:', e);
+    document.getElementById('areaTitle').textContent = 'Sökning misslyckades';
+    document.getElementById('areaResults').innerHTML = '<div style="text-align:center;padding:40px 16px;color:#BBB;font-size:13px;">Kunde inte hämta data. Försök igen.</div>';
+  }
+}
+
+function closeAreaSearch() {
+  const overlay = document.getElementById('area-search-overlay');
+  if (overlay) overlay.remove();
+}
+
 function landingLike(btn) {
   const session = loadSession();
   if (!session?.email) {
@@ -974,14 +1172,15 @@ function renderWelcome() {
   // Search handler
   document.getElementById("landingSearchBtn").onclick = () => {
     const q = document.getElementById("landingSearch").value.trim();
-    if (q) {
-      // Save to recent searches
-      const recent = JSON.parse(localStorage.getItem('ifound_recent_searches') || '[]');
-      const updated = [q, ...recent.filter(r => r !== q)].slice(0, 5);
-      localStorage.setItem('ifound_recent_searches', JSON.stringify(updated));
-    }
-    currentView = "map"; render();
+    if (!q) { currentView = "map"; render(); return; }
+    // Save to recent searches
+    const recent = JSON.parse(localStorage.getItem('ifound_recent_searches') || '[]');
+    const updated = [q, ...recent.filter(r => r !== q)].slice(0, 5);
+    localStorage.setItem('ifound_recent_searches', JSON.stringify(updated));
+    // Show area search overlay
+    showAreaSearch(q);
   };
+
   document.getElementById("landingSearch").addEventListener("keydown", e => {
     if (e.key === "Enter") document.getElementById("landingSearchBtn").click();
   });

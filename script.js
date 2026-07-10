@@ -1177,8 +1177,24 @@ function renderWelcome() {
     const recent = JSON.parse(localStorage.getItem('ifound_recent_searches') || '[]');
     const updated = [q, ...recent.filter(r => r !== q)].slice(0, 5);
     localStorage.setItem('ifound_recent_searches', JSON.stringify(updated));
-    // Show area search overlay
-    showAreaSearch(q);
+    // Go to map and trigger area search
+    currentView = "map";
+    render();
+    setTimeout(() => {
+      const searchInput = document.getElementById("addressSearch");
+      if (searchInput) {
+        searchInput.value = q;
+        // Trigger search
+        const event = new Event("input", { bubbles: true });
+        searchInput.dispatchEvent(event);
+        // Auto-select first result after delay
+        setTimeout(() => {
+          const first = document.querySelector("#searchDropdown div[data-lat]") ||
+                        document.querySelector("#searchDropdown div[onclick]");
+          if (first) first.click();
+        }, 800);
+      }
+    }, 400);
   };
 
   document.getElementById("landingSearch").addEventListener("keydown", e => {
@@ -2041,7 +2057,7 @@ async function mapSearch(query, dropdown, input) {
   dropdown.innerHTML = '<div style="padding:12px 16px;font-size:12px;color:#9CA3AF;">Söker...</div>';
 
   try {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=6&countrycodes=se&accept-language=sv`;
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=6&countrycodes=se&accept-language=sv&polygon_geojson=1`;
     const res = await fetch(url);
     const results = await res.json();
 
@@ -2052,10 +2068,13 @@ async function mapSearch(query, dropdown, input) {
 
     dropdown.innerHTML = results.map(r => {
       const name = r.display_name.split(",").slice(0,2).join(", ");
+      const safeName = r.display_name.replace(/'/g,"\\'").split(',').slice(0,2).join(',');
+      const bbox = r.boundingbox ? JSON.stringify(r.boundingbox) : 'null';
+      const hasGeo = r.geojson ? 'true' : 'false';
       return `<div data-lat="${r.lat}" data-lon="${r.lon}"
         style="padding:11px 16px;font-size:13px;color:#111827;cursor:pointer;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;align-items:center;gap:10px;"
         onmouseover="this.style.background='#F9F6F1'" onmouseout="this.style.background=''"
-        onclick="mapSelectLocation('${r.display_name.replace(/'/g,"\\'").split(',').slice(0,2).join(',')}', ${r.lat}, ${r.lon})">
+        onclick="mapSelectLocation('${safeName}', ${r.lat}, ${r.lon}, ${bbox}, ${r.geojson ? JSON.stringify(r.geojson).replace(/'/g,"\\'") : 'null'})">
         <i class="ti ti-map-pin" style="font-size:14px;color:#CC2936;flex-shrink:0;" aria-hidden="true"></i>
         <span>${name}</span>
       </div>`;
@@ -2065,13 +2084,114 @@ async function mapSearch(query, dropdown, input) {
   }
 }
 
-function mapSelectLocation(name, lat, lon) {
+function mapSelectLocation(name, lat, lon, bbox, geojson) {
   const input    = document.getElementById("addressSearch");
   const dropdown = document.getElementById("searchDropdown");
-  if (input) input.value = name.split(",")[0];
+  const shortName = name.split(",")[0];
+  if (input) input.value = shortName;
   if (dropdown) dropdown.style.display = "none";
-  if (map) map.setView([parseFloat(lat), parseFloat(lon)], 17);
-  toast("Visar " + name.split(",")[0]);
+
+  if (bbox) {
+    // Zoom to area bounds
+    const bounds = [[parseFloat(bbox[0]), parseFloat(bbox[2])], [parseFloat(bbox[1]), parseFloat(bbox[3])]];
+    if (map) map.fitBounds(bounds, { padding: [40, 40] });
+
+    // Draw area highlight
+    if (window._areaHighlight) { window._areaHighlight.remove(); window._areaHighlight = null; }
+    if (geojson) {
+      window._areaHighlight = L.geoJSON(geojson, {
+        style: { color: '#CC2936', weight: 2.5, fillColor: '#CC2936', fillOpacity: 0.07, dashArray: '6,4', interactive: false }
+      }).addTo(map);
+    } else {
+      window._areaHighlight = L.rectangle(bounds, {
+        color: '#CC2936', weight: 2, fillColor: '#CC2936', fillOpacity: 0.06, dashArray: '6,4', interactive: false
+      }).addTo(map);
+    }
+
+    // Show area results card
+    showMapAreaCard(shortName, bounds);
+  } else {
+    if (map) map.setView([parseFloat(lat), parseFloat(lon)], 17);
+  }
+}
+
+function showMapAreaCard(areaName, bounds) {
+  // Remove existing card
+  const existing = document.getElementById('map-area-card');
+  if (existing) existing.remove();
+
+  // Count parcels in area
+  let count = 0;
+  const minLat = bounds[0][0], minLon = bounds[0][1];
+  const maxLat = bounds[1][0], maxLon = bounds[1][1];
+
+  try {
+    const cached = localStorage.getItem('prop_geojson_helsingborg_v4');
+    if (cached) {
+      const gj = JSON.parse(cached);
+      count = (gj.features || []).filter(f => {
+        const g = f.geometry;
+        const coords = g?.type === 'Polygon' ? g.coordinates[0] : g?.type === 'MultiPolygon' ? g.coordinates[0][0] : null;
+        if (!coords?.length) return false;
+        const lons = coords.map(p=>p[0]), lats = coords.map(p=>p[1]);
+        const cx = lons.reduce((a,b)=>a+b)/lons.length;
+        const cy = lats.reduce((a,b)=>a+b)/lats.length;
+        return cx >= minLon && cx <= maxLon && cy >= minLat && cy <= maxLat;
+      }).length;
+    }
+  } catch {}
+
+  const DEMO_PROPS = [
+    { name:"Pålsjö 4:7",      meta:"Villa · 240 kvm",  likes:18, img:"https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=120&q=60" },
+    { name:"Laröd 3:19",      meta:"Gård · 5 200 kvm", likes:41, img:"https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=120&q=60" },
+    { name:"Fredriksdal 6:1", meta:"Villa · 5,75 mkr",  likes:19, img:"https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=120&q=60" },
+  ];
+
+  const card = document.createElement('div');
+  card.id = 'map-area-card';
+  card.style.cssText = 'position:absolute;top:70px;left:50%;transform:translateX(-50%);z-index:1000;background:#fff;border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.15);width:340px;overflow:hidden;font-family:"Inter",sans-serif;';
+
+  card.innerHTML = `
+    <div style="padding:14px 16px 10px;border-bottom:0.5px solid #F0F0F0;display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-size:14px;font-weight:600;color:#1A1A1A;letter-spacing:-.02em;">${areaName}</div>
+        <div style="font-size:11px;color:#999;margin-top:2px;">${count ? count.toLocaleString('sv-SE') + ' fastigheter i området' : 'Område markerat'}</div>
+      </div>
+      <button onclick="closeMapAreaCard()" style="width:26px;height:26px;border-radius:50%;background:#F5F5F5;border:none;cursor:pointer;font-size:14px;color:#666;display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>
+    <div style="max-height:260px;overflow-y:auto;">
+      ${DEMO_PROPS.map(p => `
+        <div style="display:flex;gap:10px;align-items:center;padding:10px 16px;border-bottom:0.5px solid #F8F8F8;cursor:pointer;" onmouseover="this.style.background='#FAFAF8'" onmouseout="this.style.background=''">
+          <img src="${p.img}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;flex-shrink:0;" />
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:13px;font-weight:500;color:#1A1A1A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
+            <div style="font-size:11px;color:#999;margin-top:1px;">${p.meta}</div>
+          </div>
+          <div style="font-size:11px;color:#CC2936;font-weight:500;">♡ ${p.likes}</div>
+        </div>
+      `).join('')}
+    </div>
+    <div style="padding:10px 16px;">
+      <button onclick="closeMapAreaCard()" style="width:100%;padding:9px;border-radius:9px;background:#CC2936;color:#fff;border:none;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
+        Utforska alla i ${areaName}
+      </button>
+    </div>
+  `;
+
+  // Append to map container
+  const mapContainer = document.querySelector('.map-wrap') || document.querySelector('#map')?.parentElement;
+  if (mapContainer) {
+    mapContainer.style.position = 'relative';
+    mapContainer.appendChild(card);
+  } else {
+    document.getElementById('map')?.after(card);
+  }
+}
+
+function closeMapAreaCard() {
+  const card = document.getElementById('map-area-card');
+  if (card) card.remove();
+  if (window._areaHighlight) { window._areaHighlight.remove(); window._areaHighlight = null; }
 }
 
 

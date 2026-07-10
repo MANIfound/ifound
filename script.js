@@ -856,7 +856,7 @@ function renderWelcome() {
     const users = loadUsers();
     const user  = users[email];
     if (!user || user.password !== pass) { toast("Fel e-post eller lösenord."); return; }
-    saveSession({ email }); toast("Inloggad!"); navigate("dashboard");
+    saveSession({ email }); toast("Inloggad!"); navigate("feed");
   };
 
   document.getElementById("regBtn").onclick = () => {
@@ -867,7 +867,7 @@ function renderWelcome() {
     const users = loadUsers();
     if (users[email]) { toast("Det finns redan ett konto på den e-posten."); return; }
     users[email] = { name, email, password: pass };
-    saveUsers(users); saveSession({ email }); toast("Konto skapat — välkommen!"); navigate("dashboard");
+    saveUsers(users); saveSession({ email }); toast("Konto skapat — välkommen!"); navigate("feed");
   };
 }
 function readImageAsDataUrl(file) {
@@ -1128,6 +1128,29 @@ function renderFeed() {
         <button class="area-chip" onclick="feedChip(this)">Höganäs</button>
       </div>
 
+      <!-- Onboarding bar — shown first time only -->
+      ${!loadState().onboardingDone ? `
+        <div id="onboardingBar" style="background:#111827;border-bottom:0.5px solid rgba(255,255,255,.08);padding:10px 16px;display:flex;align-items:center;gap:0;overflow-x:auto;scrollbar-width:none;">
+          ${[
+            {icon:"ti-map-2",   label:"Karta",     desc:"Hitta fastigheter nära dig"},
+            {icon:"ti-heart",   label:"Gilla",      desc:"Spara det du fastnar för"},
+            {icon:"ti-star",    label:"Intresse",   desc:"Skicka ett intresse till ägaren"},
+            {icon:"ti-home-check", label:"Claima", desc:"Är det ditt hus? Gå med!"},
+          ].map((s,i) => `
+            <div style="display:flex;align-items:center;gap:8px;padding:0 14px;border-right:${i<3?'0.5px solid rgba(255,255,255,.08)':'none'};flex-shrink:0;">
+              <div style="width:28px;height:28px;border-radius:7px;background:rgba(194,98,42,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i class="ti ${s.icon}" style="font-size:14px;color:#C2622A;" aria-hidden="true"></i>
+              </div>
+              <div>
+                <div style="font-size:11px;font-weight:600;color:#fff;">${s.label}</div>
+                <div style="font-size:10px;color:rgba(255,255,255,.4);">${s.desc}</div>
+              </div>
+            </div>
+          `).join('')}
+          <button onclick="dismissOnboarding()" style="margin-left:auto;flex-shrink:0;background:transparent;border:none;color:rgba(255,255,255,.3);font-size:18px;cursor:pointer;padding:0 8px;line-height:1;">✕</button>
+        </div>
+      ` : ''}
+
       <!-- Claim nudge -->
       <div class="claim-nudge" onclick="navigate('dashboard')">
         <div class="claim-nudge-icon"><i class="ti ti-home-check" style="font-size:20px;color:#C2622A;"></i></div>
@@ -1293,6 +1316,15 @@ function feedSelectLocation(name, lat, lon) {
   }
   toast(`Visar fastigheter i ${shortName}`);
 }
+
+function dismissOnboarding() {
+  const s = loadState();
+  s.onboardingDone = true;
+  saveState(s);
+  const bar = document.getElementById('onboardingBar');
+  if (bar) bar.style.display = 'none';
+}
+
 function feedChip(el) {
   document.querySelectorAll('.area-chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
@@ -2932,6 +2964,9 @@ function render() {
   if (session.email === "admin@ifound.se") { renderAdmin(); return; }
   if (isBroker()) {
     if (currentView === "brokerAddListing") { renderBrokerAddListing(); return; }
+    if (currentView === "feed")   { renderFeed(); return; }
+    if (currentView === "map")    { renderMapView(); return; }
+    if (currentView.startsWith("property_")) { renderPropertyView(); return; }
     if (currentView === "broker" || currentView === "dashboard") { renderBrokerDashboard(); return; }
     renderBrokerDashboard(); return;
   }
@@ -2951,6 +2986,6 @@ window.addEventListener("keydown", ev => { if (currentView === "map" && ev.key =
     saveUsers(users);
   }
   const session = loadSession();
-  currentView = session?.email ? "dashboard" : "welcome";
+  currentView = session?.email ? "feed" : "welcome";
   render();
 })();

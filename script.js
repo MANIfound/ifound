@@ -815,6 +815,20 @@ function closeAuthModal() {
   if (overlay) overlay.remove();
 }
 
+
+function landingLike(btn) {
+  const session = loadSession();
+  if (!session?.email) {
+    openAuthModal('reg');
+    toast("Skapa ett konto för att spara gillar!");
+    return;
+  }
+  const isLiked = btn.style.color === 'rgb(194, 98, 42)';
+  btn.style.color = isLiked ? '#9CA3AF' : '#C2622A';
+  btn.textContent = isLiked ? '♡' : '♥';
+  toast(isLiked ? 'Gillning borttagen' : 'Gillad!');
+}
+
 function renderWelcome() {
   const PINS = [
     { name:"Laröd 3:19",       meta:"Gård · 5 200 kvm",  badge:"pb-hot",  badgeTxt:"58 gillar", likes:58, interested:12, h:220, img:"https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400&q=70" },
@@ -909,7 +923,7 @@ function renderWelcome() {
               <div style="position:relative;">
                 <img src="${p.img}" style="width:100%;height:${p.h}px;object-fit:cover;display:block;" alt="${p.name}" loading="lazy" />
                 ${p.badge ? `<div style="position:absolute;top:8px;left:8px;font-size:10px;font-weight:600;padding:3px 8px;border-radius:999px;background:rgba(194,98,42,.88);color:#fff;">${p.badgeTxt}</div>` : ''}
-                <button onclick="event.stopPropagation();this.style.color=this.style.color==''rgb(194, 98, 42)''?'':'#C2622A'" style="position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.92);border:none;cursor:pointer;font-size:14px;color:#9CA3AF;">♡</button>
+                <button onclick="event.stopPropagation();landingLike(this)" style="position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.92);border:none;cursor:pointer;font-size:14px;color:#9CA3AF;">♡</button>
               </div>
               <div style="padding:9px 11px 11px;">
                 <div style="font-size:12px;font-weight:600;color:#111827;">${p.name}</div>

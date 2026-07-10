@@ -1060,7 +1060,7 @@ function renderFeed() {
         <div class="nav-center">
           ${isLoggedIn ? `<button class="nav-tab" onclick="navigate('dashboard')">Min sida</button>` : ''}
           <button class="nav-tab active">Utforska</button>
-          <button class="nav-tab" onclick="navigate('map')">Karta</button>
+          <button class="nav-tab" onclick="currentView='map';render();">Karta</button>
         </div>
         <div class="nav-right">
           ${isLoggedIn
@@ -1324,7 +1324,7 @@ function renderDashboard() {
         <div class="nav-center">
           <button class="nav-tab active" onclick="navigate('dashboard')">Min sida</button>
           <button class="nav-tab" onclick="navigate('feed')">Utforska</button>
-          <button class="nav-tab" onclick="navigate('map')">Karta</button>
+          <button class="nav-tab" onclick="currentView='map';render();">Karta</button>
         </div>
         <div class="nav-right">
           <button class="btn-ghost" style="font-size:12px;padding:7px 13px;" id="logoutBtn">Logga ut</button>
@@ -1481,8 +1481,8 @@ function setStatus(m) {
 // =========================
 function renderMapView() {
   const session = loadSession();
-  if (!session?.email) return navigate("welcome");
   const savedMode = loadSavedMapMode();
+  const isLoggedIn = !!session?.email;
 
   app.innerHTML = `
     <div class="map-page">
@@ -1498,11 +1498,11 @@ function renderMapView() {
         <div class="glass-card map-toolbar">
           <select id="modeSelect" class="toolbar-select">
             <option value="visitor" ${savedMode==="visitor"?"selected":""}>Besökarläge</option>
-            <option value="owner"   ${savedMode==="owner"  ?"selected":""}>Ägarläge</option>
+            ${isLoggedIn ? '<option value="owner" ' + (savedMode==="owner"?"selected":"") + '>Ägarläge</option>' : ''}
           </select>
           <button id="nearMeMapBtn" class="toolbar-btn"><i class="ti ti-current-location" aria-hidden="true"></i> Nära mig</button>
           <button id="toggleMapStyleBtn" class="toolbar-btn">Kartvy</button>
-          <button id="backBtn" class="toolbar-btn"><i class="ti ti-arrow-left" aria-hidden="true"></i> Min sida</button>
+          <button id="backBtn" class="toolbar-btn"><i class="ti ti-arrow-left" aria-hidden="true"></i> ${isLoggedIn ? 'Min sida' : 'Tillbaka'}</button>
         </div>
       </div>
 
@@ -1564,10 +1564,19 @@ function renderMapView() {
   };
 
   document.getElementById("modeSelect").addEventListener("change", e => {
+    if (e.target.value === "owner" && !loadSession()?.email) {
+      e.target.value = "visitor";
+      openAuthModal("reg");
+      toast("Skapa ett konto för att claima din fastighet!");
+      return;
+    }
     saveMapMode(e.target.value); closePanel(); redrawLayer();
   });
 
-  document.getElementById("backBtn").onclick = () => { closePanel(); navigate("dashboard"); };
+  document.getElementById("backBtn").onclick = () => {
+    closePanel();
+    navigate(loadSession()?.email ? "dashboard" : "welcome");
+  };
 
   document.getElementById("nearMeMapBtn").onclick = () => {
     const btn = document.getElementById("nearMeMapBtn");

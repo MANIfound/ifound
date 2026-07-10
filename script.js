@@ -227,14 +227,14 @@ function addGeoJsonToMap(geojson, opts = {}) {
       });
 
       layer.on("click", () => {
-        layer.setStyle({ color: "#C2622A", weight: 2 });
+        layer.setStyle({ color: "#CC2936", weight: 2 });
         setTimeout(() => layer.setStyle({ color: "rgba(255,255,255,0.75)", weight: 1 }), 1000);
         renderParcelPanel(feature);
       });
 
       layer.on("mouseover", () => {
         map.getContainer().style.cursor = "pointer";
-        layer.setStyle({ color: "#C2622A", weight: 2, fillOpacity: 0.06 });
+        layer.setStyle({ color: "#CC2936", weight: 2, fillOpacity: 0.06 });
       });
 
       layer.on("mouseout", () => {
@@ -292,7 +292,7 @@ function openInterestModal(feature, pid, name) {
     <div style="background:#fff;border-radius:20px;padding:28px;width:100%;max-width:420px;box-shadow:0 24px 64px rgba(0,0,0,.2);font-family:'Inter',sans-serif;">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;">
         <div>
-          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#C2622A;margin-bottom:4px;">Visa intresse</div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#CC2936;margin-bottom:4px;">Visa intresse</div>
           <div style="font-size:18px;font-weight:700;letter-spacing:-.03em;color:#111827;">${name}</div>
         </div>
         <button onclick="closeInterestModal()" style="width:32px;height:32px;border-radius:50%;border:none;background:#F3F4F6;cursor:pointer;font-size:16px;color:#6B7280;display:flex;align-items:center;justify-content:center;flex-shrink:0;">✕</button>
@@ -309,7 +309,7 @@ function openInterestModal(feature, pid, name) {
       </div>
 
       <div style="display:flex;flex-direction:column;gap:10px;">
-        <button id="sendInterestBtn" style="width:100%;padding:13px;border-radius:11px;border:none;background:#C2622A;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+        <button id="sendInterestBtn" style="width:100%;padding:13px;border-radius:11px;border:none;background:#CC2936;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
           <i class="ti ti-star" aria-hidden="true"></i> Skicka intresse
         </button>
         <button onclick="sendInterestWithoutMessage('${pid}', '${name}')" style="width:100%;padding:11px;border-radius:11px;border:0.5px solid rgba(17,24,39,.12);background:transparent;color:#6B7280;font-size:13px;font-weight:500;font-family:'Inter',sans-serif;cursor:pointer;">
@@ -397,9 +397,9 @@ function startDrawSubdivision(feature) {
         allowIntersection: false,
         showArea: true,
         shapeOptions: {
-          color: '#C2622A',
+          color: '#CC2936',
           weight: 2,
-          fillColor: '#C2622A',
+          fillColor: '#CC2936',
           fillOpacity: 0.15,
         },
         guideLayers: [],
@@ -407,9 +407,9 @@ function startDrawSubdivision(feature) {
       },
       rectangle: {
         shapeOptions: {
-          color: '#C2622A',
+          color: '#CC2936',
           weight: 2,
-          fillColor: '#C2622A',
+          fillColor: '#CC2936',
           fillOpacity: 0.15,
         },
       },
@@ -430,12 +430,12 @@ function startDrawSubdivision(feature) {
       <button class="panel-close" id="cancelDrawBtn">✕</button>
       <div class="panel-eyebrow">Avstyckning</div>
       <div class="panel-name" style="font-size:15px;">${prettyName(feature)}</div>
-      <div style="margin:12px 0;padding:12px;background:#FEF0E7;border-radius:10px;font-size:12px;color:#92400E;line-height:1.6;">
+      <div style="margin:12px 0;padding:12px;background:#FDECEA;border-radius:10px;font-size:12px;color:#7F1D1D;line-height:1.6;">
         <strong>Rita det område du är intresserad av.</strong><br>
         Klicka på kartan för att markera hörnen. Dubbelklicka för att avsluta.
       </div>
       <div style="display:flex;gap:8px;margin-top:8px;">
-        <button id="drawPolygonBtn" class="panel-btn" style="flex:1;background:#C2622A;color:#fff;border-color:#C2622A;">
+        <button id="drawPolygonBtn" class="panel-btn" style="flex:1;background:#CC2936;color:#fff;border-color:#CC2936;">
           <i class="ti ti-vector-triangle"></i> Rita polygon
         </button>
         <button id="drawRectBtn" class="panel-btn" style="flex:1;">
@@ -749,8 +749,8 @@ function openAuthModal(tab = 'login') {
     <div style="background:#fff;border-radius:20px;padding:28px;width:100%;max-width:400px;box-shadow:0 24px 64px rgba(0,0,0,.2);font-family:'Inter',sans-serif;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
         <div style="display:flex;align-items:center;gap:8px;">
-          <svg width="16" height="20" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#C2622A"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#C2622A"/></svg>
-          <span style="font-size:17px;font-weight:700;letter-spacing:-.04em;color:#111827;">i<em style="font-style:normal;color:#C2622A;">found</em></span>
+          <svg width="16" height="20" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
+          <span style="font-size:17px;font-weight:700;letter-spacing:-.04em;color:#111827;">i<em style="font-style:normal;color:#CC2936;">found</em></span>
         </div>
         <button onclick="closeAuthModal()" style="width:30px;height:30px;border-radius:50%;border:none;background:#F3F4F6;cursor:pointer;font-size:16px;color:#6B7280;display:flex;align-items:center;justify-content:center;">✕</button>
       </div>
@@ -771,7 +771,7 @@ function openAuthModal(tab = 'login') {
       </div>
 
       <div id="regForm" style="display:none;flex-direction:column;gap:12px;">
-        <div style="background:#FEF0E7;border-radius:10px;padding:10px 14px;font-size:12px;color:#92400E;line-height:1.5;">
+        <div style="background:#FDECEA;border-radius:10px;padding:10px 14px;font-size:12px;color:#7F1D1D;line-height:1.5;">
           Gratis konto — spara dina favoriter och visa intresse för fastigheter.
         </div>
         <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#6B7280;margin-bottom:5px;">Namn</label><input id="regName" class="input" placeholder="Ditt namn" style="width:100%;" /></div>
@@ -824,7 +824,7 @@ function landingLike(btn) {
     return;
   }
   const isLiked = btn.style.color === 'rgb(194, 98, 42)';
-  btn.style.color = isLiked ? '#9CA3AF' : '#C2622A';
+  btn.style.color = isLiked ? '#9CA3AF' : '#CC2936';
   btn.textContent = isLiked ? '♡' : '♥';
   toast(isLiked ? 'Gillning borttagen' : 'Gillad!');
 }
@@ -853,8 +853,8 @@ function renderWelcome() {
 
       <nav style="display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:56px;background:rgba(249,246,241,.95);border-bottom:0.5px solid rgba(17,24,39,.07);position:sticky;top:0;z-index:50;backdrop-filter:blur(8px);">
         <div style="display:flex;align-items:center;gap:8px;">
-          <svg width="17" height="21" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#C2622A"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#C2622A"/></svg>
-          <span style="font-size:19px;font-weight:700;letter-spacing:-.05em;color:#111827;">i<em style="font-style:normal;color:#C2622A;">found</em></span>
+          <svg width="17" height="21" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
+          <span style="font-size:19px;font-weight:700;letter-spacing:-.05em;color:#111827;">i<em style="font-style:normal;color:#CC2936;">found</em></span>
         </div>
         <div style="display:flex;gap:2px;">
           <button onclick="currentView='feed';render();" style="padding:7px 13px;border-radius:8px;font-size:13px;font-weight:500;color:#6B7280;background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;">Utforska</button>
@@ -863,32 +863,36 @@ function renderWelcome() {
         </div>
         <div style="display:flex;gap:8px;align-items:center;">
           <button onclick="openAuthModal('login')" style="padding:7px 14px;border-radius:8px;font-size:13px;font-weight:500;color:#374151;background:transparent;border:0.5px solid rgba(17,24,39,.12);cursor:pointer;font-family:'Inter',sans-serif;">Logga in</button>
-          <button onclick="openAuthModal('reg')" style="padding:7px 14px;border-radius:9px;font-size:13px;font-weight:600;color:#fff;background:#C2622A;border:none;cursor:pointer;font-family:'Inter',sans-serif;">Kom igång</button>
+          <button onclick="openAuthModal('reg')" style="padding:7px 14px;border-radius:9px;font-size:13px;font-weight:600;color:#fff;background:#CC2936;border:none;cursor:pointer;font-family:'Inter',sans-serif;">Kom igång</button>
         </div>
       </nav>
 
       <!-- Hero -->
       <div style="max-width:700px;margin:0 auto;padding:48px 24px 36px;text-align:center;">
-        <div style="font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#C2622A;margin-bottom:12px;">Fastigheter på ett nytt sätt</div>
-        <h1 style="font-size:40px;font-weight:700;letter-spacing:-.05em;line-height:1.05;color:#111827;margin-bottom:14px;font-family:'Inter',sans-serif;">Åkte du förbi ett hus<br>du <em style="font-style:normal;color:#C2622A;">aldrig kan glömma?</em></h1>
+        <div style="font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#CC2936;margin-bottom:12px;">Fastigheter på ett nytt sätt</div>
+        <h1 style="font-size:40px;font-weight:700;letter-spacing:-.05em;line-height:1.05;color:#111827;margin-bottom:14px;font-family:'Inter',sans-serif;">Åkte du förbi ett hus<br>du <em style="font-style:normal;color:#CC2936;">aldrig kan glömma?</em></h1>
         <p style="font-size:16px;color:#6B7280;line-height:1.7;margin-bottom:28px;max-width:480px;margin-left:auto;margin-right:auto;">Sök upp det, visa ditt intresse — även om det inte är till salu. Inget konto krävs.</p>
 
         <!-- Search -->
         <div style="display:flex;gap:8px;background:#fff;border:1.5px solid rgba(17,24,39,.12);border-radius:13px;padding:5px 5px 5px 14px;align-items:center;margin-bottom:12px;">
           <i class="ti ti-search" style="font-size:18px;color:#9CA3AF;flex-shrink:0;" aria-hidden="true"></i>
           <input id="landingSearch" placeholder="Sök adress, område eller gata..." style="flex:1;border:none;background:transparent;font-size:15px;font-family:'Inter',sans-serif;color:#111827;outline:none;padding:7px 0;" />
-          <button id="landingSearchBtn" style="background:#C2622A;color:#fff;border:none;border-radius:9px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;">Sök</button>
+          <button id="landingSearchBtn" style="background:#CC2936;color:#fff;border:none;border-radius:9px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;">Sök</button>
         </div>
         <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-          <button id="landingNearMe" style="display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;font-size:12px;font-weight:600;background:#111827;color:#fff;border:none;cursor:pointer;font-family:'Inter',sans-serif;">
+          <button id="landingNearMe" style="display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;font-size:12px;font-weight:600;background:#1A1A1A;color:#fff;border:none;cursor:pointer;font-family:'Inter',sans-serif;">
             <i class="ti ti-current-location" style="font-size:13px;" aria-hidden="true"></i> Nära mig
           </button>
           <button onclick="currentView='map';render();" style="display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;font-size:12px;font-weight:500;background:#fff;color:#374151;border:0.5px solid rgba(17,24,39,.12);cursor:pointer;font-family:'Inter',sans-serif;">
             <i class="ti ti-map-2" style="font-size:13px;" aria-hidden="true"></i> Öppna karta
           </button>
-          ${["Pålsjö","Laröd","Söder","Centrum"].map(a=>`
-            <button onclick="currentView='feed';render();" style="padding:7px 14px;border-radius:999px;font-size:12px;font-weight:500;background:#fff;color:#374151;border:0.5px solid rgba(17,24,39,.12);cursor:pointer;font-family:'Inter',sans-serif;">${a}</button>
-          `).join('')}
+          ${(()=>{
+            const recent = JSON.parse(localStorage.getItem('ifound_recent_searches') || '[]');
+            if (!recent.length) return '';
+            return '<span style="color:#DDD;margin:0 4px;">·</span>' + recent.slice(0,3).map(q =>
+              '<button onclick="currentView=\'feed\';render();" style="padding:7px 14px;border-radius:999px;font-size:12px;font-weight:500;background:#fff;color:#374151;border:0.5px solid rgba(17,24,39,.12);cursor:pointer;font-family:\'Inter\',sans-serif;">' + q + '</button>'
+            ).join('');
+          })()}
         </div>
       </div>
 
@@ -896,7 +900,7 @@ function renderWelcome() {
       <div style="max-width:900px;margin:0 auto;padding:0 20px 36px;">
         <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;">
           <div style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:#111827;">Mest gillade</div>
-          <button onclick="currentView='feed';render();" style="font-size:12px;font-weight:600;color:#C2622A;background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;gap:3px;">Alla <i class="ti ti-chevron-right" style="font-size:12px;" aria-hidden="true"></i></button>
+          <button onclick="currentView='feed';render();" style="font-size:12px;font-weight:600;color:#CC2936;background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;gap:3px;">Alla <i class="ti ti-chevron-right" style="font-size:12px;" aria-hidden="true"></i></button>
         </div>
         <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:28px;">
           ${TOPS.map(c=>`
@@ -915,14 +919,14 @@ function renderWelcome() {
         <!-- Masonry grid -->
         <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;">
           <div style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:#111827;">Utforska fastigheter</div>
-          <button onclick="currentView='feed';render();" style="font-size:12px;font-weight:600;color:#C2622A;background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;gap:3px;">Se alla <i class="ti ti-chevron-right" style="font-size:12px;" aria-hidden="true"></i></button>
+          <button onclick="currentView='feed';render();" style="font-size:12px;font-weight:600;color:#CC2936;background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;gap:3px;">Se alla <i class="ti ti-chevron-right" style="font-size:12px;" aria-hidden="true"></i></button>
         </div>
         <div style="columns:4;column-gap:10px;margin-bottom:36px;">
           ${PINS.map(p=>`
             <div onclick="currentView='feed';render();" style="break-inside:avoid;margin-bottom:10px;border-radius:12px;overflow:hidden;cursor:pointer;background:#fff;border:0.5px solid rgba(17,24,39,.07);position:relative;">
               <div style="position:relative;">
                 <img src="${p.img}" style="width:100%;height:${p.h}px;object-fit:cover;display:block;" alt="${p.name}" loading="lazy" />
-                ${p.badge ? `<div style="position:absolute;top:8px;left:8px;font-size:10px;font-weight:600;padding:3px 8px;border-radius:999px;background:rgba(194,98,42,.88);color:#fff;">${p.badgeTxt}</div>` : ''}
+                ${p.badge ? `<div style="position:absolute;top:8px;left:8px;font-size:10px;font-weight:600;padding:3px 8px;border-radius:999px;background:rgba(204,41,54,.88);color:#fff;">${p.badgeTxt}</div>` : ''}
                 <button onclick="event.stopPropagation();landingLike(this)" style="position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.92);border:none;cursor:pointer;font-size:14px;color:#9CA3AF;">♡</button>
               </div>
               <div style="padding:9px 11px 11px;">
@@ -930,7 +934,7 @@ function renderWelcome() {
                 <div style="font-size:11px;color:#9CA3AF;margin-top:2px;">${p.meta}</div>
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-top:7px;font-size:11px;color:#9CA3AF;">
                   <span>♡ ${p.likes}</span>
-                  ${p.interested ? `<span style="font-size:10px;font-weight:600;color:#C2622A;background:#FEF0E7;padding:2px 7px;border-radius:999px;">${p.interested} intresserade</span>` : ''}
+                  ${p.interested ? `<span style="font-size:10px;font-weight:600;color:#CC2936;background:#FDECEA;padding:2px 7px;border-radius:999px;">${p.interested} intresserade</span>` : ''}
                 </div>
               </div>
             </div>
@@ -945,7 +949,7 @@ function renderWelcome() {
             {num:"03", title:"Ägaren bestämmer", desc:"Fastighetsägaren ser ditt intresse och väljer om de vill svara, visa upp sin bostad eller sätta ett pris."},
           ].map(s=>`
             <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;padding:20px;">
-              <div style="font-size:11px;font-weight:700;color:#C2622A;letter-spacing:.08em;margin-bottom:10px;">${s.num}</div>
+              <div style="font-size:11px;font-weight:700;color:#CC2936;letter-spacing:.08em;margin-bottom:10px;">${s.num}</div>
               <div style="font-size:14px;font-weight:600;color:#111827;margin-bottom:6px;">${s.title}</div>
               <div style="font-size:12px;color:#6B7280;line-height:1.6;">${s.desc}</div>
             </div>
@@ -970,7 +974,12 @@ function renderWelcome() {
   // Search handler
   document.getElementById("landingSearchBtn").onclick = () => {
     const q = document.getElementById("landingSearch").value.trim();
-    if (q) { toast("Söker efter " + q + "..."); }
+    if (q) {
+      // Save to recent searches
+      const recent = JSON.parse(localStorage.getItem('ifound_recent_searches') || '[]');
+      const updated = [q, ...recent.filter(r => r !== q)].slice(0, 5);
+      localStorage.setItem('ifound_recent_searches', JSON.stringify(updated));
+    }
     currentView = "map"; render();
   };
   document.getElementById("landingSearch").addEventListener("keydown", e => {
@@ -979,11 +988,24 @@ function renderWelcome() {
 
   // Near me
   document.getElementById("landingNearMe").onclick = () => {
-    currentView = "map"; render();
-    setTimeout(() => {
-      const btn = document.getElementById("nearMeMapBtn");
-      if (btn) btn.click();
-    }, 500);
+    const btn = document.getElementById("landingNearMe");
+    if (!navigator.geolocation) { toast("Din webbläsare stödjer inte platsfunktion."); return; }
+    btn.textContent = "Söker...";
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        currentView = "map";
+        render();
+        setTimeout(() => {
+          const mapBtn = document.getElementById("nearMeMapBtn");
+          if (mapBtn) mapBtn.click();
+        }, 600);
+      },
+      () => {
+        toast("Kunde inte hämta din position.");
+        btn.innerHTML = '<i class="ti ti-current-location" style="font-size:13px;"></i> Nära mig';
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
   };
 }
 
@@ -1031,7 +1053,7 @@ function renderFeed() {
       <nav class="dashboard-nav">
         <div class="nav-left">
           <div class="logo" onclick="navigate('welcome')" style="cursor:pointer;">
-            <svg width="18" height="23" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#C2622A"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#C2622A"/></svg>
+            <svg width="18" height="23" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
             <span class="logo-text">i<em>found</em></span>
           </div>
         </div>
@@ -1059,8 +1081,8 @@ function renderFeed() {
             {icon:"ti-home-check", label:"Claima",   desc:"Är det ditt hus? Gå med!"},
           ].map((s,i) => `
             <div style="display:flex;align-items:center;gap:8px;padding:0 14px;border-right:${i<3?'0.5px solid rgba(255,255,255,.08)':'none'};flex-shrink:0;">
-              <div style="width:28px;height:28px;border-radius:7px;background:rgba(194,98,42,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                <i class="ti ${s.icon}" style="font-size:14px;color:#C2622A;"></i>
+              <div style="width:28px;height:28px;border-radius:7px;background:rgba(204,41,54,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i class="ti ${s.icon}" style="font-size:14px;color:#CC2936;"></i>
               </div>
               <div>
                 <div style="font-size:11px;font-weight:600;color:#fff;">${s.label}</div>
@@ -1096,7 +1118,7 @@ function renderFeed() {
 
       <!-- Claim nudge -->
       <div class="claim-nudge" onclick="${isLoggedIn ? "navigate('dashboard')" : "openAuthModal('reg')"}">
-        <div class="claim-nudge-icon"><i class="ti ti-home-check" style="font-size:20px;color:#C2622A;"></i></div>
+        <div class="claim-nudge-icon"><i class="ti ti-home-check" style="font-size:20px;color:#CC2936;"></i></div>
         <div style="flex:1;">
           <div class="claim-nudge-title">${isLoggedIn ? '18 gillar ditt hem' : 'Är det ditt hus?'}</div>
           <div class="claim-nudge-sub">${isLoggedIn ? 'Pålsjö 4:7 — claima för att se vem som är intresserad' : 'Claima din fastighet och se vem som är intresserad'}</div>
@@ -1237,7 +1259,7 @@ function renderPropertyView() {
         <button id="propLikeBtn" onclick="propToggleLike(${prop.id})" style="flex:1;padding:13px;border-radius:12px;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;border:1.5px solid ${iLiked?'#2563eb':'rgba(17,24,39,.12)'};background:${iLiked?'#EFF6FF':'#fff'};color:${iLiked?'#2563eb':'#111827'};display:flex;align-items:center;justify-content:center;gap:8px;">
           <i class="ti ti-thumb-up"></i> ${iLiked ? 'Gillad' : 'Gilla'}
         </button>
-        <button id="propInterestBtn" onclick="propToggleInterest(${prop.id})" style="flex:1;padding:13px;border-radius:12px;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;border:1.5px solid ${iInterested?'#C2622A':'rgba(17,24,39,.12)'};background:${iInterested?'#FEF0E7':'#fff'};color:${iInterested?'#C2622A':'#111827'};display:flex;align-items:center;justify-content:center;gap:8px;">
+        <button id="propInterestBtn" onclick="propToggleInterest(${prop.id})" style="flex:1;padding:13px;border-radius:12px;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;border:1.5px solid ${iInterested?'#CC2936':'rgba(17,24,39,.12)'};background:${iInterested?'#FDECEA':'#fff'};color:${iInterested?'#CC2936':'#111827'};display:flex;align-items:center;justify-content:center;gap:8px;">
           <i class="ti ti-star"></i> ${iInterested ? 'Intresserad' : 'Visa intresse'}
         </button>
       </div>
@@ -1287,14 +1309,14 @@ function renderDashboard() {
   const homeProfile = getHomeProfile(user);
   const images = homeProfile.images || [];
 
-  const houseSvg = `<svg style="position:absolute;inset:0;width:100%;height:100%;" viewBox="0 0 960 280" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg"><rect width="960" height="280" fill="#1a2533"/><rect y="180" width="960" height="100" fill="#2a1a08"/><circle cx="840" cy="50" r="24" fill="#f5e6c8" opacity=".16"/><circle cx="840" cy="50" r="17" fill="#f5e6c8" opacity=".20"/><circle cx="75" cy="35" r="1.1" fill="white" opacity=".55"/><circle cx="200" cy="20" r="1" fill="white" opacity=".5"/><circle cx="360" cy="48" r="1.2" fill="white" opacity=".6"/><circle cx="520" cy="16" r="1" fill="white" opacity=".4"/><circle cx="650" cy="40" r="1.1" fill="white" opacity=".55"/><circle cx="770" cy="26" r="1" fill="white" opacity=".45"/><polygon points="18,182 48,105 78,182" fill="#0d1a0d"/><polygon points="42,182 74,112 106,182" fill="#101f10"/><polygon points="855,182 885,103 915,182" fill="#0d1a0d"/><polygon points="880,182 912,110 944,182" fill="#101f10"/><rect x="345" y="128" width="270" height="148" rx="2" fill="#2C1A0E"/><polygon points="320,133 480,55 640,133" fill="#1a0f06"/><rect x="560" y="64" width="24" height="44" rx="2" fill="#1a0f06"/><rect x="370" y="150" width="50" height="40" rx="3" fill="#3a2510"/><rect x="371" y="151" width="48" height="38" rx="2" fill="#C2622A" opacity=".22"/><line x1="395" y1="151" x2="395" y2="189" stroke="#2a1508" stroke-width="1.5"/><line x1="371" y1="170" x2="419" y2="170" stroke="#2a1508" stroke-width="1.5"/><rect x="437" y="150" width="50" height="40" rx="3" fill="#3a2510"/><rect x="438" y="151" width="48" height="38" rx="2" fill="#e8a060" opacity=".26"/><line x1="462" y1="151" x2="462" y2="189" stroke="#2a1508" stroke-width="1.5"/><line x1="438" y1="170" x2="486" y2="170" stroke="#2a1508" stroke-width="1.5"/><rect x="504" y="150" width="50" height="40" rx="3" fill="#3a2510"/><rect x="505" y="151" width="48" height="38" rx="2" fill="#C2622A" opacity=".16"/><line x1="529" y1="151" x2="529" y2="189" stroke="#2a1508" stroke-width="1.5"/><line x1="505" y1="170" x2="553" y2="170" stroke="#2a1508" stroke-width="1.5"/><rect x="430" y="190" width="40" height="86" rx="2" fill="#1a0f06"/><rect x="431" y="191" width="38" height="84" rx="1.5" fill="#C2622A" opacity=".13"/></svg>`;
+  const houseSvg = `<svg style="position:absolute;inset:0;width:100%;height:100%;" viewBox="0 0 960 280" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg"><rect width="960" height="280" fill="#1a2533"/><rect y="180" width="960" height="100" fill="#2a1a08"/><circle cx="840" cy="50" r="24" fill="#f5e6c8" opacity=".16"/><circle cx="840" cy="50" r="17" fill="#f5e6c8" opacity=".20"/><circle cx="75" cy="35" r="1.1" fill="white" opacity=".55"/><circle cx="200" cy="20" r="1" fill="white" opacity=".5"/><circle cx="360" cy="48" r="1.2" fill="white" opacity=".6"/><circle cx="520" cy="16" r="1" fill="white" opacity=".4"/><circle cx="650" cy="40" r="1.1" fill="white" opacity=".55"/><circle cx="770" cy="26" r="1" fill="white" opacity=".45"/><polygon points="18,182 48,105 78,182" fill="#0d1a0d"/><polygon points="42,182 74,112 106,182" fill="#101f10"/><polygon points="855,182 885,103 915,182" fill="#0d1a0d"/><polygon points="880,182 912,110 944,182" fill="#101f10"/><rect x="345" y="128" width="270" height="148" rx="2" fill="#2C1A0E"/><polygon points="320,133 480,55 640,133" fill="#1a0f06"/><rect x="560" y="64" width="24" height="44" rx="2" fill="#1a0f06"/><rect x="370" y="150" width="50" height="40" rx="3" fill="#3a2510"/><rect x="371" y="151" width="48" height="38" rx="2" fill="#CC2936" opacity=".22"/><line x1="395" y1="151" x2="395" y2="189" stroke="#2a1508" stroke-width="1.5"/><line x1="371" y1="170" x2="419" y2="170" stroke="#2a1508" stroke-width="1.5"/><rect x="437" y="150" width="50" height="40" rx="3" fill="#3a2510"/><rect x="438" y="151" width="48" height="38" rx="2" fill="#e8a060" opacity=".26"/><line x1="462" y1="151" x2="462" y2="189" stroke="#2a1508" stroke-width="1.5"/><line x1="438" y1="170" x2="486" y2="170" stroke="#2a1508" stroke-width="1.5"/><rect x="504" y="150" width="50" height="40" rx="3" fill="#3a2510"/><rect x="505" y="151" width="48" height="38" rx="2" fill="#CC2936" opacity=".16"/><line x1="529" y1="151" x2="529" y2="189" stroke="#2a1508" stroke-width="1.5"/><line x1="505" y1="170" x2="553" y2="170" stroke="#2a1508" stroke-width="1.5"/><rect x="430" y="190" width="40" height="86" rx="2" fill="#1a0f06"/><rect x="431" y="191" width="38" height="84" rx="1.5" fill="#CC2936" opacity=".13"/></svg>`;
 
   app.innerHTML = `
     <div class="dashboard-page">
       <nav class="dashboard-nav">
         <div class="nav-left">
           <div class="logo">
-            <svg width="18" height="23" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#C2622A"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#C2622A"/></svg>
+            <svg width="18" height="23" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
             <span class="logo-text">i<em>found</em></span>
           </div>
           <div class="nav-greeting">Hej, ${user?.name || ""}!</div>
@@ -1381,13 +1403,13 @@ function renderDashboard() {
             <div class="card" style="margin-bottom:12px;">
               <div class="card-title">Aktivitet</div>
               ${ownerId && state.interestMessages?.[ownerId]?.length ? `
-                <div style="margin-bottom:12px;padding:12px;background:#FEF0E7;border-radius:10px;">
-                  <div style="font-size:12px;font-weight:700;color:#C2622A;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+                <div style="margin-bottom:12px;padding:12px;background:#FDECEA;border-radius:10px;">
+                  <div style="font-size:12px;font-weight:700;color:#CC2936;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
                     <i class="ti ti-message" style="font-size:14px;"></i>
                     ${state.interestMessages[ownerId].length} meddelande${state.interestMessages[ownerId].length > 1 ? 'n' : ''} från intressenter
                   </div>
                   ${state.interestMessages[ownerId].map(m => `
-                    <div style="background:#fff;border-radius:8px;padding:10px 12px;margin-bottom:6px;font-size:12px;color:#374151;line-height:1.5;border:0.5px solid rgba(194,98,42,.15);">
+                    <div style="background:#fff;border-radius:8px;padding:10px 12px;margin-bottom:6px;font-size:12px;color:#374151;line-height:1.5;border:0.5px solid rgba(204,41,54,.15);">
                       "${m.message}"
                       <div style="font-size:10px;color:#9CA3AF;margin-top:4px;">${new Date(m.sentAt).toLocaleDateString('sv-SE')} · Anonymt</div>
                     </div>
@@ -1559,7 +1581,7 @@ function renderMapView() {
         map.setView([lat, lng], 16);
         if (locateMarker) { try { locateMarker.remove(); } catch {} }
         locateMarker = L.circleMarker([lat, lng], {
-          radius: 10, weight: 3, color: "#C2622A", fillColor: "#C2622A", fillOpacity: 0.9
+          radius: 10, weight: 3, color: "#CC2936", fillColor: "#CC2936", fillOpacity: 0.9
         }).addTo(map);
         toast("Visar fastigheter nära dig.");
         btn.innerHTML = '<i class="ti ti-current-location" aria-hidden="true"></i> Nära mig';
@@ -1636,10 +1658,10 @@ function createMarkerIcon(status) {
     </svg>`,
 
     sale: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 64 78">
-      <path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#C2622A"/>
+      <path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/>
       <polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/>
       <rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/>
-      <rect x="27" y="37" width="10" height="12" rx="1" fill="#C2622A"/>
+      <rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/>
     </svg>`,
 
     rent: `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="38" viewBox="0 0 30 38">
@@ -1650,10 +1672,10 @@ function createMarkerIcon(status) {
     </svg>`,
 
     broker_sale: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 64 78">
-      <path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#C2622A"/>
+      <path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/>
       <polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/>
       <rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/>
-      <rect x="27" y="37" width="10" height="12" rx="1" fill="#C2622A"/>
+      <rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/>
     </svg>`,
   };
 
@@ -1729,7 +1751,7 @@ function addClaimedMarkers() {
     const marker = L.marker([prop.lat, prop.lon], { icon, zIndexOffset: 1000 });
 
     const statusLabel = { passive: 'Passiv', sale: 'Till salu', rent: 'Uthyrning' }[prop.status] || 'Passiv';
-    const statusColor = { passive: '#6B7280', sale: '#C2622A', rent: '#2563eb' }[prop.status] || '#6B7280';
+    const statusColor = { passive: '#6B7280', sale: '#CC2936', rent: '#2563eb' }[prop.status] || '#6B7280';
 
     // Find matching PROP_DATA entry for image
     const propDataMatch = (typeof PROP_DATA !== 'undefined') ? PROP_DATA.find(p =>
@@ -1746,7 +1768,7 @@ function addClaimedMarkers() {
           </div>
         ` : `
           <div style="margin:-1px -1px 0;height:80px;background:linear-gradient(135deg,#1a2533,#2a1a08);border-radius:12px 12px 0 0;display:flex;align-items:center;justify-content:center;">
-            <svg width="32" height="40" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#C2622A" opacity=".6"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".8"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".8"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#C2622A" opacity=".6"/></svg>
+            <svg width="32" height="40" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936" opacity=".6"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".8"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".8"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936" opacity=".6"/></svg>
           </div>
         `}
         <div style="padding:12px 14px 14px;">
@@ -1826,7 +1848,7 @@ async function mapSearch(query, dropdown, input) {
         style="padding:11px 16px;font-size:13px;color:#111827;cursor:pointer;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;align-items:center;gap:10px;"
         onmouseover="this.style.background='#F9F6F1'" onmouseout="this.style.background=''"
         onclick="mapSelectLocation('${r.display_name.replace(/'/g,"\\'").split(',').slice(0,2).join(',')}', ${r.lat}, ${r.lon})">
-        <i class="ti ti-map-pin" style="font-size:14px;color:#C2622A;flex-shrink:0;" aria-hidden="true"></i>
+        <i class="ti ti-map-pin" style="font-size:14px;color:#CC2936;flex-shrink:0;" aria-hidden="true"></i>
         <span>${name}</span>
       </div>`;
     }).join('');
@@ -1857,14 +1879,14 @@ function openClaimModal() {
     <div style="background:#fff;border-radius:20px;padding:28px;width:100%;max-width:440px;box-shadow:0 24px 64px rgba(0,0,0,.2);">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
         <div>
-          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#C2622A;margin-bottom:4px;">Claima fastighet</div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#CC2936;margin-bottom:4px;">Claima fastighet</div>
           <div style="font-size:18px;font-weight:700;letter-spacing:-.03em;color:#111827;">Verifiera ditt ägande</div>
         </div>
         <button onclick="closeClaimModal()" style="width:32px;height:32px;border-radius:50%;border:none;background:#F3F4F6;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:#6B7280;">✕</button>
       </div>
 
       <div style="background:#F9F6F1;border-radius:12px;padding:14px 16px;margin-bottom:20px;display:flex;align-items:center;gap:12px;">
-        <i class="ti ti-home" style="font-size:20px;color:#C2622A;" aria-hidden="true"></i>
+        <i class="ti ti-home" style="font-size:20px;color:#CC2936;" aria-hidden="true"></i>
         <div>
           <div style="font-size:13px;font-weight:600;color:#111827;">Ingen fastighet vald</div>
           <div style="font-size:11px;color:#9CA3AF;">Välj fastighet via kartan för att koppla den till din profil</div>
@@ -1887,9 +1909,9 @@ function openClaimModal() {
         </div>
       </div>
 
-      <div style="background:#FEF0E7;border-radius:10px;padding:12px 14px;margin-bottom:20px;display:flex;gap:10px;align-items:flex-start;">
-        <i class="ti ti-clock" style="font-size:16px;color:#C2622A;flex-shrink:0;margin-top:1px;" aria-hidden="true"></i>
-        <div style="font-size:12px;color:#92400E;line-height:1.5;">Din claim behandlas inom <strong>24 timmar</strong>. Vi verifierar manuellt att uppgifterna stämmer mot fastighetsregistret innan fastigheten kopplas till din profil.</div>
+      <div style="background:#FDECEA;border-radius:10px;padding:12px 14px;margin-bottom:20px;display:flex;gap:10px;align-items:flex-start;">
+        <i class="ti ti-clock" style="font-size:16px;color:#CC2936;flex-shrink:0;margin-top:1px;" aria-hidden="true"></i>
+        <div style="font-size:12px;color:#7F1D1D;line-height:1.5;">Din claim behandlas inom <strong>24 timmar</strong>. Vi verifierar manuellt att uppgifterna stämmer mot fastighetsregistret innan fastigheten kopplas till din profil.</div>
       </div>
 
       <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:20px;">
@@ -1899,8 +1921,8 @@ function openClaimModal() {
           { id:'vis-public',  val:'public',  label:'Synlig', desc:'Din profil och bilder syns för besökare.' },
           { id:'vis-sale',    val:'sale',    label:'Till salu eller uthyrning', desc:'Visa pris och ta emot intresse direkt.' },
         ].map((o,i) => `
-          <div id="vo-${o.val}" onclick="selectClaimVis('${o.val}')" style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:11px;border:1.5px solid ${i===0?'#C2622A':'rgba(17,24,39,.08)'};background:${i===0?'rgba(194,98,42,.03)':'#fff'};cursor:pointer;">
-            <div id="radio-${o.val}" style="width:18px;height:18px;border-radius:50%;border:2px solid ${i===0?'#C2622A':'rgba(17,24,39,.18)'};flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;background:${i===0?'#C2622A':'transparent'};">
+          <div id="vo-${o.val}" onclick="selectClaimVis('${o.val}')" style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:11px;border:1.5px solid ${i===0?'#CC2936':'rgba(17,24,39,.08)'};background:${i===0?'rgba(204,41,54,.03)':'#fff'};cursor:pointer;">
+            <div id="radio-${o.val}" style="width:18px;height:18px;border-radius:50%;border:2px solid ${i===0?'#CC2936':'rgba(17,24,39,.18)'};flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;background:${i===0?'#CC2936':'transparent'};">
               ${i===0?'<div style="width:6px;height:6px;border-radius:50%;background:#fff;"></div>':''}
             </div>
             <div>
@@ -1911,7 +1933,7 @@ function openClaimModal() {
         `).join('')}
       </div>
 
-      <button onclick="submitClaim()" style="width:100%;padding:14px;border-radius:12px;border:none;background:#C2622A;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;letter-spacing:-.01em;">
+      <button onclick="submitClaim()" style="width:100%;padding:14px;border-radius:12px;border:none;background:#CC2936;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;letter-spacing:-.01em;">
         Skicka in claim
       </button>
 
@@ -1939,10 +1961,10 @@ function selectClaimVis(val) {
     const radio = document.getElementById('radio-' + v);
     if (!el || !radio) return;
     if (v === val) {
-      el.style.borderColor = '#C2622A';
-      el.style.background = 'rgba(194,98,42,.03)';
-      radio.style.borderColor = '#C2622A';
-      radio.style.background = '#C2622A';
+      el.style.borderColor = '#CC2936';
+      el.style.background = 'rgba(204,41,54,.03)';
+      radio.style.borderColor = '#CC2936';
+      radio.style.background = '#CC2936';
       radio.innerHTML = '<div style="width:6px;height:6px;border-radius:50%;background:#fff;"></div>';
     } else {
       el.style.borderColor = 'rgba(17,24,39,.08)';
@@ -2009,11 +2031,11 @@ function renderInterestMessages() {
 
   return allMsgs.map(m => `
     <div style="padding:14px 20px;border-bottom:0.5px solid rgba(17,24,39,.05);display:flex;gap:12px;align-items:flex-start;">
-      <div style="width:36px;height:36px;border-radius:9px;background:#FEF0E7;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-        <i class="ti ti-message" style="font-size:16px;color:#C2622A;" aria-hidden="true"></i>
+      <div style="width:36px;height:36px;border-radius:9px;background:#FDECEA;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <i class="ti ti-message" style="font-size:16px;color:#CC2936;" aria-hidden="true"></i>
       </div>
       <div style="flex:1;">
-        <div style="font-size:12px;font-weight:600;color:#C2622A;margin-bottom:3px;">${m.parcel}</div>
+        <div style="font-size:12px;font-weight:600;color:#CC2936;margin-bottom:3px;">${m.parcel}</div>
         <div style="font-size:13px;color:#374151;line-height:1.5;">&ldquo;${m.message}&rdquo;</div>
         <div style="font-size:11px;color:#9CA3AF;margin-top:4px;">${new Date(m.sentAt).toLocaleDateString('sv-SE')} · Anonymt</div>
       </div>
@@ -2054,11 +2076,11 @@ function renderAdmin() {
 
   const mockActivity = [
     { icon:"ti-user-plus",  color:"#16a34a", bg:"#F0FDF4", text:"Marcus Holm registrerade sig",           time:"14 min sedan" },
-    { icon:"ti-heart",      color:"#C2622A", bg:"#FEF0E7", text:"Ny gillning på Laröd 3:19",              time:"32 min sedan" },
+    { icon:"ti-heart",      color:"#CC2936", bg:"#FDECEA", text:"Ny gillning på Laröd 3:19",              time:"32 min sedan" },
     { icon:"ti-home-check", color:"#2563eb", bg:"#EFF6FF", text:"Sara Björk claimade Laröd 3:19",         time:"2 h sedan" },
     { icon:"ti-star",       color:"#7c3aed", bg:"#F5F3FF", text:"Nytt intresse på Fredriksdal 6:1",       time:"3 h sedan" },
     { icon:"ti-user-plus",  color:"#16a34a", bg:"#F0FDF4", text:"Lena Svensson registrerade sig",         time:"5 h sedan" },
-    { icon:"ti-heart",      color:"#C2622A", bg:"#FEF0E7", text:"Ny gillning på Pålsjö 4:7",              time:"Igår" },
+    { icon:"ti-heart",      color:"#CC2936", bg:"#FDECEA", text:"Ny gillning på Pålsjö 4:7",              time:"Igår" },
     { icon:"ti-flag",       color:"#dc2626", bg:"#FEF2F2", text:"Innehåll rapporterat — Söder 8:22",      time:"Igår" },
     { icon:"ti-star",       color:"#7c3aed", bg:"#F5F3FF", text:"Nytt intresse på Pålsjö 4:7",            time:"Igår" },
   ];
@@ -2089,8 +2111,8 @@ function renderAdmin() {
       ].map(s=>`
         <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;padding:18px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-            <div style="width:38px;height:38px;border-radius:9px;background:#FEF0E7;display:flex;align-items:center;justify-content:center;">
-              <i class="ti ${s.icon}" style="font-size:18px;color:#C2622A;" aria-hidden="true"></i>
+            <div style="width:38px;height:38px;border-radius:9px;background:#FDECEA;display:flex;align-items:center;justify-content:center;">
+              <i class="ti ${s.icon}" style="font-size:18px;color:#CC2936;" aria-hidden="true"></i>
             </div>
           </div>
           <div style="font-size:28px;font-weight:700;letter-spacing:-.04em;color:#111827;line-height:1;">${s.num}</div>
@@ -2162,7 +2184,7 @@ function renderAdmin() {
             <tr style="border-top:0.5px solid rgba(17,24,39,.05);">
               <td style="padding:12px 20px;">
                 <div style="display:flex;align-items:center;gap:10px;">
-                  <div style="width:32px;height:32px;border-radius:50%;background:#FEF0E7;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#C2622A;flex-shrink:0;">${u.name[0]}</div>
+                  <div style="width:32px;height:32px;border-radius:50%;background:#FDECEA;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#CC2936;flex-shrink:0;">${u.name[0]}</div>
                   <div>
                     <div style="font-size:13px;font-weight:600;color:#111827;">${u.name}</div>
                     <div style="font-size:11px;color:#9CA3AF;">${u.email}</div>
@@ -2230,7 +2252,7 @@ function renderAdmin() {
           <div style="font-size:13px;font-weight:600;color:#111827;">${u.pendingClaim.prop}</div>
           <div style="font-size:11px;color:#9CA3AF;margin-top:2px;">Inskickad av ${u.pendingClaim.name}</div>
         </div>
-        <span style="font-size:10px;font-weight:600;background:#FEF0E7;color:#C2622A;border-radius:999px;padding:3px 9px;flex-shrink:0;margin-left:10px;">Inväntar</span>
+        <span style="font-size:10px;font-weight:600;background:#FDECEA;color:#CC2936;border-radius:999px;padding:3px 9px;flex-shrink:0;margin-left:10px;">Inväntar</span>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
         <div style="background:#F9F6F1;border-radius:8px;padding:10px 12px;">
@@ -2260,13 +2282,13 @@ function renderAdmin() {
   const moderationHtml = `
     <div style="display:grid;gap:12px;">
 
-      <div style="background:#fff;border:1.5px solid #C2622A;border-radius:14px;overflow:hidden;">
-        <div style="padding:14px 20px;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;align-items:center;justify-content:space-between;background:#FEF0E7;">
+      <div style="background:#fff;border:1.5px solid #CC2936;border-radius:14px;overflow:hidden;">
+        <div style="padding:14px 20px;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;align-items:center;justify-content:space-between;background:#FDECEA;">
           <div style="display:flex;align-items:center;gap:8px;">
-            <i class="ti ti-home-check" style="font-size:16px;color:#C2622A;" aria-hidden="true"></i>
-            <div style="font-size:13px;font-weight:600;color:#C2622A;">Claims som väntar verifiering</div>
+            <i class="ti ti-home-check" style="font-size:16px;color:#CC2936;" aria-hidden="true"></i>
+            <div style="font-size:13px;font-weight:600;color:#CC2936;">Claims som väntar verifiering</div>
           </div>
-          <span style="font-size:11px;font-weight:700;background:#C2622A;color:#fff;border-radius:999px;padding:2px 8px;">${pendingClaims.length}</span>
+          <span style="font-size:11px;font-weight:700;background:#CC2936;color:#fff;border-radius:999px;padding:2px 8px;">${pendingClaims.length}</span>
         </div>
         ${pendingClaimsHtml}
       </div>
@@ -2319,7 +2341,7 @@ function renderAdmin() {
         <div style="font-size:13px;font-weight:600;color:#111827;margin-bottom:4px;">Blockerade användare</div>
         <div style="font-size:12px;color:#9CA3AF;margin-bottom:14px;">1 blockerat konto</div>
         <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-top:0.5px solid rgba(17,24,39,.06);">
-          <div style="width:32px;height:32px;border-radius:50%;background:#FEF0E7;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#C2622A;">E</div>
+          <div style="width:32px;height:32px;border-radius:50%;background:#FDECEA;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#CC2936;">E</div>
           <div style="flex:1;">
             <div style="font-size:13px;font-weight:600;color:#111827;">Erik Strand</div>
             <div style="font-size:11px;color:#9CA3AF;">erik@example.se · Blockerad 2025-06-18</div>
@@ -2337,7 +2359,7 @@ function renderAdmin() {
         <div style="display:flex;align-items:flex-end;gap:6px;height:100px;">
           ${[12,19,8,24,31,18,27].map((v,i)=>`
             <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
-              <div style="width:100%;background:#C2622A;border-radius:4px 4px 0 0;opacity:${0.4+v/60};" title="${v}" style="height:${v*3}px;"></div>
+              <div style="width:100%;background:#CC2936;border-radius:4px 4px 0 0;opacity:${0.4+v/60};" title="${v}" style="height:${v*3}px;"></div>
               <div style="font-size:10px;color:#9CA3AF;">${['M','T','O','T','F','L','S'][i]}</div>
             </div>
           `).join('')}
@@ -2354,7 +2376,7 @@ function renderAdmin() {
                 <span style="font-size:12px;color:#9CA3AF;">${pct}%</span>
               </div>
               <div style="height:4px;background:#F3F4F6;border-radius:999px;">
-                <div style="height:4px;background:#C2622A;border-radius:999px;width:${pct}%;"></div>
+                <div style="height:4px;background:#CC2936;border-radius:999px;width:${pct}%;"></div>
               </div>
             </div>
           `).join('')}
@@ -2362,7 +2384,7 @@ function renderAdmin() {
 
         <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;padding:20px;">
           <div style="font-size:13px;font-weight:600;color:#111827;margin-bottom:14px;">Konvertering</div>
-          ${[["Besökare → Gilla","68%","#16a34a"],["Gilla → Intresse","24%","#2563eb"],["Intresse → Claim","8%","#C2622A"]].map(([label,pct,color])=>`
+          ${[["Besökare → Gilla","68%","#16a34a"],["Gilla → Intresse","24%","#2563eb"],["Intresse → Claim","8%","#CC2936"]].map(([label,pct,color])=>`
             <div style="margin-bottom:14px;">
               <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
                 <span style="font-size:12px;color:#374151;">${label}</span>
@@ -2384,9 +2406,9 @@ function renderAdmin() {
         ${[
           { name:"Gratis",   price:"0",   color:"#6B7280", users:mockUsers.length-1, features:["3 bilder","Gillar och statistik","Karta med tomtgräns","Passiv synlighet"] },
           { name:"Synlig",   price:"49",  color:"#2563eb", users:2, features:["Allt i Gratis","Synlig i flödet","Besökarstatistik","Kontaktformulär","Utvald-badge"] },
-          { name:"Aktiv",    price:"249", color:"#C2622A", users:1, features:["Allt i Synlig","Till salu / uthyrning","Budgivning","Mäklarintegration","Prioritet i flödet"] },
+          { name:"Aktiv",    price:"249", color:"#CC2936", users:1, features:["Allt i Synlig","Till salu / uthyrning","Budgivning","Mäklarintegration","Prioritet i flödet"] },
         ].map(p=>`
-          <div style="background:#fff;border:1.5px solid ${p.color === '#C2622A' ? '#C2622A' : 'rgba(17,24,39,.08)'};border-radius:14px;padding:20px;">
+          <div style="background:#fff;border:1.5px solid ${p.color === '#CC2936' ? '#CC2936' : 'rgba(17,24,39,.08)'};border-radius:14px;padding:20px;">
             <div style="font-size:13px;font-weight:600;color:${p.color};margin-bottom:4px;">${p.name}</div>
             <div style="font-size:26px;font-weight:700;letter-spacing:-.04em;color:#111827;">${p.price} <span style="font-size:13px;font-weight:400;color:#9CA3AF;">kr/mån</span></div>
             <div style="font-size:11px;color:#9CA3AF;margin:8px 0 14px;">${p.users} aktiva användare</div>
@@ -2410,12 +2432,12 @@ function renderAdmin() {
           { name:"Lena Svensson", email:"lena@example.se",   plan:"Synlig", since:"2025-06-18", mrr:"49 kr" },
         ].map(u=>`
           <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:0.5px solid rgba(17,24,39,.05);">
-            <div style="width:32px;height:32px;border-radius:50%;background:#FEF0E7;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#C2622A;flex-shrink:0;">${u.name[0]}</div>
+            <div style="width:32px;height:32px;border-radius:50%;background:#FDECEA;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#CC2936;flex-shrink:0;">${u.name[0]}</div>
             <div style="flex:1;">
               <div style="font-size:13px;font-weight:600;color:#111827;">${u.name}</div>
               <div style="font-size:11px;color:#9CA3AF;">${u.email} · sedan ${u.since}</div>
             </div>
-            <span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;background:${u.plan==='Aktiv'?'#FEF0E7':'#EFF6FF'};color:${u.plan==='Aktiv'?'#C2622A':'#2563eb'};">${u.plan}</span>
+            <span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;background:${u.plan==='Aktiv'?'#FDECEA':'#EFF6FF'};color:${u.plan==='Aktiv'?'#CC2936':'#2563eb'};">${u.plan}</span>
             <div style="font-size:13px;font-weight:600;color:#111827;min-width:52px;text-align:right;">${u.mrr}</div>
             <button onclick="adminToast('Hanterar ${u.name}')" style="padding:5px 10px;border-radius:7px;border:0.5px solid rgba(17,24,39,.12);background:#fff;font-size:11px;font-weight:600;color:#374151;cursor:pointer;font-family:'Inter',sans-serif;">Hantera</button>
           </div>
@@ -2434,9 +2456,9 @@ function renderAdmin() {
     <div style="min-height:100vh;background:#F9F6F1;">
       <nav style="height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:#111827;border-bottom:0.5px solid rgba(255,255,255,.08);position:sticky;top:0;z-index:50;">
         <div style="display:flex;align-items:center;gap:10px;">
-          <svg width="18" height="23" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#C2622A"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#C2622A"/></svg>
-          <span style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:#fff;font-family:'Inter',sans-serif;">i<em style="font-style:normal;color:#C2622A;">found</em></span>
-          <span style="font-size:10px;font-weight:700;background:rgba(194,98,42,.25);color:#C2622A;border-radius:999px;padding:3px 9px;letter-spacing:.08em;">ADMIN</span>
+          <svg width="18" height="23" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
+          <span style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:#fff;font-family:'Inter',sans-serif;">i<em style="font-style:normal;color:#CC2936;">found</em></span>
+          <span style="font-size:10px;font-weight:700;background:rgba(204,41,54,.25);color:#CC2936;border-radius:999px;padding:3px 9px;letter-spacing:.08em;">ADMIN</span>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:12px;color:rgba(255,255,255,.4);">admin@ifound.se</span>
@@ -2449,7 +2471,7 @@ function renderAdmin() {
         <div style="width:200px;min-height:calc(100vh - 56px);background:#fff;border-right:0.5px solid rgba(17,24,39,.08);padding:16px 10px;flex-shrink:0;">
           ${tabs.map(t=>`
             <button id="tab-${t.id}" onclick="switchAdminTab('${t.id}')"
-              style="width:100%;display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;border:none;background:${adminTab===t.id?'#FEF0E7':'transparent'};color:${adminTab===t.id?'#C2622A':'#6B7280'};font-size:13px;font-weight:${adminTab===t.id?'600':'500'};cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:2px;text-align:left;">
+              style="width:100%;display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;border:none;background:${adminTab===t.id?'#FDECEA':'transparent'};color:${adminTab===t.id?'#CC2936':'#6B7280'};font-size:13px;font-weight:${adminTab===t.id?'600':'500'};cursor:pointer;font-family:'Inter',sans-serif;margin-bottom:2px;text-align:left;">
               <i class="ti ${t.icon}" style="font-size:17px;" aria-hidden="true"></i>
               ${t.label}
               ${t.id==='moderation'?'<span style="margin-left:auto;font-size:10px;font-weight:700;background:#FEF2F2;color:#dc2626;border-radius:999px;padding:1px 6px;">1</span>':''}
@@ -2475,8 +2497,8 @@ function switchAdminTab(tab) {
   document.getElementById('admin-content').innerHTML = content[tab];
   document.querySelectorAll('[id^="tab-"]').forEach(btn => {
     const id = btn.id.replace('tab-','');
-    btn.style.background = id === tab ? '#FEF0E7' : 'transparent';
-    btn.style.color = id === tab ? '#C2622A' : '#6B7280';
+    btn.style.background = id === tab ? '#FDECEA' : 'transparent';
+    btn.style.color = id === tab ? '#CC2936' : '#6B7280';
     btn.style.fontWeight = id === tab ? '600' : '500';
   });
 }
@@ -2549,10 +2571,10 @@ function switchBrokerTab(tab) {
   const fLogin = document.getElementById('bLoginForm');
   const fReg   = document.getElementById('bRegForm');
   if (!tLogin) return;
-  tLogin.style.background = isLogin  ? '#C2622A' : 'transparent';
+  tLogin.style.background = isLogin  ? '#CC2936' : 'transparent';
   tLogin.style.color      = isLogin  ? '#fff' : 'rgba(255,255,255,.5)';
   tLogin.style.fontWeight = isLogin  ? '600' : '500';
-  tReg.style.background   = !isLogin ? '#C2622A' : 'transparent';
+  tReg.style.background   = !isLogin ? '#CC2936' : 'transparent';
   tReg.style.color        = !isLogin ? '#fff' : 'rgba(255,255,255,.5)';
   tReg.style.fontWeight   = !isLogin ? '600' : '500';
   fLogin.style.display    = isLogin  ? 'flex' : 'none';
@@ -2566,10 +2588,10 @@ function renderBrokerWelcome() {
         <div style="width:100%;max-width:400px;">
           <div style="text-align:center;margin-bottom:32px;">
             <div style="display:inline-flex;align-items:center;gap:9px;margin-bottom:20px;">
-              <svg width="22" height="27" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#C2622A"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#C2622A"/></svg>
-              <span style="font-size:22px;font-weight:700;letter-spacing:-.04em;color:#fff;">i<em style="font-style:normal;color:#C2622A;">found</em></span>
+              <svg width="22" height="27" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
+              <span style="font-size:22px;font-weight:700;letter-spacing:-.04em;color:#fff;">i<em style="font-style:normal;color:#CC2936;">found</em></span>
             </div>
-            <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(194,98,42,.15);border:1px solid rgba(194,98,42,.3);color:#C2622A;border-radius:999px;padding:4px 12px;font-size:11px;font-weight:600;letter-spacing:.06em;margin-bottom:16px;">
+            <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(204,41,54,.15);border:1px solid rgba(204,41,54,.3);color:#CC2936;border-radius:999px;padding:4px 12px;font-size:11px;font-weight:600;letter-spacing:.06em;margin-bottom:16px;">
               <i class="ti ti-building" style="font-size:12px;" aria-hidden="true"></i> MÄKLARPORTAL
             </div>
             <div style="font-size:24px;font-weight:700;letter-spacing:-.04em;color:#fff;margin-bottom:8px;">Logga in</div>
@@ -2578,7 +2600,7 @@ function renderBrokerWelcome() {
 
           <!-- Tab switcher -->
           <div style="display:flex;background:rgba(255,255,255,.06);border-radius:10px;padding:3px;margin-bottom:16px;">
-            <button id="bTabLogin" onclick="switchBrokerTab('login')" style="flex:1;padding:8px;border-radius:8px;border:none;background:#C2622A;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">Logga in</button>
+            <button id="bTabLogin" onclick="switchBrokerTab('login')" style="flex:1;padding:8px;border-radius:8px;border:none;background:#CC2936;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">Logga in</button>
             <button id="bTabReg"   onclick="switchBrokerTab('reg')"   style="flex:1;padding:8px;border-radius:8px;border:none;background:transparent;color:rgba(255,255,255,.5);font-size:13px;font-weight:500;cursor:pointer;font-family:'Inter',sans-serif;">Skapa konto</button>
           </div>
 
@@ -2592,7 +2614,7 @@ function renderBrokerWelcome() {
               <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.4);margin-bottom:6px;">Lösenord</label>
               <input id="brokerPass" type="password" style="width:100%;background:rgba(255,255,255,.06);border:0.5px solid rgba(255,255,255,.12);border-radius:9px;padding:10px 13px;font-size:13px;font-family:'Inter',sans-serif;color:#fff;outline:none;" placeholder="••••••••" />
             </div>
-            <button id="brokerLoginBtn" style="width:100%;padding:13px;border-radius:11px;border:none;background:#C2622A;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
+            <button id="brokerLoginBtn" style="width:100%;padding:13px;border-radius:11px;border:none;background:#CC2936;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
               Logga in
             </button>
             <div style="font-size:11px;color:rgba(255,255,255,.25);text-align:center;">Demo: maklare@fastighetsbyran.se / demo2025</div>
@@ -2616,7 +2638,7 @@ function renderBrokerWelcome() {
               <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.4);margin-bottom:6px;">Lösenord</label>
               <input id="bRegPass" type="password" style="width:100%;background:rgba(255,255,255,.06);border:0.5px solid rgba(255,255,255,.12);border-radius:9px;padding:10px 13px;font-size:13px;font-family:'Inter',sans-serif;color:#fff;outline:none;" placeholder="Min 6 tecken" />
             </div>
-            <button id="brokerRegBtn" style="width:100%;padding:13px;border-radius:11px;border:none;background:#C2622A;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
+            <button id="brokerRegBtn" style="width:100%;padding:13px;border-radius:11px;border:none;background:#CC2936;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
               Skapa mäklarkonto
             </button>
             <div style="font-size:11px;color:rgba(255,255,255,.25);text-align:center;">Kontot aktiveras inom 24h efter verifiering.</div>
@@ -2690,9 +2712,9 @@ function renderBrokerDashboard() {
     <div style="min-height:100vh;background:#0F1117;font-family:'Inter',sans-serif;">
       <nav style="height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:rgba(255,255,255,.03);border-bottom:0.5px solid rgba(255,255,255,.08);position:sticky;top:0;z-index:50;">
         <div style="display:flex;align-items:center;gap:10px;">
-          <svg width="18" height="23" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#C2622A"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#C2622A"/></svg>
-          <span style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:#fff;">i<em style="font-style:normal;color:#C2622A;">found</em></span>
-          <span style="font-size:10px;font-weight:700;background:rgba(194,98,42,.2);color:#C2622A;border-radius:999px;padding:3px 9px;letter-spacing:.08em;">MÄKLARE</span>
+          <svg width="18" height="23" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
+          <span style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:#fff;">i<em style="font-style:normal;color:#CC2936;">found</em></span>
+          <span style="font-size:10px;font-weight:700;background:rgba(204,41,54,.2);color:#CC2936;border-radius:999px;padding:3px 9px;letter-spacing:.08em;">MÄKLARE</span>
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
           <button onclick="navigate('feed')" style="font-size:12px;color:rgba(255,255,255,.45);background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;gap:5px;">
@@ -2702,7 +2724,7 @@ function renderBrokerDashboard() {
             <i class="ti ti-map-2" style="font-size:14px;" aria-hidden="true"></i> Karta
           </button>
           <div style="width:1px;height:20px;background:rgba(255,255,255,.1);"></div>
-          <div style="width:32px;height:32px;border-radius:50%;background:rgba(194,98,42,.2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#C2622A;">${broker.logo}</div>
+          <div style="width:32px;height:32px;border-radius:50%;background:rgba(204,41,54,.2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#CC2936;">${broker.logo}</div>
           <button onclick="clearSession();navigate('brokerWelcome');" style="font-size:12px;color:rgba(255,255,255,.35);background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;">Logga ut</button>
         </div>
       </nav>
@@ -2710,7 +2732,7 @@ function renderBrokerDashboard() {
       <div style="max-width:900px;margin:0 auto;padding:28px 20px 60px;">
 
         <div style="margin-bottom:28px;">
-          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#C2622A;margin-bottom:6px;">Välkommen</div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#CC2936;margin-bottom:6px;">Välkommen</div>
           <div style="font-size:26px;font-weight:700;letter-spacing:-.04em;color:#fff;">${broker.name}</div>
           <div style="font-size:13px;color:rgba(255,255,255,.4);margin-top:3px;">${broker.firm}</div>
         </div>
@@ -2724,8 +2746,8 @@ function renderBrokerDashboard() {
             { num: totalMessages,  lbl: "Meddelanden",    icon: "ti-message" },
           ].map(s => `
             <div style="background:rgba(255,255,255,.04);border:0.5px solid rgba(255,255,255,.08);border-radius:14px;padding:16px;">
-              <div style="width:36px;height:36px;border-radius:9px;background:rgba(194,98,42,.15);display:flex;align-items:center;justify-content:center;margin-bottom:10px;">
-                <i class="ti ${s.icon}" style="font-size:17px;color:#C2622A;" aria-hidden="true"></i>
+              <div style="width:36px;height:36px;border-radius:9px;background:rgba(204,41,54,.15);display:flex;align-items:center;justify-content:center;margin-bottom:10px;">
+                <i class="ti ${s.icon}" style="font-size:17px;color:#CC2936;" aria-hidden="true"></i>
               </div>
               <div style="font-size:26px;font-weight:700;letter-spacing:-.04em;color:#fff;line-height:1;">${s.num}</div>
               <div style="font-size:11px;color:rgba(255,255,255,.35);margin-top:4px;">${s.lbl}</div>
@@ -2736,7 +2758,7 @@ function renderBrokerDashboard() {
         <!-- Listings header -->
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
           <div style="font-size:16px;font-weight:600;letter-spacing:-.03em;color:#fff;">Mina objekt</div>
-          <button id="addListingBtn" style="display:flex;align-items:center;gap:7px;background:#C2622A;color:#fff;border:none;border-radius:9px;padding:8px 16px;font-size:12px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
+          <button id="addListingBtn" style="display:flex;align-items:center;gap:7px;background:#CC2936;color:#fff;border:none;border-radius:9px;padding:8px 16px;font-size:12px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
             <i class="ti ti-plus" aria-hidden="true"></i> Lägg till objekt
           </button>
         </div>
@@ -2756,7 +2778,7 @@ function renderBrokerDashboard() {
                   <span style="font-size:11px;color:rgba(255,255,255,.35);display:flex;align-items:center;gap:4px;"><i class="ti ti-heart" style="font-size:12px;" aria-hidden="true"></i> ${l.likes}</span>
                   <span style="font-size:11px;color:rgba(255,255,255,.35);display:flex;align-items:center;gap:4px;"><i class="ti ti-star" style="font-size:12px;" aria-hidden="true"></i> ${l.interested}</span>
                   <span style="font-size:11px;color:rgba(255,255,255,.35);display:flex;align-items:center;gap:4px;"><i class="ti ti-eye" style="font-size:12px;" aria-hidden="true"></i> ${l.views}</span>
-                  ${l.messages ? `<span style="font-size:11px;color:#C2622A;display:flex;align-items:center;gap:4px;font-weight:600;"><i class="ti ti-message" style="font-size:12px;" aria-hidden="true"></i> ${l.messages} nya</span>` : ''}
+                  ${l.messages ? `<span style="font-size:11px;color:#CC2936;display:flex;align-items:center;gap:4px;font-weight:600;"><i class="ti ti-message" style="font-size:12px;" aria-hidden="true"></i> ${l.messages} nya</span>` : ''}
                 </div>
               </div>
               <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
@@ -2777,11 +2799,11 @@ function renderBrokerDashboard() {
             { obj:"Kungsörsgatan 7", msg:"Är taket nytt? Vi är intresserade men vill veta mer om renoveringsbehovet.", time:"2 dagar sedan" },
           ].map((m,i,arr) => `
             <div style="display:flex;gap:14px;padding:14px 18px;border-bottom:${i<arr.length-1?'0.5px solid rgba(255,255,255,.06)':'none'};">
-              <div style="width:36px;height:36px;border-radius:50%;background:rgba(194,98,42,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                <i class="ti ti-user" style="font-size:16px;color:#C2622A;" aria-hidden="true"></i>
+              <div style="width:36px;height:36px;border-radius:50%;background:rgba(204,41,54,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i class="ti ti-user" style="font-size:16px;color:#CC2936;" aria-hidden="true"></i>
               </div>
               <div style="flex:1;min-width:0;">
-                <div style="font-size:12px;font-weight:600;color:#C2622A;margin-bottom:3px;">${m.obj}</div>
+                <div style="font-size:12px;font-weight:600;color:#CC2936;margin-bottom:3px;">${m.obj}</div>
                 <div style="font-size:13px;color:rgba(255,255,255,.65);line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">"${m.msg}"</div>
                 <div style="font-size:11px;color:rgba(255,255,255,.25);margin-top:4px;">${m.time} · Anonymt</div>
               </div>
@@ -2873,8 +2895,8 @@ function renderBrokerAddListing() {
             <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:4px;">Planritning</div>
             <div style="font-size:12px;color:rgba(255,255,255,.35);margin-bottom:14px;">Ladda upp planritning som PDF eller bild.</div>
             <label id="planLabel" style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.04);border:1.5px dashed rgba(255,255,255,.15);border-radius:10px;padding:16px;cursor:pointer;">
-              <div style="width:40px;height:40px;border-radius:9px;background:rgba(194,98,42,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                <i class="ti ti-file-upload" style="font-size:19px;color:#C2622A;" aria-hidden="true"></i>
+              <div style="width:40px;height:40px;border-radius:9px;background:rgba(204,41,54,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <i class="ti ti-file-upload" style="font-size:19px;color:#CC2936;" aria-hidden="true"></i>
               </div>
               <div>
                 <div style="font-size:13px;font-weight:600;color:#fff;" id="planName">Klicka för att ladda upp</div>
@@ -2906,7 +2928,7 @@ function renderBrokerAddListing() {
           <div style="background:rgba(255,255,255,.04);border:0.5px solid rgba(255,255,255,.08);border-radius:14px;padding:20px;">
             <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:14px;">Ansvarig mäklare</div>
             <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;padding:14px;background:rgba(255,255,255,.04);border-radius:10px;border:0.5px solid rgba(255,255,255,.08);">
-              <div style="width:44px;height:44px;border-radius:50%;background:rgba(194,98,42,.2);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#C2622A;flex-shrink:0;">${broker.logo}</div>
+              <div style="width:44px;height:44px;border-radius:50%;background:rgba(204,41,54,.2);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#CC2936;flex-shrink:0;">${broker.logo}</div>
               <div style="flex:1;">
                 <div style="font-size:14px;font-weight:600;color:#fff;">${broker.name}</div>
                 <div style="font-size:12px;color:rgba(255,255,255,.4);">${broker.firm}</div>
@@ -2936,8 +2958,8 @@ function renderBrokerAddListing() {
                 {val:"active", lbl:"Till salu",   desc:"Visar pris, visningsdatum och kontaktformulär."},
                 {val:"passive",lbl:"Passiv",       desc:"Syns på kartan utan att aktivt marknadsföra."},
               ].map((o,i) => `
-                <div onclick="brokerSelVis(this,'${o.val}')" data-vis="${o.val}" style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:10px;border:1.5px solid ${i===0?'#C2622A':'rgba(255,255,255,.1)'};background:${i===0?'rgba(194,98,42,.08)':'transparent'};cursor:pointer;">
-                  <div style="width:17px;height:17px;border-radius:50%;border:2px solid ${i===0?'#C2622A':'rgba(255,255,255,.2)'};flex-shrink:0;margin-top:1px;background:${i===0?'#C2622A':'transparent'};display:flex;align-items:center;justify-content:center;">
+                <div onclick="brokerSelVis(this,'${o.val}')" data-vis="${o.val}" style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:10px;border:1.5px solid ${i===0?'#CC2936':'rgba(255,255,255,.1)'};background:${i===0?'rgba(204,41,54,.08)':'transparent'};cursor:pointer;">
+                  <div style="width:17px;height:17px;border-radius:50%;border:2px solid ${i===0?'#CC2936':'rgba(255,255,255,.2)'};flex-shrink:0;margin-top:1px;background:${i===0?'#CC2936':'transparent'};display:flex;align-items:center;justify-content:center;">
                     ${i===0?'<div style="width:5px;height:5px;border-radius:50%;background:#fff;"></div>':''}
                   </div>
                   <div>
@@ -2949,7 +2971,7 @@ function renderBrokerAddListing() {
             </div>
           </div>
 
-          <button id="publishBtn" style="width:100%;padding:14px;border-radius:12px;border:none;background:#C2622A;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+          <button id="publishBtn" style="width:100%;padding:14px;border-radius:12px;border:none;background:#CC2936;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
             <i class="ti ti-send" aria-hidden="true"></i> Publicera objekt
           </button>
           <button onclick="navigate('broker')" style="width:100%;padding:12px;border-radius:12px;border:0.5px solid rgba(255,255,255,.1);background:transparent;font-size:13px;color:rgba(255,255,255,.4);font-family:'Inter',sans-serif;cursor:pointer;">
@@ -2981,10 +3003,10 @@ function brokerSelVis(el, val) {
     const radio = opt.querySelector('div');
     if (radio) { radio.style.borderColor = 'rgba(255,255,255,.2)'; radio.style.background = 'transparent'; radio.innerHTML = ''; }
   });
-  el.style.borderColor = '#C2622A';
-  el.style.background = 'rgba(194,98,42,.08)';
+  el.style.borderColor = '#CC2936';
+  el.style.background = 'rgba(204,41,54,.08)';
   const radio = el.querySelector('div');
-  if (radio) { radio.style.borderColor = '#C2622A'; radio.style.background = '#C2622A'; radio.innerHTML = '<div style="width:5px;height:5px;border-radius:50%;background:#fff;"></div>'; }
+  if (radio) { radio.style.borderColor = '#CC2936'; radio.style.background = '#CC2936'; radio.innerHTML = '<div style="width:5px;height:5px;border-radius:50%;background:#fff;"></div>'; }
 }
 
 function brokerViewMessages(id) {

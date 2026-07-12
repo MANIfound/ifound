@@ -281,3 +281,100 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.6; }
 .vo-desc { font-size: 11px; color: #9CA3AF; line-height: 1.5; }
 .claim-submit-btn { background: #CC2936; color: #fff; border: none; border-radius: 12px; padding: 15px; font-size: 14px; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; width: 100%; margin-top: 4px; letter-spacing: -.01em; }
 .claim-submit-btn:hover { background: #A8521F; }
+
+/* =========================
+   MOBILE (bottom tabs, bottom sheets, full-screen map)
+========================= */
+
+/* Feed masonry: responsive kolumner (2 mobil -> 4 desktop) */
+@media (min-width: 900px)  { .masonry-grid { columns: 3; column-gap: 12px; padding: 12px 16px 80px; } }
+@media (min-width: 1200px) { .masonry-grid { columns: 4; column-gap: 14px; padding: 16px 24px 80px; max-width: 1400px; margin: 0 auto; } }
+
+/* Bottom tab bar — dold på desktop */
+.bottom-tabs { display: none; }
+
+/* Drag handle för bottom sheet — dold på desktop */
+.panel-handle { display: none; width: 36px; height: 4px; border-radius: 999px; background: rgba(17,24,39,.16); margin: 0 auto 12px; flex-shrink: 0; }
+
+@keyframes sheetUp { from { transform: translateY(48px); opacity: .5; } to { transform: translateY(0); opacity: 1; } }
+
+@media (max-width: 768px) {
+
+  /* ---- Bottom tab bar ---- */
+  .bottom-tabs {
+    display: flex;
+    position: fixed; left: 0; right: 0; bottom: 0;
+    z-index: 4000;
+    background: rgba(255,255,255,.96);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    border-top: 0.5px solid rgba(17,24,39,.10);
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  }
+  .bottom-tab {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+    background: transparent; border: none; cursor: pointer;
+    font-family: 'Inter', sans-serif; font-size: 10px; font-weight: 500;
+    color: #9CA3AF; padding: 4px 0; letter-spacing: -.01em;
+  }
+  .bottom-tab i { font-size: 21px; }
+  .bottom-tab.active { color: #CC2936; }
+  .bottom-tab.active span { font-weight: 600; }
+
+  /* ---- Topnav: göm mittlänkar (bottom tabs tar över) ---- */
+  .nav-center, .nav-links-desktop { display: none !important; }
+  .nav-greeting { display: none; }
+
+  /* ---- Förstasidan ---- */
+  .hero-title { font-size: 32px !important; letter-spacing: -.04em !important; }
+  .tops-grid { grid-template-columns: 1fr 1fr !important; }
+  .landing-masonry { columns: 2 !important; }
+
+  /* Luft i botten så tab bar inte täcker innehåll */
+  .feed-page, .dashboard-page, .claim-screen-page, .welcome-page,
+  .dashboard-body { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .masonry-grid { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
+
+  /* Toast ovanför tab bar */
+  .toast { left: 16px; right: 16px; max-width: none; bottom: calc(76px + env(safe-area-inset-bottom)); }
+
+  /* ---- Kartan: full skärm ---- */
+  .map-page { height: 100vh; height: 100dvh; }
+  .leaflet-control-zoom { display: none; } /* pinch-zoom på mobil */
+  .map-tl { top: 10px; left: 10px; right: 10px; }
+  .map-tr { top: 62px; left: 10px; right: 10px; }
+  .map-bl { display: none; }
+  .map-search { width: 100%; max-width: none; }
+  .map-toolbar { width: 100%; overflow-x: auto; scrollbar-width: none; justify-content: flex-start; }
+  .map-toolbar::-webkit-scrollbar { display: none; }
+  .toolbar-btn, .toolbar-select { flex-shrink: 0; white-space: nowrap; }
+
+  /* ---- Fastighetspanel = bottom sheet (som Google Maps) ---- */
+  .panel {
+    left: 0; right: 0; bottom: 0; width: 100%;
+    border-radius: 20px 20px 0 0;
+    max-height: 68vh; max-height: 68dvh;
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 10px 18px calc(18px + 62px + env(safe-area-inset-bottom));
+    box-shadow: 0 -12px 44px rgba(17,24,39,.20);
+    animation: sheetUp .25s ease;
+  }
+  .panel-handle { display: block; }
+  .panel-close { top: 14px; right: 14px; }
+
+  /* ---- Auth-modal = bottom sheet ---- */
+  #auth-modal-overlay { align-items: flex-end !important; padding: 0 !important; }
+  .auth-card {
+    max-width: none !important;
+    border-radius: 20px 20px 0 0 !important;
+    padding-bottom: calc(28px + env(safe-area-inset-bottom)) !important;
+    animation: sheetUp .25s ease;
+    max-height: 88dvh; overflow-y: auto;
+  }
+}
+
+/* Extra små skärmar */
+@media (max-width: 380px) {
+  .hero-title { font-size: 28px !important; }
+  .bottom-tab span { font-size: 9px; }
+}

@@ -567,8 +567,9 @@ function stopDraw(clearLayers = true) {
 function openPanel(html) {
   const panel = document.getElementById("panel");
   if (!panel) return;
-  panel.innerHTML = html;
+  panel.innerHTML = '<div class="panel-handle"></div>' + html;
   panel.classList.remove("hidden");
+  panel.scrollTop = 0;
 }
 
 function closePanel() {
@@ -576,6 +577,41 @@ function closePanel() {
   if (!panel) return;
   panel.classList.add("hidden");
   panel.innerHTML = "";
+}
+
+// =========================
+// MOBILE BOTTOM TAB BAR
+// =========================
+function goTab(view) {
+  if (view === "profile") {
+    const session = loadSession();
+    if (session?.email) { currentView = "dashboard"; render(); }
+    else { openAuthModal("login"); }
+    return;
+  }
+  currentView = view;
+  render();
+}
+
+function mountBottomTabs(active) {
+  const session = loadSession();
+  const isLoggedIn = !!session?.email;
+  const tabs = [
+    { id: "welcome", icon: "ti-home",        label: "Hem" },
+    { id: "map",     icon: "ti-map-2",       label: "Karta" },
+    { id: "feed",    icon: "ti-layout-grid", label: "Utforska" },
+    { id: "profile", icon: isLoggedIn ? "ti-user-check" : "ti-user", label: isLoggedIn ? "Min sida" : "Profil" },
+  ];
+  app.insertAdjacentHTML("beforeend", `
+    <nav class="bottom-tabs">
+      ${tabs.map(t => `
+        <button class="bottom-tab ${active === t.id ? "active" : ""}" onclick="goTab('${t.id}')">
+          <i class="ti ${t.icon}" aria-hidden="true"></i>
+          <span>${t.label}</span>
+        </button>
+      `).join("")}
+    </nav>
+  `);
 }
 
 function renderParcelPanel(feature) {
@@ -746,7 +782,7 @@ function openAuthModal(tab = 'login') {
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
 
   overlay.innerHTML = `
-    <div style="background:#fff;border-radius:20px;padding:28px;width:100%;max-width:400px;box-shadow:0 24px 64px rgba(0,0,0,.2);font-family:'Inter',sans-serif;">
+    <div class="auth-card" style="background:#fff;border-radius:20px;padding:28px;width:100%;max-width:400px;box-shadow:0 24px 64px rgba(0,0,0,.2);font-family:'Inter',sans-serif;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
         <div style="display:flex;align-items:center;gap:8px;">
           <svg width="16" height="20" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
@@ -1054,7 +1090,7 @@ function renderWelcome() {
           <svg width="17" height="21" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
           <span style="font-size:19px;font-weight:700;letter-spacing:-.05em;color:#111827;">i<em style="font-style:normal;color:#CC2936;">found</em></span>
         </div>
-        <div style="display:flex;gap:2px;">
+        <div class="nav-links-desktop" style="display:flex;gap:2px;">
           <button onclick="currentView='feed';render();" style="padding:7px 13px;border-radius:8px;font-size:13px;font-weight:500;color:#6B7280;background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;">Utforska</button>
           <button onclick="currentView='map';render();" style="padding:7px 13px;border-radius:8px;font-size:13px;font-weight:500;color:#6B7280;background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;">Karta</button>
           <button onclick="navigate('brokerWelcome')" style="padding:7px 13px;border-radius:8px;font-size:13px;font-weight:500;color:#6B7280;background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;">För mäklare</button>
@@ -1068,7 +1104,7 @@ function renderWelcome() {
       <!-- Hero -->
       <div style="max-width:700px;margin:0 auto;padding:48px 24px 36px;text-align:center;">
         <div style="font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#CC2936;margin-bottom:12px;">Fastigheter på ett nytt sätt</div>
-        <h1 style="font-size:40px;font-weight:700;letter-spacing:-.05em;line-height:1.05;color:#111827;margin-bottom:14px;font-family:'Inter',sans-serif;">Åkte du förbi ett hus<br>du <em style="font-style:normal;color:#CC2936;">aldrig kan glömma?</em></h1>
+        <h1 class="hero-title" style="font-size:40px;font-weight:700;letter-spacing:-.05em;line-height:1.05;color:#111827;margin-bottom:14px;font-family:'Inter',sans-serif;">Åkte du förbi ett hus<br>du <em style="font-style:normal;color:#CC2936;">aldrig kan glömma?</em></h1>
         <p style="font-size:16px;color:#6B7280;line-height:1.7;margin-bottom:28px;max-width:480px;margin-left:auto;margin-right:auto;">Sök upp det, visa ditt intresse — även om det inte är till salu. Inget konto krävs.</p>
 
         <!-- Search -->
@@ -1100,7 +1136,7 @@ function renderWelcome() {
           <div style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:#111827;">Mest gillade</div>
           <button onclick="currentView='feed';render();" style="font-size:12px;font-weight:600;color:#CC2936;background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;gap:3px;">Alla <i class="ti ti-chevron-right" style="font-size:12px;" aria-hidden="true"></i></button>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:28px;">
+        <div class="tops-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:28px;">
           ${TOPS.map(c=>`
             <div onclick="currentView='feed';render();" style="border-radius:12px;overflow:hidden;position:relative;cursor:pointer;height:130px;">
               <img src="${c.img}" style="width:100%;height:100%;object-fit:cover;" alt="${c.name}" loading="lazy" />
@@ -1119,7 +1155,7 @@ function renderWelcome() {
           <div style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:#111827;">Utforska fastigheter</div>
           <button onclick="currentView='feed';render();" style="font-size:12px;font-weight:600;color:#CC2936;background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;gap:3px;">Se alla <i class="ti ti-chevron-right" style="font-size:12px;" aria-hidden="true"></i></button>
         </div>
-        <div style="columns:4;column-gap:10px;margin-bottom:36px;">
+        <div class="landing-masonry" style="columns:4;column-gap:10px;margin-bottom:36px;">
           ${PINS.map(p=>`
             <div onclick="currentView='feed';render();" style="break-inside:avoid;margin-bottom:10px;border-radius:12px;overflow:hidden;cursor:pointer;background:#fff;border:0.5px solid rgba(17,24,39,.07);position:relative;">
               <div style="position:relative;">
@@ -3392,6 +3428,19 @@ function brokerEditListing(id) {
 // Render & boot
 // =========================
 function render() {
+  renderView();
+  // Mount mobile bottom tabs on consumer views (not admin/broker)
+  const s = loadSession();
+  if (s?.email === "admin@ifound.se" || isBroker()) return;
+  if (currentView === "brokerWelcome") return;
+  let active = "welcome";
+  if (currentView === "map") active = "map";
+  else if (currentView === "feed" || currentView.startsWith("property_")) active = "feed";
+  else if (s?.email) active = "profile";
+  mountBottomTabs(active);
+}
+
+function renderView() {
   const session = loadSession();
 
   // Anonymous users can access welcome, feed, map, property views

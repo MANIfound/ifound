@@ -293,6 +293,15 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.6; }
 /* Bottom tab bar — dold på desktop */
 .bottom-tabs { display: none; }
 
+/* Områdeskort på kartan (sökresultat) */
+.map-area-card {
+  position: fixed; top: 80px; right: 16px; z-index: 1000;
+  background: #fff; border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.15);
+  width: 300px; overflow: hidden;
+  font-family: 'Inter', sans-serif;
+}
+
 /* Drag handle för bottom sheet — dold på desktop */
 .panel-handle { display: none; width: 36px; height: 4px; border-radius: 999px; background: rgba(17,24,39,.16); margin: 0 auto 12px; flex-shrink: 0; }
 
@@ -348,6 +357,14 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.6; }
   .map-toolbar { width: 100%; overflow-x: auto; scrollbar-width: none; justify-content: flex-start; }
   .map-toolbar::-webkit-scrollbar { display: none; }
   .toolbar-btn, .toolbar-select { flex-shrink: 0; white-space: nowrap; }
+
+  /* ---- Områdeskort: kompakt list ovanför tab-baren ---- */
+  .map-area-card {
+    top: auto; right: 12px; left: 12px;
+    bottom: calc(68px + env(safe-area-inset-bottom));
+    width: auto;
+    box-shadow: 0 6px 28px rgba(17,24,39,.22);
+  }
 
   /* ---- Fastighetspanel = bottom sheet (som Google Maps) ---- */
   .panel {

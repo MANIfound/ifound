@@ -2209,7 +2209,9 @@ function showMapAreaCard(areaName, bounds) {
 
   const card = document.createElement('div');
   card.id = 'map-area-card';
-  card.style.cssText = 'position:fixed;top:80px;right:16px;z-index:1000;background:#fff;border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.15);width:300px;overflow:hidden;font-family:"Inter",sans-serif;';
+  card.className = 'map-area-card';
+
+  const isMobile = window.matchMedia('(max-width: 768px)').matches;
 
   card.innerHTML = `
     <!-- Header — always visible, click to toggle -->
@@ -2218,13 +2220,14 @@ function showMapAreaCard(areaName, bounds) {
         <div style="font-size:13px;font-weight:600;color:#1A1A1A;letter-spacing:-.02em;">${areaName}</div>
         <div style="font-size:11px;color:#999;margin-top:1px;">${count ? count.toLocaleString('sv-SE') + ' fastigheter' : 'Område markerat'}</div>
       </div>
-      <div style="display:flex;align-items:center;gap:6px;">
-        <i id="areaCardChevron" class="ti ti-chevron-up" style="font-size:16px;color:#999;transition:transform .2s;" aria-hidden="true"></i>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <i id="areaCardChevron" class="ti ti-chevron-up" style="font-size:16px;color:#999;transition:transform .2s;${isMobile ? 'transform:rotate(180deg);' : ''}" aria-hidden="true"></i>
+        <button onclick="event.stopPropagation();closeMapAreaCard()" style="width:24px;height:24px;border-radius:50%;border:none;background:#F3F4F6;color:#6B7280;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">✕</button>
       </div>
     </div>
 
     <!-- Body — collapsible -->
-    <div id="areaCardBody" style="border-top:0.5px solid #F0F0F0;overflow:hidden;transition:max-height .25s ease;">
+    <div id="areaCardBody" style="border-top:${isMobile ? 'none' : '0.5px solid #F0F0F0'};overflow:hidden;transition:max-height .25s ease;max-height:${isMobile ? '0px' : '400px'};">
       <div style="max-height:240px;overflow-y:auto;">
         ${DEMO_PROPS.map(p => `
           <div style="display:flex;gap:10px;align-items:center;padding:10px 14px;border-bottom:0.5px solid #F8F8F8;cursor:pointer;" onmouseover="this.style.background='#FAFAF8'" onmouseout="this.style.background=''">

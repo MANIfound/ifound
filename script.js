@@ -2176,34 +2176,57 @@ function showMapAreaCard(areaName, bounds) {
   card.style.cssText = 'position:fixed;top:80px;right:16px;z-index:1000;background:#fff;border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.15);width:300px;overflow:hidden;font-family:"Inter",sans-serif;';
 
   card.innerHTML = `
-    <div style="padding:14px 16px 10px;border-bottom:0.5px solid #F0F0F0;display:flex;align-items:center;justify-content:space-between;">
+    <!-- Header — always visible, click to toggle -->
+    <div id="areaCardHeader" style="padding:12px 14px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none;" onclick="toggleMapAreaCard()">
       <div>
-        <div style="font-size:14px;font-weight:600;color:#1A1A1A;letter-spacing:-.02em;">${areaName}</div>
-        <div style="font-size:11px;color:#999;margin-top:2px;">${count ? count.toLocaleString('sv-SE') + ' fastigheter i området' : 'Område markerat'}</div>
+        <div style="font-size:13px;font-weight:600;color:#1A1A1A;letter-spacing:-.02em;">${areaName}</div>
+        <div style="font-size:11px;color:#999;margin-top:1px;">${count ? count.toLocaleString('sv-SE') + ' fastigheter' : 'Område markerat'}</div>
       </div>
-      <button onclick="closeMapAreaCard()" style="width:26px;height:26px;border-radius:50%;background:#F5F5F5;border:none;cursor:pointer;font-size:14px;color:#666;display:flex;align-items:center;justify-content:center;">✕</button>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <i id="areaCardChevron" class="ti ti-chevron-up" style="font-size:16px;color:#999;transition:transform .2s;" aria-hidden="true"></i>
+      </div>
     </div>
-    <div style="max-height:260px;overflow-y:auto;">
-      ${DEMO_PROPS.map(p => `
-        <div style="display:flex;gap:10px;align-items:center;padding:10px 16px;border-bottom:0.5px solid #F8F8F8;cursor:pointer;" onmouseover="this.style.background='#FAFAF8'" onmouseout="this.style.background=''">
-          <img src="${p.img}" style="width:44px;height:44px;border-radius:8px;object-fit:cover;flex-shrink:0;" />
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:13px;font-weight:500;color:#1A1A1A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
-            <div style="font-size:11px;color:#999;margin-top:1px;">${p.meta}</div>
+
+    <!-- Body — collapsible -->
+    <div id="areaCardBody" style="border-top:0.5px solid #F0F0F0;overflow:hidden;transition:max-height .25s ease;">
+      <div style="max-height:240px;overflow-y:auto;">
+        ${DEMO_PROPS.map(p => `
+          <div style="display:flex;gap:10px;align-items:center;padding:10px 14px;border-bottom:0.5px solid #F8F8F8;cursor:pointer;" onmouseover="this.style.background='#FAFAF8'" onmouseout="this.style.background=''">
+            <img src="${p.img}" style="width:42px;height:42px;border-radius:8px;object-fit:cover;flex-shrink:0;" />
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:12px;font-weight:500;color:#1A1A1A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
+              <div style="font-size:11px;color:#999;margin-top:1px;">${p.meta}</div>
+            </div>
+            <div style="font-size:11px;color:#CC2936;font-weight:500;">♡ ${p.likes}</div>
           </div>
-          <div style="font-size:11px;color:#CC2936;font-weight:500;">♡ ${p.likes}</div>
-        </div>
-      `).join('')}
-    </div>
-    <div style="padding:10px 16px;">
-      <button onclick="closeMapAreaCard()" style="width:100%;padding:9px;border-radius:9px;background:#CC2936;color:#fff;border:none;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
-        Utforska alla i ${areaName}
-      </button>
+        `).join('')}
+      </div>
+      <div style="padding:10px 14px;">
+        <button onclick="closeMapAreaCard()" style="width:100%;padding:9px;border-radius:9px;background:#CC2936;color:#fff;border:none;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
+          Utforska alla i ${areaName}
+        </button>
+      </div>
     </div>
   `;
 
   // Append to body (fixed position)
   document.body.appendChild(card);
+}
+
+function toggleMapAreaCard() {
+  const body = document.getElementById('areaCardBody');
+  const chevron = document.getElementById('areaCardChevron');
+  if (!body) return;
+  const isOpen = body.style.maxHeight !== '0px' && body.style.maxHeight !== '';
+  if (isOpen) {
+    body.style.maxHeight = '0px';
+    body.style.borderTop = 'none';
+    if (chevron) chevron.style.transform = 'rotate(180deg)';
+  } else {
+    body.style.maxHeight = '400px';
+    body.style.borderTop = '0.5px solid #F0F0F0';
+    if (chevron) chevron.style.transform = 'rotate(0deg)';
+  }
 }
 
 function closeMapAreaCard() {

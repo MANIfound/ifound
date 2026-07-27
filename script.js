@@ -567,8 +567,9 @@ function stopDraw(clearLayers = true) {
 function openPanel(html) {
   const panel = document.getElementById("panel");
   if (!panel) return;
-  panel.innerHTML = html;
+  panel.innerHTML = '<div class="panel-handle"></div>' + html;
   panel.classList.remove("hidden");
+  panel.scrollTop = 0;
 }
 
 function closePanel() {
@@ -576,6 +577,71 @@ function closePanel() {
   if (!panel) return;
   panel.classList.add("hidden");
   panel.innerHTML = "";
+}
+
+// =========================
+// IMAGE UPLOAD (komprimerar till max 1280px JPEG — mobilfoton är 3-10 MB,
+// localStorage rymmer bara ~5 MB totalt)
+// =========================
+function readImageAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Kunde inte läsa bilden"));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Ogiltigt bildformat"));
+      img.onload = () => {
+        const MAX = 1280;
+        let w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          const scale = MAX / Math.max(w, h);
+          w = Math.round(w * scale);
+          h = Math.round(h * scale);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", 0.8));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// =========================
+// MOBILE BOTTOM TAB BAR
+// =========================
+function goTab(view) {
+  if (view === "profile") {
+    const session = loadSession();
+    if (session?.email) { currentView = "dashboard"; render(); }
+    else { openAuthModal("login"); }
+    return;
+  }
+  currentView = view;
+  render();
+}
+
+function mountBottomTabs(active) {
+  const session = loadSession();
+  const isLoggedIn = !!session?.email;
+  const tabs = [
+    { id: "welcome", icon: "ti-home",        label: "Hem" },
+    { id: "map",     icon: "ti-map-2",       label: "Karta" },
+    { id: "feed",    icon: "ti-layout-grid", label: "Utforska" },
+    { id: "profile", icon: isLoggedIn ? "ti-user-check" : "ti-user", label: isLoggedIn ? "Min sida" : "Profil" },
+  ];
+  app.insertAdjacentHTML("beforeend", `
+    <nav class="bottom-tabs">
+      ${tabs.map(t => `
+        <button class="bottom-tab ${active === t.id ? "active" : ""}" onclick="goTab('${t.id}')">
+          <i class="ti ${t.icon}" aria-hidden="true"></i>
+          <span>${t.label}</span>
+        </button>
+      `).join("")}
+    </nav>
+  `);
 }
 
 function renderParcelPanel(feature) {
@@ -746,7 +812,7 @@ function openAuthModal(tab = 'login') {
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
 
   overlay.innerHTML = `
-    <div style="background:#fff;border-radius:20px;padding:28px;width:100%;max-width:400px;box-shadow:0 24px 64px rgba(0,0,0,.2);font-family:'Inter',sans-serif;">
+    <div class="auth-card" style="background:#fff;border-radius:20px;padding:28px;width:100%;max-width:400px;box-shadow:0 24px 64px rgba(0,0,0,.2);font-family:'Inter',sans-serif;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
         <div style="display:flex;align-items:center;gap:8px;">
           <svg width="16" height="20" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
@@ -1027,6 +1093,28 @@ function landingLike(btn) {
   toast(isLiked ? 'Gillning borttagen' : 'Gillad!');
 }
 
+function landingSelectType(btn) {
+  const wrap = document.getElementById("landingTypePills");
+  if (wrap) wrap.querySelectorAll(".type-pill").forEach(p => p.classList.remove("active"));
+  btn.classList.add("active");
+  window._landingType = btn.dataset.type;
+}
+
+function clearFeedTypeFilter() {
+  localStorage.removeItem("ifound_type_filter");
+  render();
+}
+
+function feedChip(btn) {
+  document.querySelectorAll(".area-chip").forEach(c => c.classList.remove("active"));
+  btn.classList.add("active");
+  const area = btn.textContent.trim();
+  document.querySelectorAll("#masonryGrid .pin-card").forEach(card => {
+    const name = card.querySelector(".pin-name")?.textContent || "";
+    card.style.display = (area === "Alla" || name.includes(area)) ? "" : "none";
+  });
+}
+
 function renderWelcome() {
   const PINS = [
     { name:"Laröd 3:19",       meta:"Gård · 5 200 kvm",  badge:"pb-hot",  badgeTxt:"58 gillar", likes:58, interested:12, h:220, img:"https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400&q=70" },
@@ -1046,43 +1134,58 @@ function renderWelcome() {
     { n:4, name:"Fredriksdal 6:1",  meta:"19 gillar · Villa",  img:"https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=300&q=60" },
   ];
 
+  const session = loadSession();
+  const isLoggedIn = !!session?.email;
+  const user = isLoggedIn ? getCurrentUser() : null;
+
   app.innerHTML = `
     <div style="background:#F9F6F1;min-height:100vh;font-family:'Inter',sans-serif;">
 
-      <nav style="display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:56px;background:rgba(249,246,241,.95);border-bottom:0.5px solid rgba(17,24,39,.07);position:sticky;top:0;z-index:50;backdrop-filter:blur(8px);">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <svg width="17" height="21" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
-          <span style="font-size:19px;font-weight:700;letter-spacing:-.05em;color:#111827;">i<em style="font-style:normal;color:#CC2936;">found</em></span>
+      <nav class="dashboard-nav">
+        <div class="nav-left">
+          <div class="logo" style="cursor:default;">
+            <svg width="17" height="21" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
+            <span class="logo-text">i<em>found</em></span>
+          </div>
+          ${isLoggedIn ? `<div class="nav-greeting">Hej, ${user?.name || ""}!</div>` : ''}
         </div>
-        <div style="display:flex;gap:2px;">
-          <button onclick="currentView='feed';render();" style="padding:7px 13px;border-radius:8px;font-size:13px;font-weight:500;color:#6B7280;background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;">Utforska</button>
-          <button onclick="currentView='map';render();" style="padding:7px 13px;border-radius:8px;font-size:13px;font-weight:500;color:#6B7280;background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;">Karta</button>
-          <button onclick="navigate('brokerWelcome')" style="padding:7px 13px;border-radius:8px;font-size:13px;font-weight:500;color:#6B7280;background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;">För mäklare</button>
+        <div class="nav-center">
+          ${isLoggedIn ? `<button class="nav-tab" onclick="navigate('dashboard')">Min sida</button>` : ''}
+          <button class="nav-tab" onclick="currentView='feed';render();">Utforska</button>
+          <button class="nav-tab" onclick="currentView='map';render();">Karta</button>
+          <button class="nav-tab" onclick="navigate('brokerWelcome')">För mäklare</button>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <button onclick="openAuthModal('login')" style="padding:7px 14px;border-radius:8px;font-size:13px;font-weight:500;color:#374151;background:transparent;border:0.5px solid rgba(17,24,39,.12);cursor:pointer;font-family:'Inter',sans-serif;">Logga in</button>
-          <button onclick="openAuthModal('reg')" style="padding:7px 14px;border-radius:9px;font-size:13px;font-weight:600;color:#fff;background:#CC2936;border:none;cursor:pointer;font-family:'Inter',sans-serif;">Kom igång</button>
+        <div class="nav-right">
+          ${isLoggedIn
+            ? `<button class="btn-ghost" style="font-size:12px;padding:7px 13px;" id="logoutBtnWelcome">Logga ut</button>`
+            : `<button class="btn-ghost" style="font-size:12px;padding:7px 13px;" onclick="openAuthModal('login')">Logga in</button>
+               <button class="btn-primary" style="font-size:12px;padding:7px 13px;" onclick="openAuthModal('reg')">Kom igång</button>`
+          }
         </div>
       </nav>
 
       <!-- Hero -->
-      <div style="max-width:700px;margin:0 auto;padding:48px 24px 36px;text-align:center;">
+      <div style="max-width:700px;margin:0 auto;padding:40px 24px 36px;text-align:center;">
         <div style="font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#CC2936;margin-bottom:12px;">Fastigheter på ett nytt sätt</div>
-        <h1 style="font-size:40px;font-weight:700;letter-spacing:-.05em;line-height:1.05;color:#111827;margin-bottom:14px;font-family:'Inter',sans-serif;">Åkte du förbi ett hus<br>du <em style="font-style:normal;color:#CC2936;">aldrig kan glömma?</em></h1>
-        <p style="font-size:16px;color:#6B7280;line-height:1.7;margin-bottom:28px;max-width:480px;margin-left:auto;margin-right:auto;">Sök upp det, visa ditt intresse — även om det inte är till salu. Inget konto krävs.</p>
+        <h1 class="hero-title" style="font-size:40px;font-weight:700;letter-spacing:-.05em;line-height:1.05;color:#111827;margin-bottom:14px;font-family:'Inter',sans-serif;">Åkte du förbi ett hus<br>du <em style="font-style:normal;color:#CC2936;">aldrig kan glömma?</em></h1>
+        <p style="font-size:16px;color:#6B7280;line-height:1.7;margin-bottom:24px;max-width:480px;margin-left:auto;margin-right:auto;">Sök upp det, visa ditt intresse — även om det inte är till salu. Inget konto krävs.</p>
+
+        <!-- Property type pills, à la Hemnet -->
+        <div id="landingTypePills" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:14px;">
+          ${["Alla typer","Villa","Lägenhet","Tomt/Gård","Fritidshus","Uthyrning"].map((t,i) => `
+            <button class="type-pill ${i===0 ? "active" : ""}" data-type="${t}" onclick="landingSelectType(this)">${t}</button>
+          `).join("")}
+        </div>
 
         <!-- Search -->
         <div style="display:flex;gap:8px;background:#fff;border:1.5px solid rgba(17,24,39,.12);border-radius:13px;padding:5px 5px 5px 14px;align-items:center;margin-bottom:12px;">
           <i class="ti ti-search" style="font-size:18px;color:#9CA3AF;flex-shrink:0;" aria-hidden="true"></i>
-          <input id="landingSearch" placeholder="Sök adress, område eller gata..." style="flex:1;border:none;background:transparent;font-size:15px;font-family:'Inter',sans-serif;color:#111827;outline:none;padding:7px 0;" />
+          <input id="landingSearch" placeholder="Sök stad, område eller gata..." style="flex:1;border:none;background:transparent;font-size:15px;font-family:'Inter',sans-serif;color:#111827;outline:none;padding:7px 0;" />
           <button id="landingSearchBtn" style="background:#CC2936;color:#fff;border:none;border-radius:9px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;">Sök</button>
         </div>
-        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:20px;">
           <button id="landingNearMe" style="display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;font-size:12px;font-weight:600;background:#1A1A1A;color:#fff;border:none;cursor:pointer;font-family:'Inter',sans-serif;">
             <i class="ti ti-current-location" style="font-size:13px;" aria-hidden="true"></i> Nära mig
-          </button>
-          <button onclick="currentView='map';render();" style="display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;font-size:12px;font-weight:500;background:#fff;color:#374151;border:0.5px solid rgba(17,24,39,.12);cursor:pointer;font-family:'Inter',sans-serif;">
-            <i class="ti ti-map-2" style="font-size:13px;" aria-hidden="true"></i> Öppna karta
           </button>
           ${(()=>{
             const recent = JSON.parse(localStorage.getItem('ifound_recent_searches') || '[]');
@@ -1092,6 +1195,16 @@ function renderWelcome() {
             ).join('');
           })()}
         </div>
+
+        <!-- Prominent map CTA — kartan är en huvudfunktion, ska vara omöjlig att missa -->
+        <div class="map-cta-card" onclick="currentView='map';render();">
+          <div class="map-cta-icon"><i class="ti ti-map-2" aria-hidden="true"></i></div>
+          <div style="flex:1;text-align:left;">
+            <div class="map-cta-title">Utforska på kartan</div>
+            <div class="map-cta-sub">Zooma in på ditt område och klicka på en tomt för att se mer</div>
+          </div>
+          <i class="ti ti-chevron-right" style="color:#9CA3AF;font-size:16px;flex-shrink:0;" aria-hidden="true"></i>
+        </div>
       </div>
 
       <!-- Topplistor -->
@@ -1100,7 +1213,7 @@ function renderWelcome() {
           <div style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:#111827;">Mest gillade</div>
           <button onclick="currentView='feed';render();" style="font-size:12px;font-weight:600;color:#CC2936;background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;gap:3px;">Alla <i class="ti ti-chevron-right" style="font-size:12px;" aria-hidden="true"></i></button>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:28px;">
+        <div class="tops-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:28px;">
           ${TOPS.map(c=>`
             <div onclick="currentView='feed';render();" style="border-radius:12px;overflow:hidden;position:relative;cursor:pointer;height:130px;">
               <img src="${c.img}" style="width:100%;height:100%;object-fit:cover;" alt="${c.name}" loading="lazy" />
@@ -1119,7 +1232,7 @@ function renderWelcome() {
           <div style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:#111827;">Utforska fastigheter</div>
           <button onclick="currentView='feed';render();" style="font-size:12px;font-weight:600;color:#CC2936;background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;gap:3px;">Se alla <i class="ti ti-chevron-right" style="font-size:12px;" aria-hidden="true"></i></button>
         </div>
-        <div style="columns:4;column-gap:10px;margin-bottom:36px;">
+        <div class="landing-masonry" style="columns:4;column-gap:10px;margin-bottom:36px;">
           ${PINS.map(p=>`
             <div onclick="currentView='feed';render();" style="break-inside:avoid;margin-bottom:10px;border-radius:12px;overflow:hidden;cursor:pointer;background:#fff;border:0.5px solid rgba(17,24,39,.07);position:relative;">
               <div style="position:relative;">
@@ -1169,9 +1282,17 @@ function renderWelcome() {
     </div>
   `;
 
+  if (isLoggedIn) {
+    const logoutBtn = document.getElementById("logoutBtnWelcome");
+    if (logoutBtn) logoutBtn.onclick = () => { clearSession(); toast("Utloggad."); navigate("welcome"); };
+  }
+
   // Search handler
   document.getElementById("landingSearchBtn").onclick = () => {
     const q = document.getElementById("landingSearch").value.trim();
+    // Persist chosen property type so feed can apply it as a filter
+    const type = window._landingType && window._landingType !== "Alla typer" ? window._landingType : null;
+    if (type) localStorage.setItem("ifound_type_filter", type); else localStorage.removeItem("ifound_type_filter");
     if (!q) { currentView = "map"; render(); return; }
     // Save to recent searches
     const recent = JSON.parse(localStorage.getItem('ifound_recent_searches') || '[]');
@@ -1264,6 +1385,16 @@ function renderFeed() {
   const myLikes = state.myLikes || {};
   const isLoggedIn = !!session?.email;
 
+  const typeFilter = localStorage.getItem("ifound_type_filter");
+  const typeMatchers = {
+    "Villa": p => p.meta.includes("Villa"),
+    "Lägenhet": p => p.meta.includes("Lägenhet"),
+    "Tomt/Gård": p => p.meta.includes("Tomt") || p.meta.includes("Gård"),
+    "Fritidshus": p => p.meta.includes("Kusthus"),
+    "Uthyrning": p => p.badge === "pb-rent" || p.meta.includes("/mån"),
+  };
+  const filteredPins = (typeFilter && typeMatchers[typeFilter]) ? pins.filter(typeMatchers[typeFilter]) : pins;
+
   app.innerHTML = `
     <div class="feed-page">
       <nav class="dashboard-nav">
@@ -1332,6 +1463,15 @@ function renderFeed() {
         <button class="area-chip" onclick="feedChip(this)">Höganäs</button>
       </div>
 
+      ${typeFilter ? `
+        <div style="padding:8px 12px 0;">
+          <span style="display:inline-flex;align-items:center;gap:6px;background:#111827;color:#fff;font-size:12px;font-weight:600;padding:6px 8px 6px 12px;border-radius:999px;">
+            Typ: ${typeFilter}
+            <button onclick="clearFeedTypeFilter()" style="background:rgba(255,255,255,.15);border:none;color:#fff;width:18px;height:18px;border-radius:50%;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+          </span>
+        </div>
+      ` : ''}
+
       <!-- Claim nudge -->
       <div class="claim-nudge" onclick="${isLoggedIn ? "navigate('dashboard')" : "openAuthModal('reg')"}">
         <div class="claim-nudge-icon"><i class="ti ti-home-check" style="font-size:20px;color:#CC2936;"></i></div>
@@ -1344,7 +1484,7 @@ function renderFeed() {
 
       <!-- Masonry grid -->
       <div class="masonry-grid" id="masonryGrid">
-        ${pins.map(p => {
+        ${filteredPins.length ? filteredPins.map(p => {
           const liked = !!myLikes[p.id];
           return '<div class="pin-card" onclick="navigateProp(' + p.id + ')">'
             + '<div class="pin-img-wrap">'
@@ -1357,7 +1497,7 @@ function renderFeed() {
             + '<div class="pin-footer"><div class="pin-likes"><i class="ti ti-heart" style="font-size:12px;"></i><strong>' + p.likes + '</strong></div>'
             + (p.interested ? '<div class="pin-interest-badge">' + p.interested + ' intresserade</div>' : '')
             + '</div></div></div>';
-        }).join('')}
+        }).join('') : '<div style="grid-column:1/-1;text-align:center;padding:48px 16px;color:#9CA3AF;font-size:13px;">Inga fastigheter av den här typen just nu.</div>'}
       </div>
     </div>
   `;
@@ -1663,9 +1803,14 @@ function renderDashboard() {
     const files = Array.from(e.target.files || []).slice(0, 3); if (!files.length) return;
     const u = getCurrentUser(); if (!u) return;
     const profile = getHomeProfile(u);
-    const newImgs = await Promise.all(files.map(readImageAsDataUrl));
-    u.homeProfile = { ...profile, images: [...(profile.images || []), ...newImgs].slice(0, 3) };
-    saveCurrentUser(u); toast("Bild uppladdad."); render();
+    try {
+      const newImgs = await Promise.all(files.map(readImageAsDataUrl));
+      u.homeProfile = { ...profile, images: [...(profile.images || []), ...newImgs].slice(0, 3) };
+      saveCurrentUser(u); toast("Bild uppladdad."); render();
+    } catch (err) {
+      console.error("Bilduppladdning misslyckades:", err);
+      toast("Kunde inte ladda upp bilden — prova en annan bild.");
+    }
   });
 
   document.querySelectorAll(".remove-img-btn").forEach(btn => {
@@ -1701,6 +1846,28 @@ function renderMapView() {
   const isLoggedIn = !!session?.email;
 
   app.innerHTML = `
+    <div class="map-shell">
+      <nav class="dashboard-nav">
+        <div class="nav-left">
+          <div class="logo" onclick="navigate('welcome')" style="cursor:pointer;">
+            <svg width="18" height="23" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
+            <span class="logo-text">i<em>found</em></span>
+          </div>
+          ${isLoggedIn ? `<div class="nav-greeting">Hej, ${getCurrentUser()?.name || ""}!</div>` : ''}
+        </div>
+        <div class="nav-center">
+          ${isLoggedIn ? `<button class="nav-tab" onclick="navigate('dashboard')">Min sida</button>` : ''}
+          <button class="nav-tab" onclick="currentView='feed';render();">Utforska</button>
+          <button class="nav-tab active">Karta</button>
+        </div>
+        <div class="nav-right">
+          ${isLoggedIn
+            ? `<button class="btn-ghost" style="font-size:12px;padding:7px 13px;" id="logoutBtnMap">Logga ut</button>`
+            : `<button class="btn-ghost" style="font-size:12px;padding:7px 13px;" onclick="openAuthModal('login')">Logga in</button>
+               <button class="btn-primary" style="font-size:12px;padding:7px 13px;" onclick="openAuthModal('reg')">Kom igång</button>`
+          }
+        </div>
+      </nav>
     <div class="map-page">
       <div class="map-overlay map-tl">
         <div class="glass-card map-search">
@@ -1718,7 +1885,6 @@ function renderMapView() {
           </select>
           <button id="nearMeMapBtn" class="toolbar-btn"><i class="ti ti-current-location" aria-hidden="true"></i> Nära mig</button>
           <button id="toggleMapStyleBtn" class="toolbar-btn">Kartvy</button>
-          <button id="backBtn" class="toolbar-btn"><i class="ti ti-arrow-left" aria-hidden="true"></i> ${isLoggedIn ? 'Min sida' : 'Tillbaka'}</button>
         </div>
       </div>
 
@@ -1731,6 +1897,7 @@ function renderMapView() {
 
       <div class="map-wrap"><div id="map"></div></div>
       <div id="panel" class="panel hidden"></div>
+    </div>
     </div>
     <style>
       .ifound-popup .leaflet-popup-content-wrapper {
@@ -1789,10 +1956,10 @@ function renderMapView() {
     saveMapMode(e.target.value); closePanel(); redrawLayer();
   });
 
-  document.getElementById("backBtn").onclick = () => {
-    closePanel();
-    navigate(loadSession()?.email ? "dashboard" : "welcome");
-  };
+  if (isLoggedIn) {
+    const logoutBtn = document.getElementById("logoutBtnMap");
+    if (logoutBtn) logoutBtn.onclick = () => { clearSession(); toast("Utloggad."); navigate("welcome"); };
+  }
 
   document.getElementById("nearMeMapBtn").onclick = () => {
     const btn = document.getElementById("nearMeMapBtn");
@@ -2053,6 +2220,53 @@ function updateMapStatus(count) {
   if (el) el.textContent = count.toLocaleString("sv-SE") + " fastigheter laddade";
 }
 
+async function feedSearch(query, dropdown, input) {
+  dropdown.style.display = "block";
+  dropdown.innerHTML = '<div style="padding:12px 16px;font-size:12px;color:#9CA3AF;">Söker...</div>';
+
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=6&countrycodes=se&accept-language=sv&polygon_geojson=1`;
+    const res = await fetch(url);
+    const results = await res.json();
+
+    if (!results.length) {
+      dropdown.innerHTML = '<div style="padding:12px 16px;font-size:12px;color:#9CA3AF;">Inga resultat</div>';
+      return;
+    }
+
+    window._feedSearchResults = results;
+
+    dropdown.innerHTML = results.map((r, idx) => {
+      const name = r.display_name.split(",").slice(0,2).join(", ");
+      return `<div data-idx="${idx}"
+        style="padding:11px 16px;font-size:13px;color:#111827;cursor:pointer;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;align-items:center;gap:10px;"
+        onmouseover="this.style.background='#F9F6F1'" onmouseout="this.style.background=''">
+        <i class="ti ti-map-pin" style="font-size:14px;color:#CC2936;flex-shrink:0;" aria-hidden="true"></i>
+        <span>${name}</span>
+      </div>`;
+    }).join('');
+
+    dropdown.querySelectorAll('[data-idx]').forEach(el => {
+      el.addEventListener('click', () => {
+        const r = window._feedSearchResults[parseInt(el.dataset.idx)];
+        if (!r) return;
+        // Ta med sökningen till kartan och zooma in på området, precis som förstasidans sök
+        const q = r.display_name.split(',').slice(0,2).join(',');
+        const recent = JSON.parse(localStorage.getItem('ifound_recent_searches') || '[]');
+        localStorage.setItem('ifound_recent_searches', JSON.stringify([q, ...recent.filter(x => x !== q)].slice(0, 5)));
+        currentView = "map";
+        render();
+        setTimeout(() => {
+          if (typeof map !== 'undefined' && map) { try { map.invalidateSize(); } catch {} }
+          mapSelectLocation(q, r.lat, r.lon, r.boundingbox || null, r.geojson || null);
+        }, 500);
+      });
+    });
+  } catch {
+    dropdown.innerHTML = '<div style="padding:12px 16px;font-size:12px;color:#9CA3AF;">Sökning misslyckades</div>';
+  }
+}
+
 async function mapSearch(query, dropdown, input) {
   dropdown.style.display = "block";
   dropdown.innerHTML = '<div style="padding:12px 16px;font-size:12px;color:#9CA3AF;">Söker...</div>';
@@ -2173,7 +2387,9 @@ function showMapAreaCard(areaName, bounds) {
 
   const card = document.createElement('div');
   card.id = 'map-area-card';
-  card.style.cssText = 'position:fixed;top:80px;right:16px;z-index:1000;background:#fff;border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.15);width:300px;overflow:hidden;font-family:"Inter",sans-serif;';
+  card.className = 'map-area-card';
+
+  const isMobileCard = window.matchMedia('(max-width: 768px)').matches;
 
   card.innerHTML = `
     <!-- Header — always visible, click to toggle -->
@@ -2182,13 +2398,14 @@ function showMapAreaCard(areaName, bounds) {
         <div style="font-size:13px;font-weight:600;color:#1A1A1A;letter-spacing:-.02em;">${areaName}</div>
         <div style="font-size:11px;color:#999;margin-top:1px;">${count ? count.toLocaleString('sv-SE') + ' fastigheter' : 'Område markerat'}</div>
       </div>
-      <div style="display:flex;align-items:center;gap:6px;">
-        <i id="areaCardChevron" class="ti ti-chevron-up" style="font-size:16px;color:#999;transition:transform .2s;" aria-hidden="true"></i>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <i id="areaCardChevron" class="ti ti-chevron-up" style="font-size:16px;color:#999;transition:transform .2s;${isMobileCard ? 'transform:rotate(180deg);' : ''}" aria-hidden="true"></i>
+        <button onclick="event.stopPropagation();closeMapAreaCard()" style="width:24px;height:24px;border-radius:50%;border:none;background:#F3F4F6;color:#6B7280;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;">✕</button>
       </div>
     </div>
 
-    <!-- Body — collapsible -->
-    <div id="areaCardBody" style="border-top:0.5px solid #F0F0F0;overflow:hidden;transition:max-height .25s ease;">
+    <!-- Body — collapsible, hopfälld från start på mobil så kartan syns -->
+    <div id="areaCardBody" style="border-top:${isMobileCard ? 'none' : '0.5px solid #F0F0F0'};overflow:hidden;transition:max-height .25s ease;max-height:${isMobileCard ? '0px' : '400px'};">
       <div style="max-height:240px;overflow-y:auto;">
         ${DEMO_PROPS.map(p => `
           <div style="display:flex;gap:10px;align-items:center;padding:10px 14px;border-bottom:0.5px solid #F8F8F8;cursor:pointer;" onmouseover="this.style.background='#FAFAF8'" onmouseout="this.style.background=''">
@@ -3392,6 +3609,18 @@ function brokerEditListing(id) {
 // Render & boot
 // =========================
 function render() {
+  renderView();
+  const s = loadSession();
+  if (s?.email === "admin@ifound.se" || isBroker()) return;
+  if (currentView === "brokerWelcome") return;
+  let active = "welcome";
+  if (currentView === "map") active = "map";
+  else if (currentView === "feed" || currentView.startsWith("property_")) active = "feed";
+  else if (currentView !== "welcome" && s?.email) active = "profile";
+  mountBottomTabs(active);
+}
+
+function renderView() {
   const session = loadSession();
 
   // Anonymous users can access welcome, feed, map, property views
@@ -3411,6 +3640,7 @@ function render() {
     if (currentView === "broker" || currentView === "dashboard") { renderBrokerDashboard(); return; }
     renderBrokerDashboard(); return;
   }
+  if (currentView === "welcome") { renderWelcome(); return; }
   if (currentView === "map") { renderMapView(); return; }
   if (currentView === "feed") { renderFeed(); return; }
   if (currentView.startsWith("property_")) { renderPropertyView(); return; }

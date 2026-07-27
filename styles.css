@@ -283,28 +283,61 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.6; }
 .claim-submit-btn:hover { background: #A8521F; }
 
 /* =========================
-   MOBILE (bottom tabs, bottom sheets, full-screen map)
+   MAP SHELL — header + karta (samma sidhuvud som övriga sidor)
 ========================= */
+.map-shell { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+.map-shell .dashboard-nav { flex-shrink: 0; }
+.map-shell .map-page { height: auto; flex: 1; min-height: 0; }
 
-/* Feed masonry: responsive kolumner (2 mobil -> 4 desktop) */
-@media (min-width: 900px)  { .masonry-grid { columns: 3; column-gap: 12px; padding: 12px 16px 80px; } }
-@media (min-width: 1200px) { .masonry-grid { columns: 4; column-gap: 14px; padding: 16px 24px 80px; max-width: 1400px; margin: 0 auto; } }
+/* =========================
+   FÖRSTASIDAN — typval (Hemnet-stil) + kart-CTA
+========================= */
+.type-pill {
+  padding: 8px 16px; border-radius: 999px;
+  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500;
+  background: #fff; color: #374151;
+  border: 0.5px solid rgba(17,24,39,.14);
+  cursor: pointer; transition: all .15s ease;
+}
+.type-pill:hover { border-color: #111827; }
+.type-pill.active {
+  background: #111827; color: #fff; border-color: #111827; font-weight: 600;
+}
 
-/* Bottom tab bar — dold på desktop */
-.bottom-tabs { display: none; }
+.map-cta-card {
+  display: flex; align-items: center; gap: 14px;
+  background: #fff; border: 1.5px solid rgba(17,24,39,.10);
+  border-radius: 14px; padding: 14px 16px;
+  cursor: pointer; transition: border-color .15s ease, box-shadow .15s ease;
+  text-align: left;
+}
+.map-cta-card:hover { border-color: #CC2936; box-shadow: 0 6px 20px rgba(204,41,54,.10); }
+.map-cta-icon {
+  width: 44px; height: 44px; border-radius: 11px; flex-shrink: 0;
+  background: #FDECEA; color: #CC2936; font-size: 21px;
+  display: flex; align-items: center; justify-content: center;
+}
+.map-cta-title { font-size: 14px; font-weight: 600; color: #111827; letter-spacing: -.02em; }
+.map-cta-sub { font-size: 12px; color: #9CA3AF; margin-top: 1px; }
 
 /* Områdeskort på kartan (sökresultat) */
 .map-area-card {
-  position: fixed; top: 80px; right: 16px; z-index: 1000;
+  position: fixed; top: 136px; right: 16px; z-index: 1000;
   background: #fff; border-radius: 14px;
   box-shadow: 0 8px 32px rgba(0,0,0,.15);
   width: 300px; overflow: hidden;
   font-family: 'Inter', sans-serif;
 }
 
-/* Drag handle för bottom sheet — dold på desktop */
-.panel-handle { display: none; width: 36px; height: 4px; border-radius: 999px; background: rgba(17,24,39,.16); margin: 0 auto 12px; flex-shrink: 0; }
+/* Feed masonry: responsiva kolumner (2 mobil -> 4 desktop) */
+@media (min-width: 900px)  { .masonry-grid { columns: 3; column-gap: 12px; } }
+@media (min-width: 1200px) { .masonry-grid { columns: 4; column-gap: 14px; max-width: 1400px; margin: 0 auto; } }
 
+/* =========================
+   MOBIL — bottom tabs, bottom sheets, fullskärmskarta
+========================= */
+.bottom-tabs { display: none; }
+.panel-handle { display: none; width: 36px; height: 4px; border-radius: 999px; background: rgba(17,24,39,.16); margin: 0 auto 12px; flex-shrink: 0; }
 @keyframes sheetUp { from { transform: translateY(48px); opacity: .5; } to { transform: translateY(0); opacity: 1; } }
 
 @media (max-width: 768px) {
@@ -330,25 +363,25 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.6; }
   .bottom-tab.active { color: #CC2936; }
   .bottom-tab.active span { font-weight: 600; }
 
-  /* ---- Topnav: göm mittlänkar (bottom tabs tar över) ---- */
-  .nav-center, .nav-links-desktop { display: none !important; }
+  /* ---- Topnav: göm mittlänkar, bottom tabs tar över ---- */
+  .nav-center { display: none !important; }
   .nav-greeting { display: none; }
 
   /* ---- Förstasidan ---- */
   .hero-title { font-size: 32px !important; letter-spacing: -.04em !important; }
   .tops-grid { grid-template-columns: 1fr 1fr !important; }
   .landing-masonry { columns: 2 !important; }
+  .type-pill { padding: 7px 13px; font-size: 12px; }
 
-  /* Luft i botten så tab bar inte täcker innehåll */
-  .feed-page, .dashboard-page, .claim-screen-page, .welcome-page,
+  /* Luft i botten så tab-baren inte täcker innehåll */
+  .feed-page, .dashboard-page, .claim-screen-page,
   .dashboard-body { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
   .masonry-grid { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
 
-  /* Toast ovanför tab bar */
+  /* Toast ovanför tab-baren */
   .toast { left: 16px; right: 16px; max-width: none; bottom: calc(76px + env(safe-area-inset-bottom)); }
 
-  /* ---- Kartan: full skärm ---- */
-  .map-page { height: 100vh; height: 100dvh; }
+  /* ---- Kartan ---- */
   .leaflet-control-zoom { display: none; } /* pinch-zoom på mobil */
   .map-tl { top: 10px; left: 10px; right: 10px; }
   .map-tr { top: 62px; left: 10px; right: 10px; }
@@ -394,4 +427,5 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.6; }
 @media (max-width: 380px) {
   .hero-title { font-size: 28px !important; }
   .bottom-tab span { font-size: 9px; }
+  .type-pill { padding: 6px 11px; font-size: 11px; }
 }

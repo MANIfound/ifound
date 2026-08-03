@@ -678,7 +678,61 @@ function mountBottomTabs(active) {
 const KNOWN_BRF_PARCELS = ["HELSINGÖR 1", "MUNKEN 2"];
 function isBrfParcel(pid) {
   const norm = s => s.toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g, "");
-  return KNOWN_BRF_PARCELS.some(b => norm(b) === norm(pid));
+  if (KNOWN_BRF_PARCELS.some(b => norm(b) === norm(pid))) return true;
+  // Automatiskt detekterad via OpenStreetMap
+  const detected = (loadState().buildingTypes || {})[pid];
+  return detected === "Flerbostadshus";
+}
+
+// =========================
+// BYGGNADSTYP VIA OPENSTREETMAP (gratis proxy tills riktig registerdata
+// (typkod från Lantmäteriet/Skatteverket, licensierad) kopplas in i Supabase)
+// =========================
+function classifyOsmBuildings(tagsList) {
+  // Prioritet: flerbostad > kommersiell > småhus (blandade tomter klassas efter tyngst kategori)
+  const T = tagsList.map(t => (t.building || "").toLowerCase());
+  const apartment = ["apartments", "residential", "dormitory"];
+  const commercial = ["retail", "commercial", "office", "industrial", "warehouse", "supermarket", "kiosk", "hotel"];
+  const house = ["house", "detached", "semidetached_house", "terrace", "bungalow", "villa", "farm", "cabin"];
+  if (T.some(b => apartment.includes(b))) return "Flerbostadshus";
+  if (T.some(b => commercial.includes(b))) return "Kommersiell";
+  if (T.some(b => house.includes(b))) return "Villa/Småhus";
+  return null; // "yes" och okända taggar ger ingen klassning
+}
+
+async function detectBuildingType(feature, pid) {
+  const state = loadState();
+  state.buildingTypes = state.buildingTypes || {};
+  if (pid in state.buildingTypes) return state.buildingTypes[pid]; // cache (även null)
+
+  try {
+    // Bygg bbox från tomtens polygon
+    const coords = feature?.geometry?.type === "Polygon" ? feature.geometry.coordinates[0]
+                 : feature?.geometry?.type === "MultiPolygon" ? feature.geometry.coordinates[0][0]
+                 : null;
+    if (!coords || coords.length < 3) return null;
+    const lons = coords.map(c => c[0]), lats = coords.map(c => c[1]);
+    const bbox = [Math.min(...lats), Math.min(...lons), Math.max(...lats), Math.max(...lons)].join(",");
+
+    const query = `[out:json][timeout:8];way["building"](${bbox});out tags 12;`;
+    const res = await fetch("https://overpass-api.de/api/interpreter", {
+      method: "POST",
+      body: "data=" + encodeURIComponent(query),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const type = classifyOsmBuildings((data.elements || []).map(e => e.tags || {}));
+
+    const s = loadState();
+    s.buildingTypes = s.buildingTypes || {};
+    s.buildingTypes[pid] = type;
+    saveState(s);
+    return type;
+  } catch (err) {
+    console.warn("Kunde inte hämta byggnadstyp:", err);
+    return null; // cacha inte fel — försök igen nästa gång
+  }
 }
 
 function renderParcelPanel(feature) {
@@ -697,11 +751,25 @@ function renderParcelPanel(feature) {
 
   rememberParcelName(pid, name);
 
+  const detectedType = (state.buildingTypes || {})[pid];
+  const typDisplay = isBrf ? "Flerbostadshus" : (detectedType || formatValue(meta.typ));
+
   const metaRows = `
     <div class="panel-meta-row"><span>Beteckning</span><strong>${formatValue(meta.beteckning)}</strong></div>
-    <div class="panel-meta-row"><span>Typ</span><strong>${isBrf ? "Flerbostadshus" : formatValue(meta.typ)}</strong></div>
+    <div class="panel-meta-row"><span>Typ</span><strong id="parcelTypeValue">${typDisplay}</strong></div>
     <div class="panel-meta-row"><span>Area</span><strong>${formatValue(meta.area)}</strong></div>
   `;
+
+  // Hämta byggnadstyp från OSM i bakgrunden om okänd; rendera om ifall panelen fortfarande visar samma tomt
+  window._currentPanelPid = pid;
+  if (!isBrf && !(pid in (state.buildingTypes || {}))) {
+    detectBuildingType(feature, pid).then(type => {
+      if (!type) return;
+      if (window._currentPanelPid !== pid) return; // användaren har klickat vidare
+      const panelEl = document.getElementById("panel");
+      if (panelEl && !panelEl.classList.contains("hidden")) renderParcelPanel(feature);
+    });
+  }
 
   const statsHtml = `
     <div class="panel-stats">

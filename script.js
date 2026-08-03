@@ -395,7 +395,7 @@ function startDrawSubdivision(feature) {
     draw: {
       polygon: {
         allowIntersection: false,
-        showArea: true,
+        showArea: false, // leaflet-draw 1.0.4: showArea:true kraschar rektangelritning (readableArea)
         shapeOptions: {
           color: '#CC2936',
           weight: 2,
@@ -458,7 +458,14 @@ function startDrawSubdivision(feature) {
   };
 
   document.getElementById("drawRectBtn").onclick = () => {
-    new L.Draw.Rectangle(map, drawControl.options.draw.rectangle).enable();
+    // patcha bort readableArea-kraschen i leaflet-draw 1.0.4 för rektangel
+    if (L.Draw && L.Draw.Rectangle && L.Draw.Rectangle.prototype._getTooltipText) {
+      L.Draw.Rectangle.prototype._getTooltipText = function () {
+        return { text: this._endLabelText || "Släpp för att avsluta" };
+      };
+    }
+    const rect = new L.Draw.Rectangle(map, drawControl.options.draw.rectangle);
+    rect.enable();
     document.getElementById("drawStatus").textContent = "Klicka och dra för att rita ett område";
   };
 

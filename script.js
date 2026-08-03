@@ -240,6 +240,10 @@ function addGeoJsonToMap(geojson, opts = {}) {
       });
 
       layer.on("click", () => {
+        // Ignorera tomtklick under ritläge och strax efter att en form skapats —
+        // rektangelns mus-släpp träffar annars tomten och skriver över bekräftelsepanelen.
+        if (activeDrawFeature) return;
+        if (window._lastDrawCreatedAt && Date.now() - window._lastDrawCreatedAt < 600) return;
         layer.setStyle({ color: "#CC2936", weight: 2 });
         setTimeout(() => layer.setStyle({ color: "rgba(255,255,255,0.75)", weight: 1 }), 1000);
         renderParcelPanel(feature);
@@ -480,6 +484,7 @@ function startDrawSubdivision(feature) {
 }
 
 function onDrawCreated(e) {
+  window._lastDrawCreatedAt = Date.now();
   if (drawnItems) drawnItems.addLayer(e.layer);
   showSubdivisionConfirm(e.layer);
 }

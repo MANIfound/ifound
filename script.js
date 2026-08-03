@@ -685,12 +685,27 @@ function mountBottomTabs(active) {
 // Kända flerbostadshus/BRF:er i prototypen — ersätts av riktig fastighetsdata i Supabase.
 // Intresse mot dessa gäller hela föreningen ("vill bo här"), inte en enskild ägare.
 const KNOWN_BRF_PARCELS = ["HELSINGÖR 1", "MUNKEN 2"];
+
+// Manuella rättelser — vinner över både cache och API. Hit läggs felklassningar
+// vi upptäcker (t.ex. mittpunkts-spill från grannbyggnader).
+const KNOWN_TYPE_OVERRIDES = {
+  "MUSEET 1": "Kommersiell",
+};
+
+function normParcel(s) { return String(s).toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g, ""); }
+
+function getKnownType(pid) {
+  const n = normParcel(pid);
+  for (const [k, v] of Object.entries(KNOWN_TYPE_OVERRIDES)) {
+    if (normParcel(k) === n) return v;
+  }
+  return (loadState().buildingTypes || {})[pid] || null;
+}
+
 function isBrfParcel(pid) {
-  const norm = s => s.toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g, "");
-  if (KNOWN_BRF_PARCELS.some(b => norm(b) === norm(pid))) return true;
-  // Automatiskt detekterad via OpenStreetMap
-  const detected = (loadState().buildingTypes || {})[pid];
-  return detected === "Flerbostadshus";
+  if (KNOWN_BRF_PARCELS.some(b => normParcel(b) === normParcel(pid))) return true;
+  // Automatiskt detekterad via OpenStreetMap (rättelser vinner)
+  return getKnownType(pid) === "Flerbostadshus";
 }
 
 // =========================
@@ -713,7 +728,9 @@ const _pendingTypeLookups = {};
 
 // Delad Overpass-hämtning: spegeln först (overpass-api.de är onåbar från vissa nät),
 // snabb timeout (6s) så döda servrar inte hänger.
+let _overpassFailures = 0;
 async function overpassFetch(query, timeoutMs = 6000) {
+  if (_overpassFailures >= 2) return null; // Overpass onåbar från detta nät — sluta försöka denna session
   const endpoints = [
     "https://overpass.kumi.systems/api/interpreter",
     "https://overpass-api.de/api/interpreter",
@@ -731,12 +748,15 @@ async function overpassFetch(query, timeoutMs = 6000) {
       });
       clearTimeout(timer);
       if (!res.ok) { console.warn("[ifound] Overpass svarade", res.status, "från", url); continue; }
+      _overpassFailures = 0; // en server svarar — nollställ
       return await res.json();
     } catch (e) {
       clearTimeout(timer);
       console.warn("[ifound] Overpass-anrop misslyckades mot", url, e.name === "AbortError" ? `(timeout ${timeoutMs/1000}s)` : e);
     }
   }
+  _overpassFailures++;
+  if (_overpassFailures >= 2) console.warn("[ifound] Overpass onåbar — pausar typuppslag för denna session.");
   return null;
 }
 
@@ -902,7 +922,7 @@ function renderParcelPanel(feature) {
 
   rememberParcelName(pid, name);
 
-  const detectedType = (state.buildingTypes || {})[pid];
+  const detectedType = getKnownType(pid);
   const typDisplay = isBrf ? "Flerbostadshus" : (detectedType || formatValue(meta.typ));
 
   const metaRows = `

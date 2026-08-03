@@ -764,12 +764,15 @@ function featureContainsPoint(feature, lon, lat) {
 // den riktiga lösningen: förberäknad data i Supabase.
 // =========================
 let _prefetchBusy = false;
+let _prefetchAttempts = 0;
 async function prefetchBuildingTypesInView() {
   if (!lastGeoJson || _prefetchBusy) return;
   if (localStorage.getItem("ifound_osm_prefetch_ok")) return; // redan klart på denna enhet
+  if (_prefetchAttempts >= 3) return; // ge upp för sessionen — Overpass onåbar från detta nät
   const lastTry = parseInt(localStorage.getItem("ifound_osm_prefetch_at") || "0", 10);
   if (Date.now() - lastTry < 120000) return; // max ett försök per 2 min
   localStorage.setItem("ifound_osm_prefetch_at", String(Date.now()));
+  _prefetchAttempts++;
   _prefetchBusy = true;
 
   try {

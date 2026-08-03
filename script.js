@@ -472,7 +472,18 @@ function onDrawCreated(e) {
 }
 
 function showSubdivisionConfirm(layer) {
-  const area = L.GeometryUtil ? L.GeometryUtil.geodesicArea(layer.getLatLngs()[0]) : null;
+  // Rektangel och polygon har olika latlng-struktur; skydda area-beräkningen
+  // så att ett fel inte hindrar hela panelen från att ritas.
+  let area = null;
+  try {
+    const latlngs = layer.getLatLngs();
+    const ring = Array.isArray(latlngs[0]) ? latlngs[0] : latlngs;
+    if (L.GeometryUtil && ring && ring.length >= 3) {
+      area = L.GeometryUtil.geodesicArea(ring);
+    }
+  } catch (err) {
+    console.warn("Kunde inte beräkna area:", err);
+  }
   const areaText = area ? `Ca ${Math.round(area)} m²` : "";
   const propName = activeDrawFeature ? prettyName(activeDrawFeature) : "fastigheten";
 

@@ -171,6 +171,19 @@ function ensureMapMounted() {
     }
   }
   if (map) return;
+
+  // leaflet-draw 1.0.4 kraschar när rektangel ritas (L.GeometryUtil.readableArea
+  // anropar type-fel internt). Wrappa funktionen en gång så den aldrig kastar —
+  // annars når CREATED-eventet aldrig fram och intressepanelen öppnas inte.
+  if (L.GeometryUtil && L.GeometryUtil.readableArea && !L.GeometryUtil._readableAreaPatched) {
+    const _origReadableArea = L.GeometryUtil.readableArea;
+    L.GeometryUtil.readableArea = function () {
+      try { return _origReadableArea.apply(this, arguments); }
+      catch (e) { return ""; }
+    };
+    L.GeometryUtil._readableAreaPatched = true;
+  }
+
   const svgRenderer = L.svg({ padding: 0.5 });
   map = L.map("map", { zoomControl: true, renderer: svgRenderer }).setView([56.0465, 12.6945], 13);
   baseLayers.map = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" });
@@ -458,14 +471,7 @@ function startDrawSubdivision(feature) {
   };
 
   document.getElementById("drawRectBtn").onclick = () => {
-    // patcha bort readableArea-kraschen i leaflet-draw 1.0.4 för rektangel
-    if (L.Draw && L.Draw.Rectangle && L.Draw.Rectangle.prototype._getTooltipText) {
-      L.Draw.Rectangle.prototype._getTooltipText = function () {
-        return { text: this._endLabelText || "Släpp för att avsluta" };
-      };
-    }
-    const rect = new L.Draw.Rectangle(map, drawControl.options.draw.rectangle);
-    rect.enable();
+    new L.Draw.Rectangle(map, drawControl.options.draw.rectangle).enable();
     document.getElementById("drawStatus").textContent = "Klicka och dra för att rita ett område";
   };
 

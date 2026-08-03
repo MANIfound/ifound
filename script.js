@@ -700,61 +700,78 @@ function classifyOsmBuildings(tagsList) {
   return null; // "yes" och okända taggar ger ingen klassning
 }
 
+const _pendingTypeLookups = {};
+
 async function detectBuildingType(feature, pid) {
   const state = loadState();
   const cached = (state.buildingTypes || {})[pid];
   if (cached) return cached; // bara lyckade klassningar är slutgiltiga — null försöks om
+  if (_pendingTypeLookups[pid]) return _pendingTypeLookups[pid]; // uppslag pågår redan
 
-  try {
-    // Bygg bbox från tomtens polygon
-    const coords = feature?.geometry?.type === "Polygon" ? feature.geometry.coordinates[0]
-                 : feature?.geometry?.type === "MultiPolygon" ? feature.geometry.coordinates[0][0]
-                 : null;
-    if (!coords || coords.length < 3) return null;
-    const lons = coords.map(c => c[0]), lats = coords.map(c => c[1]);
-    const bbox = [Math.min(...lats), Math.min(...lons), Math.max(...lats), Math.max(...lons)].join(",");
+  const lookup = (async () => {
+    try {
+      // Bygg bbox från tomtens polygon
+      const coords = feature?.geometry?.type === "Polygon" ? feature.geometry.coordinates[0]
+                   : feature?.geometry?.type === "MultiPolygon" ? feature.geometry.coordinates[0][0]
+                   : null;
+      if (!coords || coords.length < 3) return null;
+      const lons = coords.map(c => c[0]), lats = coords.map(c => c[1]);
+      const bbox = [Math.min(...lats), Math.min(...lons), Math.max(...lats), Math.max(...lons)].join(",");
 
-    const query = `[out:json][timeout:10];(way["building"](${bbox});relation["building"](${bbox}););out tags 20;`;
-    console.log("[ifound] OSM-uppslag för", pid, "bbox:", bbox);
+      const query = `[out:json][timeout:10];(way["building"](${bbox});relation["building"](${bbox}););out tags 20;`;
+      console.log("[ifound] OSM-uppslag för", pid, "bbox:", bbox);
 
-    // overpass-api.de är ofta överbelastad — prova speglar i tur och ordning
-    const endpoints = [
-      "https://overpass-api.de/api/interpreter",
-      "https://overpass.kumi.systems/api/interpreter",
-    ];
-    let data = null;
-    for (const url of endpoints) {
-      try {
-        const res = await fetch(url, {
-          method: "POST",
-          body: "data=" + encodeURIComponent(query),
-          headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        });
-        if (!res.ok) { console.warn("[ifound] Overpass svarade", res.status, "från", url); continue; }
-        data = await res.json();
-        break;
-      } catch (e) {
-        console.warn("[ifound] Overpass-anrop misslyckades mot", url, e);
+      // Spegeln först — overpass-api.de är onåbar från vissa nät. Snabb timeout
+      // (6s via AbortController) så en död server inte hänger i minuter.
+      const endpoints = [
+        "https://overpass.kumi.systems/api/interpreter",
+        "https://overpass.private.coffee/api/interpreter",
+        "https://overpass-api.de/api/interpreter",
+      ];
+      let data = null;
+      for (const url of endpoints) {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 6000);
+        try {
+          const res = await fetch(url, {
+            method: "POST",
+            body: "data=" + encodeURIComponent(query),
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            signal: ctrl.signal,
+          });
+          clearTimeout(timer);
+          if (!res.ok) { console.warn("[ifound] Overpass svarade", res.status, "från", url); continue; }
+          data = await res.json();
+          break;
+        } catch (e) {
+          clearTimeout(timer);
+          console.warn("[ifound] Overpass-anrop misslyckades mot", url, e.name === "AbortError" ? "(timeout 6s)" : e);
+        }
       }
-    }
-    if (!data) return null;
+      if (!data) return null;
 
-    const tagsList = (data.elements || []).map(e => e.tags || {});
-    console.log("[ifound] OSM-byggnader på", pid, ":", tagsList.map(t => t.building));
-    const type = classifyOsmBuildings(tagsList);
-    console.log("[ifound] Klassning för", pid, "→", type);
+      const tagsList = (data.elements || []).map(e => e.tags || {});
+      console.log("[ifound] OSM-byggnader på", pid, ":", tagsList.map(t => t.building));
+      const type = classifyOsmBuildings(tagsList);
+      console.log("[ifound] Klassning för", pid, "→", type);
 
-    if (type) {
-      const s = loadState();
-      s.buildingTypes = s.buildingTypes || {};
-      s.buildingTypes[pid] = type;
-      saveState(s);
+      if (type) {
+        const s = loadState();
+        s.buildingTypes = s.buildingTypes || {};
+        s.buildingTypes[pid] = type;
+        saveState(s);
+      }
+      return type;
+    } catch (err) {
+      console.warn("[ifound] Kunde inte hämta byggnadstyp:", err);
+      return null;
+    } finally {
+      delete _pendingTypeLookups[pid];
     }
-    return type;
-  } catch (err) {
-    console.warn("[ifound] Kunde inte hämta byggnadstyp:", err);
-    return null;
-  }
+  })();
+
+  _pendingTypeLookups[pid] = lookup;
+  return lookup;
 }
 
 function renderParcelPanel(feature) {

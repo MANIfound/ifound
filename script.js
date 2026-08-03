@@ -673,6 +673,14 @@ function mountBottomTabs(active) {
   `);
 }
 
+// Kända flerbostadshus/BRF:er i prototypen — ersätts av riktig fastighetsdata i Supabase.
+// Intresse mot dessa gäller hela föreningen ("vill bo här"), inte en enskild ägare.
+const KNOWN_BRF_PARCELS = ["HELSINGÖR 1", "MUNKEN 2"];
+function isBrfParcel(pid) {
+  const norm = s => s.toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g, "");
+  return KNOWN_BRF_PARCELS.some(b => norm(b) === norm(pid));
+}
+
 function renderParcelPanel(feature) {
   const state = loadState();
   const pid = getParcelId(feature);
@@ -684,19 +692,21 @@ function renderParcelPanel(feature) {
   const isOwner = state.ownerParcelId === pid;
   const iLiked = !!state.myLikes?.[pid];
   const iInterested = !!state.myInterests?.[pid];
+  const iFollow = !!state.myFollows?.[pid];
+  const isBrf = isBrfParcel(pid);
 
   rememberParcelName(pid, name);
 
   const metaRows = `
     <div class="panel-meta-row"><span>Beteckning</span><strong>${formatValue(meta.beteckning)}</strong></div>
-    <div class="panel-meta-row"><span>Typ</span><strong>${formatValue(meta.typ)}</strong></div>
+    <div class="panel-meta-row"><span>Typ</span><strong>${isBrf ? "Flerbostadshus" : formatValue(meta.typ)}</strong></div>
     <div class="panel-meta-row"><span>Area</span><strong>${formatValue(meta.area)}</strong></div>
   `;
 
   const statsHtml = `
     <div class="panel-stats">
       <div class="panel-stat"><div class="panel-stat-value">${likes}</div><div class="panel-stat-label">Gillar</div></div>
-      <div class="panel-stat"><div class="panel-stat-value">${interests}</div><div class="panel-stat-label">Intresserade</div></div>
+      <div class="panel-stat"><div class="panel-stat-value">${interests}</div><div class="panel-stat-label">${isBrf ? "Vill bo här" : "Intresserade"}</div></div>
     </div>
   `;
 
@@ -745,6 +755,26 @@ function renderParcelPanel(feature) {
   });
   const panelImg = claimedProp?.img || null;
 
+  // FOMO-teaser: fastigheten har aktivitet men är inte claimad — visa det, och gör claim till nyckeln.
+  const isClaimed = !!claimedProp || isOwner;
+  const hasActivity = likes > 0 || interests > 0;
+  const teaserHtml = (!isClaimed && hasActivity) ? `
+    <div style="margin-bottom:12px;padding:12px 14px;background:#FDECEA;border:0.5px solid rgba(204,41,54,.25);border-radius:11px;">
+      <div style="font-size:13px;font-weight:600;color:#CC2936;line-height:1.5;">
+        <i class="ti ti-flame" style="font-size:14px;" aria-hidden="true"></i>
+        ${isBrf
+          ? `${interests > 0 ? interests + " vill bo i den här föreningen" : likes + " har gillat den här fastigheten"}`
+          : `${likes > 0 ? likes + " har gillat den här fastigheten" : interests + " har visat intresse"}`}
+      </div>
+      <div style="font-size:12px;color:#9A2530;margin-top:3px;line-height:1.5;">
+        ${isBrf ? "Bor du här? Claima och se intresset — och få en notis när det kommer nya." : "Är det din? Claima och se vilka — och få en notis när någon ny gillar."}
+      </div>
+      <button id="teaserClaimBtn" style="margin-top:9px;width:100%;padding:8px;border-radius:8px;background:#CC2936;color:#fff;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">
+        Claima fastigheten
+      </button>
+    </div>
+  ` : '';
+
   openPanel(`
     <button class="panel-close" id="closePanelBtn">✕</button>
     ${panelImg ? `
@@ -752,27 +782,70 @@ function renderParcelPanel(feature) {
         <img src="${panelImg}" style="width:100%;height:100%;object-fit:cover;display:block;" />
         <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.4) 0%,transparent 60%);"></div>
         <div style="position:absolute;bottom:10px;left:14px;">
-          <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.08em;">Besökarläge</div>
+          <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.08em;">${isBrf ? "Bostadsrättsförening" : "Besökarläge"}</div>
           <div style="font-size:16px;font-weight:700;color:#fff;letter-spacing:-.03em;">${name}</div>
         </div>
       </div>
     ` : `
-      <div class="panel-eyebrow">Besökarläge</div>
+      <div class="panel-eyebrow">${isBrf ? "Bostadsrättsförening" : "Besökarläge"}</div>
       <div class="panel-name">${name}</div>
     `}
-    <div class="panel-mode">Spara intresse och följ objektet.</div>
+    <div class="panel-mode">${isBrf ? "Flerbostadshus — gilla och intresse gäller hela föreningen." : "Spara intresse och följ objektet."}</div>
+    ${teaserHtml}
     <div class="panel-meta">${metaRows}</div>
     <div class="panel-actions">
       <button id="likeBtn"     class="panel-btn ${iLiked      ? "active-like"     : ""}"><i class="ti ti-thumb-up"></i> ${iLiked ? "Gillad" : "Gilla"}</button>
-      <button id="interestBtn" class="panel-btn ${iInterested ? "active-interest" : ""}"><i class="ti ti-star"></i> ${iInterested ? "Intresserad" : "Markera intresse"}</button>
+      <button id="interestBtn" class="panel-btn ${iInterested ? "active-interest" : ""}"><i class="ti ti-star"></i> ${isBrf ? (iInterested ? "Intresseanmäld" : "Vill bo här") : (iInterested ? "Intresserad" : "Markera intresse")}</button>
     </div>
+    <div style="margin-top:8px;">
+      <button id="followBtn" class="panel-btn" style="width:100%;${iFollow ? 'background:#FDECEA;border-color:#CC2936;color:#CC2936;' : ''}">
+        <i class="ti ${iFollow ? 'ti-bell-check' : 'ti-bell-plus'}"></i> ${iFollow ? "Följer — notis vid nytt" : "Följ fastigheten"}
+      </button>
+    </div>
+    ${isBrf ? '' : `
     <div style="margin-top:8px;">
       <button id="subdivisionBtn" class="panel-btn" style="width:100%;${state.subdivisionInterests?.[pid] ? 'background:#F0FDF4;border-color:#16a34a;color:#16a34a;' : ''}">
         <i class="ti ti-cut"></i> ${state.subdivisionInterests?.[pid] ? "Avstyckning — intresse skickat" : "Intresserad av att stycka av tomt"}
       </button>
-    </div>
+    </div>`}
     ${statsHtml}
   `);
+
+  if (document.getElementById("teaserClaimBtn")) {
+    document.getElementById("teaserClaimBtn").onclick = () => {
+      const session = loadSession();
+      if (!session?.email) {
+        openAuthModal('reg');
+        toast("Skapa ett konto för att claima din fastighet.");
+        return;
+      }
+      const sel = document.getElementById("modeSelect");
+      if (sel) { sel.value = "owner"; saveMapMode("owner"); }
+      renderParcelPanel(feature);
+    };
+  }
+
+  document.getElementById("followBtn").onclick = () => {
+    const session = loadSession();
+    if (!session?.email) {
+      openAuthModal('reg');
+      toast("Skapa ett konto för att följa och få notiser.");
+      return;
+    }
+    const s = loadState();
+    s.myFollows = s.myFollows || {};
+    s.parcelNames = s.parcelNames || {}; s.parcelNames[pid] = name;
+    if (s.myFollows[pid]) {
+      delete s.myFollows[pid];
+      saveState(s);
+      toast("Du följer inte längre " + name + ".");
+    } else {
+      s.myFollows[pid] = true;
+      saveState(s);
+      toast("Du följer nu " + name + " — du får en notis när något händer.");
+    }
+    renderParcelPanel(feature);
+  };
 
   document.getElementById("likeBtn").onclick = () => {
     const s = loadState(); const already = !!s.myLikes?.[pid];
@@ -799,7 +872,8 @@ function renderParcelPanel(feature) {
     }
   };
 
-  document.getElementById("subdivisionBtn").onclick = () => {
+  const subBtn = document.getElementById("subdivisionBtn");
+  if (subBtn) subBtn.onclick = () => {
     const s = loadState();
     if (s.subdivisionInterests?.[pid]) {
       toast("Du har redan skickat ett intresse för avstyckning av denna fastighet.");
@@ -1810,6 +1884,25 @@ function renderDashboard() {
               <div class="act-row"><div class="act-dot"></div>Välj ägarläge och koppla din fastighet</div>
               <div class="act-row"><div class="act-dot"></div>Se vem som är intresserad av din bostad</div>
             </div>
+            <div class="card" style="margin-bottom:12px;">
+              <div class="card-title">Du följer</div>
+              ${(() => {
+                const follows = Object.keys(state.myFollows || {});
+                const areaFollows = Object.keys(state.areaFollows || {});
+                if (!follows.length && !areaFollows.length) {
+                  return '<div style="font-size:12px;color:#9CA3AF;line-height:1.6;">Följ fastigheter och områden på kartan så får du en notis när något händer.</div>';
+                }
+                return follows.map(fpid => `
+                  <div class="act-row" style="justify-content:space-between;">
+                    <span style="display:flex;align-items:center;gap:8px;"><i class="ti ti-bell-check" style="font-size:13px;color:#CC2936;"></i>${(state.parcelNames || {})[fpid] || fpid}</span>
+                  </div>
+                `).join('') + areaFollows.map(a => `
+                  <div class="act-row" style="justify-content:space-between;">
+                    <span style="display:flex;align-items:center;gap:8px;"><i class="ti ti-map-pin" style="font-size:13px;color:#CC2936;"></i>${a} <span style="font-size:10px;color:#9CA3AF;">område</span></span>
+                  </div>
+                `).join('');
+              })()}
+            </div>
             <div class="card">
               <div class="card-title">Snabblänkar</div>
               <button class="quick-btn" onclick="navigate('map')"><i class="ti ti-map-2"></i> Utforska karta</button>
@@ -2451,9 +2544,13 @@ function showMapAreaCard(areaName, bounds) {
           </div>
         `).join('')}
       </div>
-      <div style="padding:10px 14px;">
+      <div style="padding:10px 14px;display:flex;flex-direction:column;gap:8px;">
         <button onclick="closeMapAreaCard()" style="width:100%;padding:9px;border-radius:9px;background:#CC2936;color:#fff;border:none;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
           Utforska alla i ${areaName}
+        </button>
+        <button id="followAreaBtn" onclick="toggleFollowArea('${areaName.replace(/'/g, "\\'")}')" style="width:100%;padding:8px;border-radius:9px;background:#fff;color:#374151;border:0.5px solid rgba(17,24,39,.14);font-size:12px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+          <i class="ti ${(loadState().areaFollows || {})[areaName] ? 'ti-bell-check' : 'ti-bell-plus'}" aria-hidden="true"></i>
+          ${(loadState().areaFollows || {})[areaName] ? 'Följer ' + areaName : 'Följ ' + areaName}
         </button>
       </div>
     </div>
@@ -2461,6 +2558,29 @@ function showMapAreaCard(areaName, bounds) {
 
   // Append to body (fixed position)
   document.body.appendChild(card);
+}
+
+function toggleFollowArea(areaName) {
+  const session = loadSession();
+  if (!session?.email) {
+    openAuthModal('reg');
+    toast("Skapa ett konto för att följa områden och få notiser.");
+    return;
+  }
+  const s = loadState();
+  s.areaFollows = s.areaFollows || {};
+  const btn = document.getElementById("followAreaBtn");
+  if (s.areaFollows[areaName]) {
+    delete s.areaFollows[areaName];
+    saveState(s);
+    toast("Du följer inte längre " + areaName + ".");
+    if (btn) btn.innerHTML = '<i class="ti ti-bell-plus" aria-hidden="true"></i> Följ ' + areaName;
+  } else {
+    s.areaFollows[areaName] = true;
+    saveState(s);
+    toast("Du följer nu " + areaName + " — du får en notis när något händer i området.");
+    if (btn) btn.innerHTML = '<i class="ti ti-bell-check" aria-hidden="true"></i> Följer ' + areaName;
+  }
 }
 
 function toggleMapAreaCard() {

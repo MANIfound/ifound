@@ -713,15 +713,15 @@ const _pendingTypeLookups = {};
 
 // Delad Overpass-hämtning: spegeln först (overpass-api.de är onåbar från vissa nät),
 // snabb timeout (6s) så döda servrar inte hänger.
-async function overpassFetch(query) {
+async function overpassFetch(query, timeoutMs = 6000) {
   const endpoints = [
     "https://overpass.kumi.systems/api/interpreter",
-    "https://overpass.private.coffee/api/interpreter",
     "https://overpass-api.de/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
   ];
   for (const url of endpoints) {
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 6000);
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
       const res = await fetch(url, {
         method: "POST",
@@ -734,7 +734,7 @@ async function overpassFetch(query) {
       return await res.json();
     } catch (e) {
       clearTimeout(timer);
-      console.warn("[ifound] Overpass-anrop misslyckades mot", url, e.name === "AbortError" ? "(timeout 6s)" : e);
+      console.warn("[ifound] Overpass-anrop misslyckades mot", url, e.name === "AbortError" ? `(timeout ${timeoutMs/1000}s)` : e);
     }
   }
   return null;
@@ -758,25 +758,45 @@ function featureContainsPoint(feature, lon, lat) {
 }
 
 // =========================
-// BULK-FÖRKLASSNING: en Overpass-fråga per kartvy klassar alla synliga tomter
-// på en gång — mycket pålitligare än ett anrop per klick.
+// ENGÅNGS-FÖRKLASSNING: en enda stor Overpass-fråga för HELA kartområdet,
+// körs en gång per enhet i bakgrunden (25s timeout — ingen väntar på den).
+// Lyckas den är varje tomt klassad för alltid. Detta är prototypversionen av
+// den riktiga lösningen: förberäknad data i Supabase.
 // =========================
 let _prefetchBusy = false;
 async function prefetchBuildingTypesInView() {
-  if (!map || !lastGeoJson || _prefetchBusy) return;
-  if (map.getZoom() < 15) return; // för stor vy = för stor fråga
+  if (!lastGeoJson || _prefetchBusy) return;
+  if (localStorage.getItem("ifound_osm_prefetch_ok")) return; // redan klart på denna enhet
+  const lastTry = parseInt(localStorage.getItem("ifound_osm_prefetch_at") || "0", 10);
+  if (Date.now() - lastTry < 120000) return; // max ett försök per 2 min
+  localStorage.setItem("ifound_osm_prefetch_at", String(Date.now()));
   _prefetchBusy = true;
+
   try {
-    const b = map.getBounds();
-    const bbox = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].join(",");
-    const query = `[out:json][timeout:15];(way["building"](${bbox});relation["building"](${bbox}););out center tags 600;`;
-    const data = await overpassFetch(query);
-    if (!data) return;
+    // Bbox över hela det laddade tomtlagret
+    let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
+    for (const f of (lastGeoJson.features || [])) {
+      const coords = f?.geometry?.type === "Polygon" ? f.geometry.coordinates[0]
+                   : f?.geometry?.type === "MultiPolygon" ? f.geometry.coordinates[0][0] : null;
+      if (!coords) continue;
+      for (const c of coords) {
+        if (c[0] < minLon) minLon = c[0]; if (c[0] > maxLon) maxLon = c[0];
+        if (c[1] < minLat) minLat = c[1]; if (c[1] > maxLat) maxLat = c[1];
+      }
+    }
+    if (!isFinite(minLon)) return;
+    const bbox = [minLat, minLon, maxLat, maxLon].join(",");
+
+    console.log("[ifound] Engångsklassning av hela området startar (kan ta upp till 30s i bakgrunden)...");
+    const query = `[out:json][timeout:25];(way["building"](${bbox});relation["building"](${bbox}););out center tags;`;
+    const data = await overpassFetch(query, 30000);
+    if (!data) { console.warn("[ifound] Engångsklassning misslyckades — nytt försök om 2 min"); return; }
 
     const buildings = (data.elements || [])
       .map(e => ({ lon: e.center?.lon, lat: e.center?.lat, building: (e.tags?.building || "").toLowerCase() }))
       .filter(x => x.lon && x.lat && x.building && x.building !== "yes");
-    if (!buildings.length) { console.log("[ifound] Inga typmärkta byggnader i vyn"); return; }
+    console.log("[ifound]", buildings.length, "typmärkta byggnader hämtade för hela området");
+    if (!buildings.length) return;
 
     const s = loadState();
     s.buildingTypes = s.buildingTypes || {};
@@ -785,19 +805,16 @@ async function prefetchBuildingTypesInView() {
     for (const f of (lastGeoJson.features || [])) {
       const pid = getParcelId(f);
       if (s.buildingTypes[pid]) continue;
-      // Snabb bbox-koll innan dyr polygon-test
       const coords = f?.geometry?.type === "Polygon" ? f.geometry.coordinates[0]
                    : f?.geometry?.type === "MultiPolygon" ? f.geometry.coordinates[0][0] : null;
       if (!coords) continue;
-      let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
+      let fMinLon = Infinity, fMaxLon = -Infinity, fMinLat = Infinity, fMaxLat = -Infinity;
       for (const c of coords) {
-        if (c[0] < minLon) minLon = c[0]; if (c[0] > maxLon) maxLon = c[0];
-        if (c[1] < minLat) minLat = c[1]; if (c[1] > maxLat) maxLat = c[1];
+        if (c[0] < fMinLon) fMinLon = c[0]; if (c[0] > fMaxLon) fMaxLon = c[0];
+        if (c[1] < fMinLat) fMinLat = c[1]; if (c[1] > fMaxLat) fMaxLat = c[1];
       }
-      if (maxLat < b.getSouth() || minLat > b.getNorth() || maxLon < b.getWest() || minLon > b.getEast()) continue;
-
       const inParcel = buildings.filter(bd =>
-        bd.lon >= minLon && bd.lon <= maxLon && bd.lat >= minLat && bd.lat <= maxLat &&
+        bd.lon >= fMinLon && bd.lon <= fMaxLon && bd.lat >= fMinLat && bd.lat <= fMaxLat &&
         featureContainsPoint(f, bd.lon, bd.lat)
       );
       if (!inParcel.length) continue;
@@ -805,15 +822,15 @@ async function prefetchBuildingTypesInView() {
       if (type) { s.buildingTypes[pid] = type; updated++; }
     }
 
-    if (updated) {
-      saveState(s);
-      console.log("[ifound] Förklassade", updated, "fastigheter i kartvyn");
-      // Uppdatera öppen panel om dess tomt just fick en klassning
-      const panelEl = document.getElementById("panel");
-      if (panelEl && !panelEl.classList.contains("hidden") && window._currentPanelFeature) {
-        const openPid = getParcelId(window._currentPanelFeature);
-        if (s.buildingTypes[openPid]) renderParcelPanel(window._currentPanelFeature);
-      }
+    saveState(s);
+    localStorage.setItem("ifound_osm_prefetch_ok", "1");
+    console.log("[ifound] Klart! Förklassade", updated, "fastigheter i hela området — körs aldrig igen på denna enhet");
+
+    // Uppdatera öppen panel om dess tomt just fick en klassning
+    const panelEl = document.getElementById("panel");
+    if (panelEl && !panelEl.classList.contains("hidden") && window._currentPanelFeature) {
+      const openPid = getParcelId(window._currentPanelFeature);
+      if (s.buildingTypes[openPid]) renderParcelPanel(window._currentPanelFeature);
     }
   } finally {
     _prefetchBusy = false;

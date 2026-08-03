@@ -8,16 +8,6 @@ const LS_GEOJSON = "prop_geojson_helsingborg_v4";
 const LS_MAP_MODE= "prop_map_mode_v1";
 
 // =========================
-// Supabase
-// =========================
-const SUPABASE_URL = "https://lyksocfrrfdopjdgwvet.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_zf5FIGGJQnCm5FqYTmsJqA_W68-E7M7";
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-// Hålls synkad via onAuthStateChange (se init längst ner)
-let sbSession = null;
-
-// =========================
 // Helpers
 // =========================
 function toast(msg) {
@@ -35,35 +25,9 @@ function safeJsonParse(value, fallback = null) {
 
 function loadUsers()        { return safeJsonParse(localStorage.getItem(LS_USERS), {}) || {}; }
 function saveUsers(u)       { localStorage.setItem(LS_USERS, JSON.stringify(u)); }
-function loadSession() {
-  // Supabase-sessionen har företräde
-  if (sbSession?.user?.email) return { email: sbSession.user.email.toLowerCase() };
-  // Fallback: lokal demo-session för mäklarportalen (mock-konton)
-  const local = safeJsonParse(localStorage.getItem(LS_SESSION), null);
-  return local?.isBroker ? local : null;
-}
-function saveSession(s) {
-  // Används numera bara av mäklardemots inloggning
-  if (s?.isBroker) localStorage.setItem(LS_SESSION, JSON.stringify(s));
-}
-function clearSession() {
-  localStorage.removeItem(LS_SESSION);
-  sbSession = null;
-  supabase.auth.signOut(); // async, onAuthStateChange städar upp
-}
-
-// Övergångslösning i steg 1: profildata (namn, homeProfile) bor kvar i
-// localStorage tills vi migrerar till en profiles-tabell i steg 2.
-function ensureLocalUser(email, name) {
-  const users = loadUsers();
-  if (!users[email]) {
-    users[email] = { name: name || email.split("@")[0], email };
-    saveUsers(users);
-  } else if (name && !users[email].name) {
-    users[email].name = name;
-    saveUsers(users);
-  }
-}
+function loadSession()      { return safeJsonParse(localStorage.getItem(LS_SESSION), null); }
+function saveSession(s)     { localStorage.setItem(LS_SESSION, JSON.stringify(s)); }
+function clearSession()     { localStorage.removeItem(LS_SESSION); }
 
 function getCurrentUser() {
   const s = loadSession();
@@ -878,7 +842,7 @@ function openAuthModal(tab = 'login') {
         </div>
         <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#6B7280;margin-bottom:5px;">Namn</label><input id="regName" class="input" placeholder="Ditt namn" style="width:100%;" /></div>
         <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#6B7280;margin-bottom:5px;">E-post</label><input id="regEmail" class="input" type="email" placeholder="din@epost.se" style="width:100%;" /></div>
-        <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#6B7280;margin-bottom:5px;">Lösenord</label><input id="regPass" class="input" type="password" placeholder="Min 6 tecken" style="width:100%;" /></div>
+        <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#6B7280;margin-bottom:5px;">Lösenord</label><input id="regPass" class="input" type="password" placeholder="Min 4 tecken" style="width:100%;" /></div>
         <button id="regBtn" class="btn-primary" style="width:100%;justify-content:center;padding:12px;">Skapa gratis konto</button>
       </div>
     </div>
@@ -889,56 +853,26 @@ function openAuthModal(tab = 'login') {
 
   if (tab === 'reg') switchTab('reg');
 
-  document.getElementById("loginBtn").onclick = async () => {
+  document.getElementById("loginBtn").onclick = () => {
     const email = document.getElementById("loginEmail").value.trim().toLowerCase();
     const pass  = document.getElementById("loginPass").value;
-    const btn   = document.getElementById("loginBtn");
-    btn.disabled = true; btn.textContent = "Loggar in…";
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
-    btn.disabled = false; btn.textContent = "Logga in";
-    if (error) {
-      const msg = error.message === "Invalid login credentials"
-        ? "Fel e-post eller lösenord."
-        : error.message === "Email not confirmed"
-          ? "Bekräfta din e-post via länken i mejlet först."
-          : "Kunde inte logga in. Försök igen.";
-      toast(msg); return;
-    }
-    sbSession = data.session;
-    ensureLocalUser(email, data.user?.user_metadata?.name);
-    closeAuthModal(); toast("Inloggad!");
+    const users = loadUsers();
+    const user  = users[email];
+    if (!user || user.password !== pass) { toast("Fel e-post eller lösenord."); return; }
+    saveSession({ email }); closeAuthModal(); toast("Inloggad!");
     currentView = "feed"; render();
   };
 
-  document.getElementById("regBtn").onclick = async () => {
+  document.getElementById("regBtn").onclick = () => {
     const name  = document.getElementById("regName").value.trim();
     const email = document.getElementById("regEmail").value.trim().toLowerCase();
     const pass  = document.getElementById("regPass").value;
-    if (!name || !email.includes("@")) { toast("Fyll i alla fält korrekt."); return; }
-    if (pass.length < 6) { toast("Lösenordet måste vara minst 6 tecken."); return; }
-    const btn = document.getElementById("regBtn");
-    btn.disabled = true; btn.textContent = "Skapar konto…";
-    const { data, error } = await supabase.auth.signUp({
-      email, password: pass,
-      options: { data: { name } }
-    });
-    btn.disabled = false; btn.textContent = "Skapa konto";
-    if (error) {
-      const msg = error.message.includes("already registered")
-        ? "Det finns redan ett konto på den e-posten."
-        : "Kunde inte skapa konto. Försök igen.";
-      toast(msg); return;
-    }
-    ensureLocalUser(email, name);
-    // Om mailbekräftelse är avstängd får vi en session direkt
-    if (data.session) {
-      sbSession = data.session;
-      closeAuthModal(); toast("Konto skapat — välkommen!");
-      currentView = "feed"; render();
-    } else {
-      closeAuthModal();
-      toast("Konto skapat! Bekräfta din e-post via länken i mejlet.");
-    }
+    if (!name || !email.includes("@") || pass.length < 4) { toast("Fyll i alla fält korrekt."); return; }
+    const users = loadUsers();
+    if (users[email]) { toast("Det finns redan ett konto på den e-posten."); return; }
+    users[email] = { name, email, password: pass };
+    saveUsers(users); saveSession({ email }); closeAuthModal();
+    toast("Konto skapat — välkommen!"); currentView = "feed"; render();
   };
 }
 
@@ -1230,11 +1164,11 @@ function renderWelcome() {
         </div>
       </nav>
 
-      <!-- Hero -->
+      <!-- Hero: gren 1 = kroken. En rubrik, ett sök, en väg till kartan. -->
       <div style="max-width:700px;margin:0 auto;padding:40px 24px 36px;text-align:center;">
-        <div style="font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#CC2936;margin-bottom:12px;">Fastigheter på ett nytt sätt</div>
-        <h1 class="hero-title" style="font-size:40px;font-weight:700;letter-spacing:-.05em;line-height:1.05;color:#111827;margin-bottom:14px;font-family:'Inter',sans-serif;">Åkte du förbi ett hus<br>du <em style="font-style:normal;color:#CC2936;">aldrig kan glömma?</em></h1>
-        <p style="font-size:16px;color:#6B7280;line-height:1.7;margin-bottom:24px;max-width:480px;margin-left:auto;margin-right:auto;">Sök upp det, visa ditt intresse — även om det inte är till salu. Inget konto krävs.</p>
+        <div style="font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#CC2936;margin-bottom:12px;">Gratis · Inget konto krävs</div>
+        <h1 class="hero-title" style="font-size:40px;font-weight:700;letter-spacing:-.05em;line-height:1.05;color:#111827;margin-bottom:14px;font-family:'Inter',sans-serif;">Vad tycker folk<br>om <em style="font-style:normal;color:#CC2936;">ditt hus?</em></h1>
+        <p style="font-size:16px;color:#6B7280;line-height:1.7;margin-bottom:24px;max-width:480px;margin-left:auto;margin-right:auto;">Sök upp din fastighet och se om någon har gillat den eller visat intresse — utan att blanda in en mäklare.</p>
 
         <!-- Property type pills, à la Hemnet -->
         <div id="landingTypePills" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:14px;">
@@ -1246,7 +1180,7 @@ function renderWelcome() {
         <!-- Search -->
         <div style="display:flex;gap:8px;background:#fff;border:1.5px solid rgba(17,24,39,.12);border-radius:13px;padding:5px 5px 5px 14px;align-items:center;margin-bottom:12px;">
           <i class="ti ti-search" style="font-size:18px;color:#9CA3AF;flex-shrink:0;" aria-hidden="true"></i>
-          <input id="landingSearch" placeholder="Sök stad, område eller gata..." style="flex:1;border:none;background:transparent;font-size:15px;font-family:'Inter',sans-serif;color:#111827;outline:none;padding:7px 0;" />
+          <input id="landingSearch" placeholder="Sök upp din adress..." style="flex:1;border:none;background:transparent;font-size:15px;font-family:'Inter',sans-serif;color:#111827;outline:none;padding:7px 0;" />
           <button id="landingSearchBtn" style="background:#CC2936;color:#fff;border:none;border-radius:9px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;">Sök</button>
         </div>
         <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:20px;">
@@ -1267,7 +1201,7 @@ function renderWelcome() {
           <div class="map-cta-icon"><i class="ti ti-map-2" aria-hidden="true"></i></div>
           <div style="flex:1;text-align:left;">
             <div class="map-cta-title">Utforska på kartan</div>
-            <div class="map-cta-sub">Zooma in på ditt område och klicka på en tomt för att se mer</div>
+            <div class="map-cta-sub">Flygfoto över hela området — klicka på vilken tomt som helst</div>
           </div>
           <i class="ti ti-chevron-right" style="color:#9CA3AF;font-size:16px;flex-shrink:0;" aria-hidden="true"></i>
         </div>
@@ -1275,6 +1209,10 @@ function renderWelcome() {
 
       <!-- Topplistor -->
       <div style="max-width:900px;margin:0 auto;padding:0 20px 36px;">
+        <div style="text-align:center;margin-bottom:22px;">
+          <div style="font-size:15px;font-weight:600;letter-spacing:-.03em;color:#111827;">Åkte du förbi ett hus du aldrig kan glömma?</div>
+          <div style="font-size:13px;color:#9CA3AF;margin-top:3px;">Visa ditt intresse — även om det inte är till salu. Ägaren ser att du finns.</div>
+        </div>
         <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;">
           <div style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:#111827;">Mest gillade</div>
           <button onclick="currentView='feed';render();" style="font-size:12px;font-weight:600;color:#CC2936;background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;gap:3px;">Alla <i class="ti ti-chevron-right" style="font-size:12px;" aria-hidden="true"></i></button>
@@ -3715,28 +3653,13 @@ function renderView() {
 
 window.addEventListener("keydown", ev => { if (currentView === "map" && ev.key === "Escape") closePanel(); });
 
-(async () => {
-  // Hämta ev. befintlig Supabase-session innan första render
-  const { data } = await supabase.auth.getSession();
-  sbSession = data.session;
-  if (sbSession?.user?.email) {
-    ensureLocalUser(sbSession.user.email.toLowerCase(), sbSession.user.user_metadata?.name);
+(() => {
+  // Pre-register admin account
+  const users = loadUsers();
+  if (!users["admin@ifound.se"]) {
+    users["admin@ifound.se"] = { name: "Admin", email: "admin@ifound.se", password: "ifound2025" };
+    saveUsers(users);
   }
-
-  // Håll sessionen synkad (login i annan flik, token-refresh, utloggning)
-  supabase.auth.onAuthStateChange((_event, session) => {
-    const wasLoggedIn = !!sbSession;
-    sbSession = session;
-    if (session?.user?.email) {
-      ensureLocalUser(session.user.email.toLowerCase(), session.user.user_metadata?.name);
-    }
-    // Rendera om vid faktisk in-/utloggning, inte vid token-refresh
-    if (!!session !== wasLoggedIn) {
-      if (!session) { currentView = "welcome"; }
-      render();
-    }
-  });
-
   const session = loadSession();
   currentView = session?.email ? "feed" : "welcome";
   render();

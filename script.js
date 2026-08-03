@@ -186,6 +186,14 @@ function ensureMapMounted() {
 
   const svgRenderer = L.svg({ padding: 0.5 });
   map = L.map("map", { zoomControl: true, renderer: svgRenderer }).setView([56.0465, 12.6945], 13);
+
+  // Förklassa byggnadstyper i vyn när kartan stannar (debounce så vi inte spammar Overpass)
+  let _prefetchDebounce = null;
+  map.on("moveend", () => {
+    clearTimeout(_prefetchDebounce);
+    _prefetchDebounce = setTimeout(prefetchBuildingTypesInView, 1200);
+  });
+
   baseLayers.map = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" });
   baseLayers.satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Tiles &copy; Esri" });
   if (currentBase === "satellite") {
@@ -205,6 +213,7 @@ function addGeoJsonToMap(geojson, opts = {}) {
   ensureMapMounted();
   if (parcelsLayer) { parcelsLayer.remove(); parcelsLayer = null; }
   lastGeoJson = geojson;
+  setTimeout(prefetchBuildingTypesInView, 1000); // förklassa direkt när lagret laddats
 
   if (!map.getPane("parcelsPane")) {
     map.createPane("parcelsPane");
@@ -702,6 +711,115 @@ function classifyOsmBuildings(tagsList) {
 
 const _pendingTypeLookups = {};
 
+// Delad Overpass-hämtning: spegeln först (overpass-api.de är onåbar från vissa nät),
+// snabb timeout (6s) så döda servrar inte hänger.
+async function overpassFetch(query) {
+  const endpoints = [
+    "https://overpass.kumi.systems/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
+    "https://overpass-api.de/api/interpreter",
+  ];
+  for (const url of endpoints) {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 6000);
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        body: "data=" + encodeURIComponent(query),
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        signal: ctrl.signal,
+      });
+      clearTimeout(timer);
+      if (!res.ok) { console.warn("[ifound] Overpass svarade", res.status, "från", url); continue; }
+      return await res.json();
+    } catch (e) {
+      clearTimeout(timer);
+      console.warn("[ifound] Overpass-anrop misslyckades mot", url, e.name === "AbortError" ? "(timeout 6s)" : e);
+    }
+  }
+  return null;
+}
+
+// Punkt-i-polygon (ray casting) för att matcha byggnaders mittpunkt mot tomter
+function pointInRing(lon, lat, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+    const intersect = ((yi > lat) !== (yj > lat)) && (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+function featureContainsPoint(feature, lon, lat) {
+  const g = feature?.geometry;
+  if (!g) return false;
+  const polys = g.type === "Polygon" ? [g.coordinates] : g.type === "MultiPolygon" ? g.coordinates : [];
+  return polys.some(p => p[0] && pointInRing(lon, lat, p[0]));
+}
+
+// =========================
+// BULK-FÖRKLASSNING: en Overpass-fråga per kartvy klassar alla synliga tomter
+// på en gång — mycket pålitligare än ett anrop per klick.
+// =========================
+let _prefetchBusy = false;
+async function prefetchBuildingTypesInView() {
+  if (!map || !lastGeoJson || _prefetchBusy) return;
+  if (map.getZoom() < 15) return; // för stor vy = för stor fråga
+  _prefetchBusy = true;
+  try {
+    const b = map.getBounds();
+    const bbox = [b.getSouth(), b.getWest(), b.getNorth(), b.getEast()].join(",");
+    const query = `[out:json][timeout:15];(way["building"](${bbox});relation["building"](${bbox}););out center tags 600;`;
+    const data = await overpassFetch(query);
+    if (!data) return;
+
+    const buildings = (data.elements || [])
+      .map(e => ({ lon: e.center?.lon, lat: e.center?.lat, building: (e.tags?.building || "").toLowerCase() }))
+      .filter(x => x.lon && x.lat && x.building && x.building !== "yes");
+    if (!buildings.length) { console.log("[ifound] Inga typmärkta byggnader i vyn"); return; }
+
+    const s = loadState();
+    s.buildingTypes = s.buildingTypes || {};
+    let updated = 0;
+
+    for (const f of (lastGeoJson.features || [])) {
+      const pid = getParcelId(f);
+      if (s.buildingTypes[pid]) continue;
+      // Snabb bbox-koll innan dyr polygon-test
+      const coords = f?.geometry?.type === "Polygon" ? f.geometry.coordinates[0]
+                   : f?.geometry?.type === "MultiPolygon" ? f.geometry.coordinates[0][0] : null;
+      if (!coords) continue;
+      let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
+      for (const c of coords) {
+        if (c[0] < minLon) minLon = c[0]; if (c[0] > maxLon) maxLon = c[0];
+        if (c[1] < minLat) minLat = c[1]; if (c[1] > maxLat) maxLat = c[1];
+      }
+      if (maxLat < b.getSouth() || minLat > b.getNorth() || maxLon < b.getWest() || minLon > b.getEast()) continue;
+
+      const inParcel = buildings.filter(bd =>
+        bd.lon >= minLon && bd.lon <= maxLon && bd.lat >= minLat && bd.lat <= maxLat &&
+        featureContainsPoint(f, bd.lon, bd.lat)
+      );
+      if (!inParcel.length) continue;
+      const type = classifyOsmBuildings(inParcel.map(bd => ({ building: bd.building })));
+      if (type) { s.buildingTypes[pid] = type; updated++; }
+    }
+
+    if (updated) {
+      saveState(s);
+      console.log("[ifound] Förklassade", updated, "fastigheter i kartvyn");
+      // Uppdatera öppen panel om dess tomt just fick en klassning
+      const panelEl = document.getElementById("panel");
+      if (panelEl && !panelEl.classList.contains("hidden") && window._currentPanelFeature) {
+        const openPid = getParcelId(window._currentPanelFeature);
+        if (s.buildingTypes[openPid]) renderParcelPanel(window._currentPanelFeature);
+      }
+    }
+  } finally {
+    _prefetchBusy = false;
+  }
+}
+
 async function detectBuildingType(feature, pid) {
   const state = loadState();
   const cached = (state.buildingTypes || {})[pid];
@@ -721,33 +839,7 @@ async function detectBuildingType(feature, pid) {
       const query = `[out:json][timeout:10];(way["building"](${bbox});relation["building"](${bbox}););out tags 20;`;
       console.log("[ifound] OSM-uppslag för", pid, "bbox:", bbox);
 
-      // Spegeln först — overpass-api.de är onåbar från vissa nät. Snabb timeout
-      // (6s via AbortController) så en död server inte hänger i minuter.
-      const endpoints = [
-        "https://overpass.kumi.systems/api/interpreter",
-        "https://overpass.private.coffee/api/interpreter",
-        "https://overpass-api.de/api/interpreter",
-      ];
-      let data = null;
-      for (const url of endpoints) {
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), 6000);
-        try {
-          const res = await fetch(url, {
-            method: "POST",
-            body: "data=" + encodeURIComponent(query),
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            signal: ctrl.signal,
-          });
-          clearTimeout(timer);
-          if (!res.ok) { console.warn("[ifound] Overpass svarade", res.status, "från", url); continue; }
-          data = await res.json();
-          break;
-        } catch (e) {
-          clearTimeout(timer);
-          console.warn("[ifound] Overpass-anrop misslyckades mot", url, e.name === "AbortError" ? "(timeout 6s)" : e);
-        }
-      }
+      const data = await overpassFetch(query);
       if (!data) return null;
 
       const tagsList = (data.elements || []).map(e => e.tags || {});
@@ -801,6 +893,7 @@ function renderParcelPanel(feature) {
 
   // Hämta byggnadstyp från OSM i bakgrunden om okänd; rendera om ifall panelen fortfarande visar samma tomt
   window._currentPanelPid = pid;
+  window._currentPanelFeature = feature;
   if (!isBrf && !(state.buildingTypes || {})[pid]) {
     detectBuildingType(feature, pid).then(type => {
       if (!type) return;

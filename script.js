@@ -401,6 +401,147 @@ function saveInterest(pid, name, message) {
 }
 
 // =========================
+// VYKORT — "UPPMÄRKSAMMA FASTIGHETSÄGAREN"
+// Kärnproblemet: en intresseanmälan är värdelös om ägaren aldrig får veta.
+// Vi bryter igenom med fysisk post till fastighetens registrerade ägare.
+// =========================
+
+// Pris per vykort (tryck + porto + registerslagning + marginal). Justeras när
+// vi har riktiga kostnader från tryckleverantör och Lantmäteriet-licens.
+const POSTCARD_PRICE_SEK = 49;
+
+// Karenstid — samma fastighet får inte spammas. Räknas per fastighet, inte per
+// användare, annars kan tio personer trigga tio vykort samma vecka.
+const POSTCARD_COOLDOWN_DAYS = 90;
+
+function getPostcardStatus(pid) {
+  const s = loadState();
+  const rec = (s.postcards || {})[pid];
+  if (!rec) return { sent: false };
+  const days = (Date.now() - new Date(rec.sentAt).getTime()) / 86400000;
+  return {
+    sent: true,
+    record: rec,
+    inCooldown: days < POSTCARD_COOLDOWN_DAYS,
+    daysLeft: Math.ceil(POSTCARD_COOLDOWN_DAYS - days),
+  };
+}
+
+function openPostcardModal(pid, name) {
+  const session = loadSession();
+  if (!session?.email) {
+    openAuthModal('reg');
+    toast("Skapa ett konto för att skicka vykort — vi behöver kunna nå dig om ägaren hör av sig.");
+    return;
+  }
+
+  const status = getPostcardStatus(pid);
+  if (status.inCooldown) {
+    toast(`Ett vykort skickades nyligen till den här fastigheten. Nästa kan skickas om ${status.daysLeft} dagar.`);
+    return;
+  }
+
+  const existing = document.getElementById('postcard-modal-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'postcard-modal-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto;';
+
+  const slug = String(pid).toLowerCase().replace(/[^a-z0-9åäö]+/g, '-').replace(/^-|-$/g, '');
+
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:20px;padding:28px;width:100%;max-width:460px;box-shadow:0 24px 64px rgba(0,0,0,.2);font-family:'Inter',sans-serif;margin:auto;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;">
+        <div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#CC2936;margin-bottom:4px;">Uppmärksamma ägaren</div>
+          <div style="font-size:18px;font-weight:700;letter-spacing:-.03em;color:#111827;">${name}</div>
+        </div>
+        <button onclick="closePostcardModal()" style="width:32px;height:32px;border-radius:50%;border:none;background:#F3F4F6;cursor:pointer;font-size:16px;color:#6B7280;display:flex;align-items:center;justify-content:center;flex-shrink:0;">✕</button>
+      </div>
+
+      <div style="font-size:13px;color:#6B7280;line-height:1.65;margin-bottom:18px;">
+        Ägaren är inte med på ifound ännu och vet därför inte att du finns. Vi skickar ett fysiskt vykort till fastighetens registrerade ägare och berättar att någon visat intresse.
+      </div>
+
+      <!-- Förhandsvisning av vykortet -->
+      <div class="postcard-preview">
+        <div class="postcard-stamp"><i class="ti ti-home-heart" aria-hidden="true"></i></div>
+        <div class="postcard-eyebrow">ifound.se</div>
+        <div class="postcard-headline">Någon är intresserad av<br><strong>${name}</strong></div>
+        <div class="postcard-body">
+          En person har via ifound.se visat intresse för din fastighet. Vi vet inte om du någonsin vill sälja — men nu vet du att intresset finns.
+        </div>
+        <div class="postcard-footer">ifound.se/${slug}</div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;background:#F9F6F1;border-radius:11px;padding:12px 14px;margin:16px 0;">
+        <i class="ti ti-mail-fast" style="font-size:20px;color:#CC2936;flex-shrink:0;" aria-hidden="true"></i>
+        <div style="font-size:12px;color:#6B7280;line-height:1.55;">
+          Skickas som brev inom 2–3 arbetsdagar. Ditt namn står <strong style="color:#111827;">inte</strong> på kortet — du är anonym tills du själv väljer annat.
+        </div>
+      </div>
+
+      <label style="display:flex;gap:9px;align-items:flex-start;font-size:12px;color:#6B7280;line-height:1.55;margin-bottom:16px;cursor:pointer;">
+        <input type="checkbox" id="postcardConsent" style="margin-top:2px;flex-shrink:0;width:15px;height:15px;accent-color:#CC2936;" />
+        <span>Jag intygar att mitt intresse är seriöst och att vykortet inte skickas för att störa ägaren.</span>
+      </label>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:13px 0;border-top:0.5px solid rgba(17,24,39,.10);margin-bottom:14px;">
+        <span style="font-size:13px;color:#6B7280;">Tryck, porto och hantering</span>
+        <span style="font-size:16px;font-weight:700;color:#111827;letter-spacing:-.02em;">${POSTCARD_PRICE_SEK} kr</span>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:9px;">
+        <button id="confirmPostcardBtn" style="width:100%;padding:13px;border-radius:11px;border:none;background:#CC2936;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:not-allowed;display:flex;align-items:center;justify-content:center;gap:8px;opacity:.5;" disabled>
+          <i class="ti ti-send" aria-hidden="true"></i> Skicka vykortet
+        </button>
+        <button onclick="closePostcardModal()" style="width:100%;padding:11px;border-radius:11px;border:0.5px solid rgba(17,24,39,.12);background:transparent;color:#6B7280;font-size:13px;font-weight:500;font-family:'Inter',sans-serif;cursor:pointer;">
+          Inte nu
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closePostcardModal(); });
+
+  const consent = document.getElementById('postcardConsent');
+  const btn = document.getElementById('confirmPostcardBtn');
+  consent.onchange = () => {
+    btn.disabled = !consent.checked;
+    btn.style.opacity = consent.checked ? '1' : '.5';
+    btn.style.cursor = consent.checked ? 'pointer' : 'not-allowed';
+  };
+  btn.onclick = () => { if (consent.checked) sendPostcard(pid, name); };
+}
+
+function closePostcardModal() {
+  const overlay = document.getElementById('postcard-modal-overlay');
+  if (overlay) overlay.remove();
+}
+
+function sendPostcard(pid, name) {
+  const session = loadSession();
+  const s = loadState();
+  s.postcards = s.postcards || {};
+  s.parcelNames = s.parcelNames || {};
+  s.parcelNames[pid] = name;
+  s.postcards[pid] = {
+    sentAt: new Date().toISOString(),
+    sentBy: session?.email || null,
+    priceSek: POSTCARD_PRICE_SEK,
+    // Prototyp: kön hanteras av backend i Supabase. queued → printed → posted → delivered
+    status: 'queued',
+  };
+  saveState(s);
+  closePostcardModal();
+  toast("Vykortet är på väg! Vi hör av oss om ägaren går med på ifound.");
+  const feat = window._currentPanelFeature;
+  if (feat && window._currentPanelPid === pid) renderParcelPanel(feat);
+}
+
+// =========================
 // AVSTYCKNING / DRAW
 // =========================
 let drawControl = null;
@@ -1015,6 +1156,34 @@ function renderParcelPanel(feature) {
     </div>
   ` : '';
 
+  // Vykort: bara relevant när du visat intresse OCH ägaren inte redan finns på ifound.
+  // Är fastigheten claimad får ägaren notisen i appen och behöver inget brev.
+  const pcStatus = getPostcardStatus(pid);
+  const postcardHtml = (iInterested && !isClaimed) ? (
+    pcStatus.sent ? `
+      <div style="margin-top:8px;padding:11px 13px;background:#F0FDF4;border:0.5px solid rgba(22,163,74,.25);border-radius:11px;display:flex;gap:9px;align-items:flex-start;">
+        <i class="ti ti-mail-check" style="font-size:16px;color:#16a34a;flex-shrink:0;margin-top:1px;" aria-hidden="true"></i>
+        <div>
+          <div style="font-size:12px;font-weight:600;color:#15803d;">Vykort skickat till ägaren</div>
+          <div style="font-size:11px;color:#4b5563;margin-top:2px;line-height:1.5;">Vi meddelar dig om ägaren claimar fastigheten.</div>
+        </div>
+      </div>
+    ` : `
+      <div style="margin-top:10px;padding:12px 13px;background:#FFF8EF;border:0.5px solid rgba(194,98,42,.30);border-radius:11px;">
+        <div style="font-size:12px;font-weight:600;color:#8A4517;line-height:1.5;">
+          <i class="ti ti-alert-circle" style="font-size:13px;" aria-hidden="true"></i>
+          Ägaren vet inte om ditt intresse ännu
+        </div>
+        <div style="font-size:11px;color:#9A6B45;margin-top:3px;line-height:1.5;">
+          Fastigheten är inte claimad på ifound. Vi kan skicka ett vykort hem till ägaren och berätta att du finns.
+        </div>
+        <button id="postcardBtn" style="margin-top:9px;width:100%;padding:9px;border-radius:8px;background:#C2622A;color:#fff;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;justify-content:center;gap:6px;">
+          <i class="ti ti-mail-fast" style="font-size:14px;" aria-hidden="true"></i> Uppmärksamma fastighetsägaren
+        </button>
+      </div>
+    `
+  ) : '';
+
   openPanel(`
     <button class="panel-close" id="closePanelBtn">✕</button>
     ${panelImg ? `
@@ -1042,6 +1211,7 @@ function renderParcelPanel(feature) {
         <i class="ti ${iFollow ? 'ti-bell-check' : 'ti-bell-plus'}"></i> ${iFollow ? "Följer — notis vid nytt" : "Följ fastigheten"}
       </button>
     </div>
+    ${postcardHtml}
     ${isBrf ? '' : `
     <div style="margin-top:8px;">
       <button id="subdivisionBtn" class="panel-btn" style="width:100%;${state.subdivisionInterests?.[pid] ? 'background:#F0FDF4;border-color:#16a34a;color:#16a34a;' : ''}">
@@ -1064,6 +1234,9 @@ function renderParcelPanel(feature) {
       renderParcelPanel(feature);
     };
   }
+
+  const pcBtn = document.getElementById("postcardBtn");
+  if (pcBtn) pcBtn.onclick = () => openPostcardModal(pid, name);
 
   document.getElementById("followBtn").onclick = () => {
     const session = loadSession();
@@ -1436,6 +1609,16 @@ function landingLike(btn) {
   toast(isLiked ? 'Gillning borttagen' : 'Gillad!');
 }
 
+function focusLandingSearch() {
+  const wrap = document.getElementById("landingSearchWrap");
+  const input = document.getElementById("landingSearch");
+  if (!wrap || !input) return;
+  wrap.scrollIntoView({ behavior: "smooth", block: "center" });
+  wrap.classList.add("search-pulse");
+  setTimeout(() => wrap.classList.remove("search-pulse"), 1400);
+  setTimeout(() => input.focus(), 350);
+}
+
 function landingSelectType(btn) {
   const wrap = document.getElementById("landingTypePills");
   if (wrap) wrap.querySelectorAll(".type-pill").forEach(p => p.classList.remove("active"));
@@ -1507,11 +1690,30 @@ function renderWelcome() {
         </div>
       </nav>
 
-      <!-- Hero: gren 1 = kroken. En rubrik, ett sök, en väg till kartan. -->
-      <div style="max-width:700px;margin:0 auto;padding:40px 24px 36px;text-align:center;">
-        <div style="font-size:11px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#CC2936;margin-bottom:12px;">Gratis · Inget konto krävs</div>
-        <h1 class="hero-title" style="font-size:40px;font-weight:700;letter-spacing:-.05em;line-height:1.05;color:#111827;margin-bottom:14px;font-family:'Inter',sans-serif;">Vad tycker folk<br>om <em style="font-style:normal;color:#CC2936;">ditt hus?</em></h1>
-        <p style="font-size:16px;color:#6B7280;line-height:1.7;margin-bottom:24px;max-width:480px;margin-left:auto;margin-right:auto;">Sök upp din fastighet och se om någon har gillat den eller visat intresse — utan att blanda in en mäklare.</p>
+      <!-- Hero: 50/50 mellan de två rollerna. Marknadsplatsen kräver båda sidorna. -->
+      <div style="max-width:760px;margin:0 auto;padding:40px 24px 36px;text-align:center;">
+        <h1 class="hero-title" style="font-size:40px;font-weight:700;letter-spacing:-.05em;line-height:1.05;color:#111827;margin-bottom:14px;font-family:'Inter',sans-serif;">Varje hus har någon<br>som <em style="font-style:normal;color:#CC2936;">undrar</em></h1>
+        <p style="font-size:16px;color:#6B7280;line-height:1.7;margin-bottom:26px;max-width:520px;margin-left:auto;margin-right:auto;">Visa intresse för hus som inte är till salu — och se vad folk tycker om ditt eget. Utan att blanda in en mäklare.</p>
+
+        <!-- De två dörrarna: besökaren och ägaren, likvärdiga. -->
+        <div class="dual-doors">
+          <div class="door-card" onclick="currentView='map';render();">
+            <div class="door-icon door-icon-visitor"><i class="ti ti-map-search" aria-hidden="true"></i></div>
+            <div class="door-eyebrow">Jag har sett ett hus</div>
+            <div class="door-title">Åkte du förbi ett hus du aldrig kan glömma?</div>
+            <div class="door-text">Hitta det på kartan och visa ditt intresse — även om det inte är till salu. Ägaren ser att du finns.</div>
+            <div class="door-cta">Utforska på kartan <i class="ti ti-arrow-right" aria-hidden="true"></i></div>
+          </div>
+          <div class="door-card" onclick="focusLandingSearch()">
+            <div class="door-icon door-icon-owner"><i class="ti ti-home-heart" aria-hidden="true"></i></div>
+            <div class="door-eyebrow">Jag äger ett hus</div>
+            <div class="door-title">Vad tycker folk om ditt hus?</div>
+            <div class="door-text">Sök upp din fastighet och se om någon har gillat den eller visat intresse för att köpa.</div>
+            <div class="door-cta">Sök upp min fastighet <i class="ti ti-arrow-right" aria-hidden="true"></i></div>
+          </div>
+        </div>
+
+        <div class="hero-divider"><span>eller sök direkt</span></div>
 
         <!-- Property type pills, à la Hemnet -->
         <div id="landingTypePills" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:14px;">
@@ -1521,12 +1723,12 @@ function renderWelcome() {
         </div>
 
         <!-- Search -->
-        <div style="display:flex;gap:8px;background:#fff;border:1.5px solid rgba(17,24,39,.12);border-radius:13px;padding:5px 5px 5px 14px;align-items:center;margin-bottom:12px;">
+        <div id="landingSearchWrap" style="display:flex;gap:8px;background:#fff;border:1.5px solid rgba(17,24,39,.12);border-radius:13px;padding:5px 5px 5px 14px;align-items:center;margin-bottom:12px;">
           <i class="ti ti-search" style="font-size:18px;color:#9CA3AF;flex-shrink:0;" aria-hidden="true"></i>
-          <input id="landingSearch" placeholder="Sök upp din adress..." style="flex:1;border:none;background:transparent;font-size:15px;font-family:'Inter',sans-serif;color:#111827;outline:none;padding:7px 0;" />
+          <input id="landingSearch" placeholder="Sök adress eller fastighet..." style="flex:1;border:none;background:transparent;font-size:15px;font-family:'Inter',sans-serif;color:#111827;outline:none;padding:7px 0;" />
           <button id="landingSearchBtn" style="background:#CC2936;color:#fff;border:none;border-radius:9px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;">Sök</button>
         </div>
-        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:20px;">
+        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
           <button id="landingNearMe" style="display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;font-size:12px;font-weight:600;background:#1A1A1A;color:#fff;border:none;cursor:pointer;font-family:'Inter',sans-serif;">
             <i class="ti ti-current-location" style="font-size:13px;" aria-hidden="true"></i> Nära mig
           </button>
@@ -1538,23 +1740,13 @@ function renderWelcome() {
             ).join('');
           })()}
         </div>
-
-        <!-- Prominent map CTA — kartan är en huvudfunktion, ska vara omöjlig att missa -->
-        <div class="map-cta-card" onclick="currentView='map';render();">
-          <div class="map-cta-icon"><i class="ti ti-map-2" aria-hidden="true"></i></div>
-          <div style="flex:1;text-align:left;">
-            <div class="map-cta-title">Utforska på kartan</div>
-            <div class="map-cta-sub">Flygfoto över hela området — klicka på vilken tomt som helst</div>
-          </div>
-          <i class="ti ti-chevron-right" style="color:#9CA3AF;font-size:16px;flex-shrink:0;" aria-hidden="true"></i>
-        </div>
       </div>
 
       <!-- Topplistor -->
       <div style="max-width:900px;margin:0 auto;padding:0 20px 36px;">
         <div style="text-align:center;margin-bottom:22px;">
-          <div style="font-size:15px;font-weight:600;letter-spacing:-.03em;color:#111827;">Åkte du förbi ett hus du aldrig kan glömma?</div>
-          <div style="font-size:13px;color:#9CA3AF;margin-top:3px;">Visa ditt intresse — även om det inte är till salu. Ägaren ser att du finns.</div>
+          <div style="font-size:15px;font-weight:600;letter-spacing:-.03em;color:#111827;">Husen folk fastnar för just nu</div>
+          <div style="font-size:13px;color:#9CA3AF;margin-top:3px;">Riktiga fastigheter i Helsingborg — och intresset de fått den senaste tiden.</div>
         </div>
         <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;">
           <div style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:#111827;">Mest gillade</div>

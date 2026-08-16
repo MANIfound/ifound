@@ -320,6 +320,112 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.6; }
 .map-cta-title { font-size: 14px; font-weight: 600; color: #111827; letter-spacing: -.02em; }
 .map-cta-sub { font-size: 12px; color: #9CA3AF; margin-top: 1px; }
 
+/* ===== Hero: de två dörrarna (besökare / ägare) ===== */
+.dual-doors {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  margin-bottom: 26px; text-align: left;
+}
+.door-card {
+  background: #fff; border: 1.5px solid rgba(17,24,39,.10);
+  border-radius: 16px; padding: 20px 18px 18px;
+  cursor: pointer; display: flex; flex-direction: column;
+  transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+.door-card:hover {
+  border-color: #CC2936;
+  box-shadow: 0 8px 26px rgba(204,41,54,.11);
+  transform: translateY(-2px);
+}
+.door-icon {
+  width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0;
+  font-size: 20px; display: flex; align-items: center; justify-content: center;
+  margin-bottom: 13px;
+}
+.door-icon-visitor { background: #FDECEA; color: #CC2936; }
+.door-icon-owner   { background: #F4EAE1; color: #C2622A; }
+.door-eyebrow {
+  font-size: 10px; font-weight: 600; letter-spacing: .1em;
+  text-transform: uppercase; color: #9CA3AF; margin-bottom: 6px;
+}
+.door-title {
+  font-size: 16px; font-weight: 700; letter-spacing: -.03em;
+  color: #111827; line-height: 1.25; margin-bottom: 7px;
+}
+.door-text {
+  font-size: 13px; color: #6B7280; line-height: 1.6;
+  margin-bottom: 14px; flex: 1;
+}
+.door-cta {
+  font-size: 13px; font-weight: 600; color: #CC2936;
+  display: flex; align-items: center; gap: 6px;
+}
+.door-cta i { font-size: 14px; transition: transform .15s ease; }
+.door-card:hover .door-cta i { transform: translateX(3px); }
+
+.hero-divider {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 18px; color: #C4C0BA;
+}
+.hero-divider::before, .hero-divider::after {
+  content: ""; flex: 1; height: 1px; background: rgba(17,24,39,.09);
+}
+.hero-divider span {
+  font-size: 11px; font-weight: 500; letter-spacing: .04em;
+  text-transform: uppercase; color: #A9A49D; white-space: nowrap;
+}
+
+.search-pulse {
+  border-color: #CC2936 !important;
+  animation: searchPulse 1.4s ease;
+}
+@keyframes searchPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(204,41,54,.32); }
+  70%  { box-shadow: 0 0 0 12px rgba(204,41,54,0); }
+  100% { box-shadow: 0 0 0 0 rgba(204,41,54,0); }
+}
+
+@media (max-width: 620px) {
+  .dual-doors { grid-template-columns: 1fr; gap: 10px; }
+  .door-card { padding: 16px 15px 15px; }
+  .door-title { font-size: 15px; }
+}
+
+/* ===== Vykort — förhandsvisning i modalen ===== */
+.postcard-preview {
+  position: relative; background: #FDFBF7;
+  border: 1px solid rgba(17,24,39,.10); border-radius: 13px;
+  padding: 20px 18px 16px; overflow: hidden;
+  box-shadow: 0 3px 14px rgba(17,24,39,.06);
+}
+.postcard-preview::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+  background: repeating-linear-gradient(180deg, #CC2936 0 9px, #1E3A5F 9px 18px);
+}
+.postcard-stamp {
+  position: absolute; top: 13px; right: 14px;
+  width: 34px; height: 40px; border-radius: 4px;
+  background: #FDECEA; border: 1.5px dashed rgba(204,41,54,.35);
+  color: #CC2936; font-size: 16px;
+  display: flex; align-items: center; justify-content: center;
+}
+.postcard-eyebrow {
+  font-size: 10px; font-weight: 700; letter-spacing: .12em;
+  text-transform: uppercase; color: #CC2936; margin-bottom: 9px;
+}
+.postcard-headline {
+  font-size: 15px; font-weight: 500; color: #111827;
+  line-height: 1.4; letter-spacing: -.02em; margin-bottom: 9px;
+  padding-right: 42px;
+}
+.postcard-headline strong { font-weight: 700; }
+.postcard-body {
+  font-size: 12px; color: #6B7280; line-height: 1.65; margin-bottom: 11px;
+}
+.postcard-footer {
+  font-size: 11px; font-weight: 600; color: #C2622A;
+  padding-top: 9px; border-top: 0.5px solid rgba(17,24,39,.09);
+}
+
 /* Områdeskort på kartan (sökresultat) */
 .map-area-card {
   position: fixed; top: 136px; right: 16px; z-index: 1000;

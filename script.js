@@ -325,7 +325,9 @@ function openInterestModal(feature, pid, name) {
       </div>
 
       <div style="background:#F9F6F1;border-radius:12px;padding:14px 16px;margin-bottom:20px;font-size:13px;color:#6B7280;line-height:1.6;">
-        Ditt intresse sparas på fastigheten. Om ägaren ännu inte är med på ifound kommer de att se det när de går med och claimar sin fastighet.
+        ${isParcelClaimed(pid)
+          ? `Ägaren finns på ifound och får ditt intresse direkt i appen.`
+          : `Ägaren är <strong style="color:#111827;">inte med på ifound ännu</strong> och ser det här först om de går med. I nästa steg kan du välja att uppmärksamma dem med ett vykort hem i brevlådan.`}
       </div>
 
       <div style="margin-bottom:16px;">
@@ -390,14 +392,20 @@ function saveInterest(pid, name, message) {
   closeInterestModal();
   redrawLayer();
 
-  if (message) {
-    toast("Intresse och meddelande skickat till ägaren!");
-  } else {
-    toast("Intresse markerat!");
-  }
-
   // Re-render panel if still open
   renderParcelPanel({ properties: { fastighet: name }, geometry: null, _pid: pid });
+
+  // Är ägaren inte på ifound är intresset osynligt för dem. Erbjud vykortet
+  // direkt här — användaren är som mest engagerad i just detta ögonblick.
+  const unclaimed = !isParcelClaimed(pid);
+  const pc = getPostcardStatus(pid);
+  const loggedIn = !!loadSession()?.email;
+  if (unclaimed && !pc.sent && loggedIn) {
+    setTimeout(() => openPostcardModal(pid, name, true), 220);
+    return;
+  }
+
+  toast(message ? "Intresse och meddelande skickat till ägaren!" : "Intresse markerat!");
 }
 
 // =========================
@@ -414,6 +422,15 @@ const POSTCARD_PRICE_SEK = 49;
 // användare, annars kan tio personer trigga tio vykort samma vecka.
 const POSTCARD_COOLDOWN_DAYS = 90;
 
+// Är fastigheten redan claimad? Då finns ägaren i appen och behöver inget brev.
+function isParcelClaimed(pid) {
+  const norm = v => String(v).toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g, '');
+  const n = norm(pid);
+  const st = loadState();
+  if (st.ownerParcelId && norm(st.ownerParcelId) === n) return true;
+  return CLAIMED_PROPS.some(p => norm(p.id) === n || norm(p.name) === n);
+}
+
 function getPostcardStatus(pid) {
   const s = loadState();
   const rec = (s.postcards || {})[pid];
@@ -427,7 +444,7 @@ function getPostcardStatus(pid) {
   };
 }
 
-function openPostcardModal(pid, name) {
+function openPostcardModal(pid, name, afterInterest = false) {
   const session = loadSession();
   if (!session?.email) {
     openAuthModal('reg');
@@ -460,8 +477,19 @@ function openPostcardModal(pid, name) {
         <button onclick="closePostcardModal()" style="width:32px;height:32px;border-radius:50%;border:none;background:#F3F4F6;cursor:pointer;font-size:16px;color:#6B7280;display:flex;align-items:center;justify-content:center;flex-shrink:0;">✕</button>
       </div>
 
+      ${afterInterest ? `
+        <div style="display:flex;gap:9px;align-items:flex-start;background:#F0FDF4;border:0.5px solid rgba(22,163,74,.25);border-radius:11px;padding:11px 13px;margin-bottom:16px;">
+          <i class="ti ti-check" style="font-size:15px;color:#16a34a;flex-shrink:0;margin-top:1px;" aria-hidden="true"></i>
+          <div style="font-size:12px;color:#15803d;font-weight:600;line-height:1.5;">
+            Ditt intresse är sparat på fastigheten.
+          </div>
+        </div>
+      ` : ''}
+
       <div style="font-size:13px;color:#6B7280;line-height:1.65;margin-bottom:18px;">
-        Ägaren är inte med på ifound ännu och vet därför inte att du finns. Vi skickar ett fysiskt vykort till fastighetens registrerade ägare och berättar att någon visat intresse.
+        ${afterInterest
+          ? `Men ägaren är inte med på ifound och kommer aldrig att se det. Vill du att de får veta? Vi skickar ett fysiskt vykort hem till fastighetens registrerade ägare.`
+          : `Ägaren är inte med på ifound ännu och vet därför inte att du finns. Vi skickar ett fysiskt vykort till fastighetens registrerade ägare och berättar att någon visat intresse.`}
       </div>
 
       <!-- Förhandsvisning av vykortet -->
@@ -497,8 +525,9 @@ function openPostcardModal(pid, name) {
           <i class="ti ti-send" aria-hidden="true"></i> Skicka vykortet
         </button>
         <button onclick="closePostcardModal()" style="width:100%;padding:11px;border-radius:11px;border:0.5px solid rgba(17,24,39,.12);background:transparent;color:#6B7280;font-size:13px;font-weight:500;font-family:'Inter',sans-serif;cursor:pointer;">
-          Inte nu
+          ${afterInterest ? "Nej tack — jag väntar" : "Inte nu"}
         </button>
+        ${afterInterest ? `<div style="font-size:11px;color:#9CA3AF;text-align:center;line-height:1.5;">Du kan skicka vykortet senare från fastighetens panel.</div>` : ''}
       </div>
     </div>
   `;
@@ -1217,6 +1246,11 @@ function renderParcelPanel(feature) {
       <button id="subdivisionBtn" class="panel-btn" style="width:100%;${state.subdivisionInterests?.[pid] ? 'background:#F0FDF4;border-color:#16a34a;color:#16a34a;' : ''}">
         <i class="ti ti-cut"></i> ${state.subdivisionInterests?.[pid] ? "Avstyckning — intresse skickat" : "Intresserad av att stycka av tomt"}
       </button>
+      <div style="text-align:center;margin-top:6px;">
+        <button onclick="navigate('buildNew')" style="background:none;border:none;padding:2px;font-size:11px;color:#9CA3AF;cursor:pointer;font-family:'Inter',sans-serif;text-decoration:underline;">
+          Vad krävs för att bygga? Läs guiden
+        </button>
+      </div>
     </div>`}
     ${statsHtml}
   `);
@@ -1679,6 +1713,7 @@ function renderWelcome() {
           ${isLoggedIn ? `<button class="nav-tab" onclick="navigate('dashboard')">Min sida</button>` : ''}
           <button class="nav-tab" onclick="currentView='feed';render();">Utforska</button>
           <button class="nav-tab" onclick="currentView='map';render();">Karta</button>
+          <button class="nav-tab" onclick="navigate('buildNew')">Bygga nytt hus</button>
           <button class="nav-tab" onclick="navigate('brokerWelcome')">För mäklare</button>
         </div>
         <div class="nav-right">
@@ -1701,7 +1736,7 @@ function renderWelcome() {
             <div class="door-icon door-icon-visitor"><i class="ti ti-map-search" aria-hidden="true"></i></div>
             <div class="door-eyebrow">Jag har sett ett hus</div>
             <div class="door-title">Åkte du förbi ett hus du aldrig kan glömma?</div>
-            <div class="door-text">Hitta det på kartan och visa ditt intresse — även om det inte är till salu. Ägaren ser att du finns.</div>
+            <div class="door-text">Hitta det på kartan och visa ditt intresse — även om det inte är till salu. Vi ser till att ägaren får veta.</div>
             <div class="door-cta">Utforska på kartan <i class="ti ti-arrow-right" aria-hidden="true"></i></div>
           </div>
           <div class="door-card" onclick="focusLandingSearch()">
@@ -1739,6 +1774,41 @@ function renderWelcome() {
               '<button onclick="currentView=\'feed\';render();" style="padding:7px 14px;border-radius:999px;font-size:12px;font-weight:500;background:#fff;color:#374151;border:0.5px solid rgba(17,24,39,.12);cursor:pointer;font-family:\'Inter\',sans-serif;">' + q + '</button>'
             ).join('');
           })()}
+        </div>
+      </div>
+
+      <!-- Så funkar det: samma flöde berättat från båda hållen. Här nämns vykortet
+           första gången — som utfall av ett flöde, inte som en lös knapp. -->
+      <div class="how-section">
+        <div class="how-inner">
+          <div class="how-heading">Så funkar ifound</div>
+          <div class="how-cols">
+
+            <div class="how-col">
+              <div class="how-col-head">
+                <span class="how-badge how-badge-visitor"><i class="ti ti-map-search" aria-hidden="true"></i></span>
+                För dig som hittat ett hus
+              </div>
+              <ol class="how-steps">
+                <li><span class="how-num">1</span><div><strong>Hitta huset på kartan</strong><span>Klicka på vilken tomt som helst — alla fastigheter finns med, inte bara de till salu.</span></div></li>
+                <li><span class="how-num">2</span><div><strong>Visa ditt intresse anonymt</strong><span>Skriv några rader om varför just det här huset. Ditt namn syns inte förrän du vill.</span></div></li>
+                <li><span class="how-num">3</span><div><strong>Ägaren får veta att du finns</strong><span>Är ägaren inte med på ifound kan vi skicka ett vykort hem i brevlådan.</span></div></li>
+              </ol>
+            </div>
+
+            <div class="how-col">
+              <div class="how-col-head">
+                <span class="how-badge how-badge-owner"><i class="ti ti-home-heart" aria-hidden="true"></i></span>
+                För dig som äger ett hus
+              </div>
+              <ol class="how-steps">
+                <li><span class="how-num">1</span><div><strong>Sök upp din fastighet</strong><span>Den finns redan på kartan. Du behöver inte lägga upp något.</span></div></li>
+                <li><span class="how-num">2</span><div><strong>Se vilka som gillat och visat intresse</strong><span>Kanske står någon redan och väntar på att du ska fundera på att sälja.</span></div></li>
+                <li><span class="how-num">3</span><div><strong>Du bestämmer om du vill visas</strong><span>Allt är privat tills du väljer annat. Ingen mäklare, ingen värdering, inget krångel.</span></div></li>
+              </ol>
+            </div>
+
+          </div>
         </div>
       </div>
 
@@ -1905,6 +1975,226 @@ function navigateProp(id) {
 }
 
 // =========================
+// BYGGA NYTT HUS — informationsvy
+// Målgrupp: den som vill stycka av och bygga friliggande. Kopplar ihop
+// avstyckningsflödet på kartan med hela projektkedjan.
+// Siffror är riktvärden (kontrollerade aug 2026) och varierar kraftigt per
+// kommun och nätägare — därför alltid spann, aldrig exakta belopp.
+// =========================
+function renderBuildNew() {
+  const session = loadSession();
+  const isLoggedIn = !!session?.email;
+  const user = isLoggedIn ? getCurrentUser() : null;
+
+  const STEPS = [
+    {
+      n: 1, icon: "ti-map-search", title: "Hitta marken", time: "Här börjar allt", highlight: true,
+      text: "Den svåraste delen är inte bygglovet — det är att hitta marken. Färdiga tomter är sällsynta och säljs ofta innan de annonseras. Med ifound kan du hitta en tomt eller en stor trädgård som aldrig legat ute, och fråga ägaren om möjligheten att stycka av.",
+    },
+    {
+      n: 2, icon: "ti-file-search", title: "Förhandsbesked", time: "10 v – 6 mån",
+      text: "Ligger marken utanför detaljplan söker du förhandsbesked hos kommunens byggnadsnämnd. Det är ett bindande besked om att marken får bebyggas, och det gäller i två år. Gör alltid detta <strong>före</strong> avstyckningen — annars riskerar du att betala för en tomt du inte får bygga på.",
+    },
+    {
+      n: 3, icon: "ti-cut", title: "Avstyckning", time: "6–18 mån",
+      text: "Lantmäteriet bildar den nya fastigheten genom en lantmäteriförrättning. Här löses också servitut för väg, vatten och avlopp över stamfastigheten. Räkna med lång kötid — det här är oftast projektets tidsmässiga flaskhals.",
+    },
+    {
+      n: 4, icon: "ti-license", title: "Bygglov", time: "10 v – 6 mån",
+      text: "Kommunen prövar husets placering, storlek och utformning. Efter beviljat lov krävs tekniskt samråd och startbesked innan du får börja bygga. Du behöver en certifierad kontrollansvarig redan i ansökan.",
+    },
+    {
+      n: 5, icon: "ti-plug-connected", title: "Anslutningar", time: "3–12 mån",
+      text: "El, vatten, avlopp och fiber. Den här posten underskattas nästan alltid — se detaljerna nedan. Begär offerter tidigt, eftersom leveranstiderna på elnätssidan kan vara långa och avgörande för byggstarten.",
+    },
+    {
+      n: 6, icon: "ti-home-check", title: "Bygga och flytta in", time: "8–18 mån",
+      text: "Grundläggning, stomme, tätt hus, installationer och inredning. Kommunen håller ett slutsamråd och utfärdar slutbesked — först då får du formellt flytta in.",
+    },
+  ];
+
+  const UTILITIES = [
+    {
+      icon: "ti-bolt", tone: "el", title: "El",
+      lead: "Elnätsanslutningen följer en schablon från Energimarknadsinspektionen, baserad på avståndet fågelvägen till närmaste anslutningspunkt.",
+      rows: [
+        ["Inom 200 m från anslutningspunkt", "Fast grundavgift, ofta 50 000–60 000 kr"],
+        ["Längre än 200 m", "Grundavgift + meteravgift per zon — kan nå 150 000–290 000 kr"],
+        ["Över 1 800 m", "Individuell offert, ingen schablon"],
+      ],
+      tips: [
+        "Kolla avståndet till närmaste anslutningspunkt <strong>innan</strong> du binder dig vid marken. Det är den enskilt största prisvariabeln.",
+        "Ansluter grannar samtidigt ska kostnaden för sträckan över 200 m delas mellan er — det kan halvera notan.",
+        "Beställningen görs av en elinstallatör registrerad hos Elsäkerhetsverket, som skickar föranmälan åt dig.",
+        "Begär byggström tidigt. Den behövs långt innan huset står färdigt.",
+      ],
+    },
+    {
+      icon: "ti-droplet", tone: "va", title: "Vatten och avlopp",
+      lead: "Här går den stora skiljelinjen: ligger tomten inom kommunalt verksamhetsområde eller inte? Svaret ändrar kostnad, tidsplan och vilka tillstånd du behöver.",
+      rows: [
+        ["Inom verksamhetsområde", "Anläggningsavgift, ofta 100 000–230 000 kr"],
+        ["Utanför — enskilt avlopp", "60 000–300 000 kr beroende på lösning"],
+        ["Egen borrad brunn", "Tillkommer, prissätts per meter borrdjup"],
+        ["Tillstånd för enskilt avlopp", "Ansökningsavgift ofta 3 000–10 000 kr"],
+      ],
+      tips: [
+        "Ligger tomten inom verksamhetsområdet är anslutning normalt <strong>obligatorisk</strong> — du kan inte välja en enskild lösning för att spara pengar.",
+        "Enskilt avlopp kräver alltid tillstånd från kommunens miljökontor innan arbetet påbörjas. Bygglov räcker inte.",
+        "Markens genomsläpplighet avgör vilken avloppslösning som godkänns. En undersökning tidigt sparar dyra omtag.",
+        "Har du egen brunn behöver avståndet till avloppsanläggningar hållas — även grannarnas.",
+      ],
+    },
+    {
+      icon: "ti-shovel", tone: "mark", title: "Mark och dagvatten",
+      lead: "Det som ligger under marken avgör grundläggningskostnaden — och det syns inte på en visning.",
+      rows: [
+        ["Geoteknisk undersökning", "Krävs oftast inför bygglov"],
+        ["Radonmätning", "Avgör om radonsäker grund behövs"],
+        ["Dagvattenhantering", "Kan krävas lokalt omhändertagande på tomten"],
+      ],
+      tips: [
+        "Lera, fyllnadsmassor eller högt grundvatten kan lägga hundratusentals kronor på grunden.",
+        "Berg nära ytan låter stabilt, men gör schakt för ledningar dyrt.",
+        "Fråga efter tidigare markanvändning — gammal deponi eller verkstad kan innebära saneringskrav.",
+      ],
+    },
+  ];
+
+  const PITFALLS = [
+    ["Köpa mark utan förhandsbesked", "Den vanligaste och dyraste missen. Utan besked vet du inte om marken får bebyggas — och förrättningskostnaden tas ut även om svaret blir nej."],
+    ["Glömma servituten", "Nya tomten behöver säkrad rätt till väg, vatten och avlopp över stamfastigheten. Löses det inte i förrättningen blir det en grannkonflikt senare."],
+    ["Underskatta anslutningarna", "El, VA och fiber kan tillsammans landa på 200 000–400 000 kr. De ingår sällan i priset från husleverantören."],
+    ["Missa strandskyddet", "Inom 100 meter från strandlinjen — ibland utvidgat till 300 meter — krävs dispens. Gäller även småbäckar och insjöar."],
+    ["Räkna med en snabb process", "Från idé till inflyttning tar det i praktiken ofta 2–4 år. Lantmäteriets kötid går sällan att påskynda."],
+  ];
+
+  app.innerHTML = `
+    <div style="background:#F9F6F1;min-height:100vh;font-family:'Inter',sans-serif;">
+
+      <nav class="dashboard-nav">
+        <div class="nav-left">
+          <div class="logo" onclick="navigate('welcome')" style="cursor:pointer;">
+            <svg width="17" height="21" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
+            <span class="logo-text">i<em>found</em></span>
+          </div>
+          ${isLoggedIn ? `<div class="nav-greeting">Hej, ${user?.name || ""}!</div>` : ''}
+        </div>
+        <div class="nav-center">
+          ${isLoggedIn ? `<button class="nav-tab" onclick="navigate('dashboard')">Min sida</button>` : ''}
+          <button class="nav-tab" onclick="currentView='feed';render();">Utforska</button>
+          <button class="nav-tab" onclick="currentView='map';render();">Karta</button>
+          <button class="nav-tab active">Bygga nytt hus</button>
+        </div>
+        <div class="nav-right">
+          ${isLoggedIn
+            ? `<button class="btn-ghost" style="font-size:12px;padding:7px 13px;" id="logoutBtnBuild">Logga ut</button>`
+            : `<button class="btn-ghost" style="font-size:12px;padding:7px 13px;" onclick="openAuthModal('login')">Logga in</button>
+               <button class="btn-primary" style="font-size:12px;padding:7px 13px;" onclick="openAuthModal('reg')">Kom igång</button>`
+          }
+        </div>
+      </nav>
+
+      <div class="bn-hero">
+        <div class="bn-hero-inner">
+          <div class="bn-eyebrow">Guide</div>
+          <h1 class="bn-title">Bygga nytt hus<br>på egen tomt</h1>
+          <p class="bn-lead">Hela kedjan från mark till slutbesked — förhandsbesked, avstyckning, bygglov och de anslutningar som nästan alltid kostar mer än man tror. Och varför det allra första steget, att hitta marken, är det som stoppar flest.</p>
+        </div>
+      </div>
+
+      <div class="bn-wrap">
+
+        <div class="bn-role">
+          <div class="bn-role-icon"><i class="ti ti-map-pin-plus" aria-hidden="true"></i></div>
+          <div>
+            <div class="bn-role-title">Problemet är sällan bygglovet. Det är marken.</div>
+            <div class="bn-role-text">
+              De flesta som vill bygga fastnar direkt: det finns inga tomter till salu. Men marken finns — den är bara en del av någon annans trädgård, en åkerkant eller en obebyggd lucka mellan två hus. Ägaren har kanske aldrig ens funderat på att stycka av.
+              <br><br>
+              På ifound hittar du den marken på kartan, ritar ut exakt vilken del du är intresserad av och skickar en fråga till ägaren — även om ingenting är till salu. Det är där husprojektet börjar.
+            </div>
+            <div class="bn-role-actions">
+              <button class="bn-btn-primary" onclick="currentView='map';render();">
+                <i class="ti ti-map-2" aria-hidden="true"></i> Hitta mark på kartan
+              </button>
+              <button class="bn-btn-ghost" onclick="currentView='feed';render();">Se vad andra intresserat sig för</button>
+            </div>
+          </div>
+        </div>
+
+        <h2 class="bn-h2">Processen, steg för steg</h2>
+        <div class="bn-steps">
+          ${STEPS.map(s => `
+            <div class="bn-step ${s.highlight ? 'bn-step-hl' : ''}">
+              <div class="bn-step-num"><i class="ti ${s.icon}" aria-hidden="true"></i></div>
+              <div class="bn-step-body">
+                <div class="bn-step-head">
+                  <span class="bn-step-title">${s.n}. ${s.title}</span>
+                  <span class="bn-step-time">${s.time}</span>
+                </div>
+                <div class="bn-step-text">${s.text}</div>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+
+        <h2 class="bn-h2">El, vatten och avlopp</h2>
+        <p class="bn-sub">Posten som oftast spränger budgeten. Kostnaden styrs av var tomten ligger i förhållande till befintliga ledningar — inte av hur huset ser ut.</p>
+
+        ${UTILITIES.map(u => `
+          <div class="bn-card">
+            <div class="bn-card-head">
+              <span class="bn-card-icon bn-icon-${u.tone}"><i class="ti ${u.icon}" aria-hidden="true"></i></span>
+              <span class="bn-card-title">${u.title}</span>
+            </div>
+            <div class="bn-card-lead">${u.lead}</div>
+            <div class="bn-rows">
+              ${u.rows.map(r => `<div class="bn-row"><span>${r[0]}</span><strong>${r[1]}</strong></div>`).join("")}
+            </div>
+            <div class="bn-tips-label">Att tänka på</div>
+            <ul class="bn-tips">
+              ${u.tips.map(t => `<li><i class="ti ti-point-filled" aria-hidden="true"></i><span>${t}</span></li>`).join("")}
+            </ul>
+          </div>
+        `).join("")}
+
+        <h2 class="bn-h2">Fem dyra misstag</h2>
+        <div class="bn-pitfalls">
+          ${PITFALLS.map(p => `
+            <div class="bn-pitfall">
+              <i class="ti ti-alert-triangle" aria-hidden="true"></i>
+              <div>
+                <strong>${p[0]}</strong>
+                <span>${p[1]}</span>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+
+        <div class="bn-disclaimer">
+          <i class="ti ti-info-circle" aria-hidden="true"></i>
+          <div>Beloppen är riktvärden för 2026 och varierar kraftigt mellan kommuner och nätägare. Avgifter och handläggningstider måste alltid kontrolleras mot din kommun, ditt elnätsbolag och Lantmäteriet innan du räknar på ett projekt. Guiden ersätter inte rådgivning.</div>
+        </div>
+
+        <div class="bn-cta">
+          <div class="bn-cta-title">Börja med marken</div>
+          <div class="bn-cta-text">Hitta tomten eller trädgården du vill bygga på — och fråga ägaren, även om den inte är till salu.</div>
+          <button class="bn-btn-primary" onclick="currentView='map';render();">
+            <i class="ti ti-map-2" aria-hidden="true"></i> Öppna kartan
+          </button>
+        </div>
+
+      </div>
+      <div style="height:90px;"></div>
+    </div>
+  `;
+
+  const lo = document.getElementById("logoutBtnBuild");
+  if (lo) lo.onclick = () => { clearSession(); navigate("welcome"); };
+}
+
+// =========================
 // FEED VIEW (Pinterest)
 // =========================
 function renderFeed() {
@@ -1947,6 +2237,7 @@ function renderFeed() {
           ${isLoggedIn ? `<button class="nav-tab" onclick="navigate('dashboard')">Min sida</button>` : ''}
           <button class="nav-tab active">Utforska</button>
           <button class="nav-tab" onclick="currentView='map';render();">Karta</button>
+          <button class="nav-tab" onclick="navigate('buildNew')">Bygga nytt hus</button>
         </div>
         <div class="nav-right">
           ${isLoggedIn
@@ -2417,6 +2708,7 @@ function renderMapView() {
           ${isLoggedIn ? `<button class="nav-tab" onclick="navigate('dashboard')">Min sida</button>` : ''}
           <button class="nav-tab" onclick="currentView='feed';render();">Utforska</button>
           <button class="nav-tab active">Karta</button>
+          <button class="nav-tab" onclick="navigate('buildNew')">Bygga nytt hus</button>
         </div>
         <div class="nav-right">
           ${isLoggedIn
@@ -4200,6 +4492,7 @@ function render() {
   if (currentView === "brokerWelcome") return;
   let active = "welcome";
   if (currentView === "map") active = "map";
+  else if (currentView === "buildNew") active = "welcome";
   else if (currentView === "feed" || currentView.startsWith("property_")) active = "feed";
   else if (currentView !== "welcome" && s?.email) active = "profile";
   mountBottomTabs(active);
@@ -4213,6 +4506,7 @@ function renderView() {
     if (currentView === "brokerWelcome") { renderBrokerWelcome(); return; }
     if (currentView === "feed")   { renderFeed(); return; }
     if (currentView === "map")    { renderMapView(); return; }
+    if (currentView === "buildNew") { renderBuildNew(); return; }
     if (currentView.startsWith("property_")) { renderPropertyView(); return; }
     renderWelcome(); return;
   }
@@ -4221,6 +4515,7 @@ function renderView() {
     if (currentView === "brokerAddListing") { renderBrokerAddListing(); return; }
     if (currentView === "feed")   { renderFeed(); return; }
     if (currentView === "map")    { renderMapView(); return; }
+    if (currentView === "buildNew") { renderBuildNew(); return; }
     if (currentView.startsWith("property_")) { renderPropertyView(); return; }
     if (currentView === "broker" || currentView === "dashboard") { renderBrokerDashboard(); return; }
     renderBrokerDashboard(); return;
@@ -4228,6 +4523,7 @@ function renderView() {
   if (currentView === "welcome") { renderWelcome(); return; }
   if (currentView === "map") { renderMapView(); return; }
   if (currentView === "feed") { renderFeed(); return; }
+  if (currentView === "buildNew") { renderBuildNew(); return; }
   if (currentView.startsWith("property_")) { renderPropertyView(); return; }
   renderDashboard();
 }

@@ -390,6 +390,248 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.6; }
   .door-title { font-size: 15px; }
 }
 
+/* ===== Så funkar ifound — två spalter, en per roll ===== */
+.how-section {
+  background: #fff;
+  border-top: 0.5px solid rgba(17,24,39,.08);
+  border-bottom: 0.5px solid rgba(17,24,39,.08);
+  padding: 40px 20px 42px;
+  margin-bottom: 36px;
+}
+.how-inner { max-width: 900px; margin: 0 auto; }
+.how-heading {
+  font-size: 20px; font-weight: 700; letter-spacing: -.04em;
+  color: #111827; text-align: center; margin-bottom: 30px;
+}
+.how-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+.how-col-head {
+  display: flex; align-items: center; gap: 9px;
+  font-size: 13px; font-weight: 600; color: #111827;
+  letter-spacing: -.01em; margin-bottom: 18px;
+}
+.how-badge {
+  width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
+  font-size: 15px; display: flex; align-items: center; justify-content: center;
+}
+.how-badge-visitor { background: #FDECEA; color: #CC2936; }
+.how-badge-owner   { background: #F4EAE1; color: #C2622A; }
+
+.how-steps { list-style: none; margin: 0; padding: 0; }
+.how-steps li {
+  display: flex; gap: 13px; align-items: flex-start;
+  padding-bottom: 18px; position: relative;
+}
+.how-steps li:not(:last-child)::before {
+  content: ""; position: absolute; left: 12px; top: 27px; bottom: 5px;
+  width: 1px; background: rgba(17,24,39,.10);
+}
+.how-num {
+  width: 25px; height: 25px; border-radius: 50%; flex-shrink: 0;
+  background: #F9F6F1; border: 0.5px solid rgba(17,24,39,.12);
+  color: #6B7280; font-size: 11px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  position: relative; z-index: 1;
+}
+.how-steps strong {
+  display: block; font-size: 13.5px; font-weight: 600;
+  color: #111827; letter-spacing: -.01em; margin-bottom: 3px;
+}
+.how-steps span:not(.how-num) {
+  display: block; font-size: 12.5px; color: #6B7280; line-height: 1.6;
+}
+
+@media (max-width: 620px) {
+  .how-section { padding: 32px 18px 34px; }
+  .how-cols { grid-template-columns: 1fr; gap: 30px; }
+  .how-heading { font-size: 18px; margin-bottom: 24px; }
+}
+
+/* ===== Bygga nytt hus — guidesida ===== */
+.bn-hero {
+  background: #1E2A38; padding: 46px 20px 44px; text-align: center;
+}
+.bn-hero-inner { max-width: 640px; margin: 0 auto; }
+.bn-eyebrow {
+  font-size: 11px; font-weight: 600; letter-spacing: .14em;
+  text-transform: uppercase; color: #E8A87C; margin-bottom: 12px;
+}
+.bn-title {
+  font-size: 38px; font-weight: 700; letter-spacing: -.05em; line-height: 1.06;
+  color: #fff; margin: 0 0 16px;
+}
+.bn-lead { font-size: 15px; line-height: 1.7; color: rgba(255,255,255,.72); margin: 0; }
+
+.bn-wrap { max-width: 760px; margin: 0 auto; padding: 30px 20px 0; }
+
+.bn-h2 {
+  font-size: 22px; font-weight: 700; letter-spacing: -.04em;
+  color: #111827; margin: 38px 0 6px;
+}
+.bn-sub { font-size: 14px; color: #6B7280; line-height: 1.65; margin: 0 0 18px; }
+
+/* ifounds roll */
+.bn-role {
+  display: flex; gap: 16px; background: #fff;
+  border: 1.5px solid rgba(204,41,54,.22); border-radius: 16px;
+  padding: 22px 20px; box-shadow: 0 6px 22px rgba(204,41,54,.06);
+}
+.bn-role-icon {
+  width: 42px; height: 42px; border-radius: 11px; flex-shrink: 0;
+  background: #FDECEA; color: #CC2936; font-size: 21px;
+  display: flex; align-items: center; justify-content: center;
+}
+.bn-role-title {
+  font-size: 17px; font-weight: 700; letter-spacing: -.03em;
+  color: #111827; margin-bottom: 8px;
+}
+.bn-role-text { font-size: 14px; color: #4B5563; line-height: 1.7; }
+.bn-role-actions { display: flex; gap: 9px; flex-wrap: wrap; margin-top: 16px; }
+
+.bn-btn-primary {
+  display: inline-flex; align-items: center; gap: 7px;
+  background: #CC2936; color: #fff; border: none; border-radius: 10px;
+  padding: 11px 18px; font-size: 13px; font-weight: 600;
+  font-family: 'Inter', sans-serif; cursor: pointer;
+  transition: background .15s ease;
+}
+.bn-btn-primary:hover { background: #B02330; }
+.bn-btn-ghost {
+  background: transparent; color: #6B7280;
+  border: 0.5px solid rgba(17,24,39,.14); border-radius: 10px;
+  padding: 11px 16px; font-size: 13px; font-weight: 500;
+  font-family: 'Inter', sans-serif; cursor: pointer;
+}
+.bn-btn-ghost:hover { border-color: rgba(17,24,39,.28); color: #374151; }
+
+/* Steg */
+.bn-steps { margin-top: 16px; }
+.bn-step { display: flex; gap: 14px; position: relative; padding-bottom: 20px; }
+.bn-step:not(:last-child)::before {
+  content: ""; position: absolute; left: 19px; top: 44px; bottom: 4px;
+  width: 1.5px; background: rgba(17,24,39,.10);
+}
+.bn-step-num {
+  width: 39px; height: 39px; border-radius: 11px; flex-shrink: 0;
+  background: #fff; border: 1px solid rgba(17,24,39,.10);
+  color: #6B7280; font-size: 18px; position: relative; z-index: 1;
+  display: flex; align-items: center; justify-content: center;
+}
+.bn-step-hl .bn-step-num {
+  background: #CC2936; border-color: #CC2936; color: #fff;
+  box-shadow: 0 4px 14px rgba(204,41,54,.28);
+}
+.bn-step-body {
+  flex: 1; background: #fff; border: 0.5px solid rgba(17,24,39,.09);
+  border-radius: 13px; padding: 15px 17px;
+}
+.bn-step-hl .bn-step-body { border-color: rgba(204,41,54,.25); background: #FFFAF9; }
+.bn-step-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 10px; margin-bottom: 6px; flex-wrap: wrap;
+}
+.bn-step-title {
+  font-size: 15px; font-weight: 700; letter-spacing: -.02em; color: #111827;
+}
+.bn-step-time {
+  font-size: 11px; font-weight: 600; color: #9CA3AF;
+  background: #F9F6F1; border-radius: 999px; padding: 3px 9px; white-space: nowrap;
+}
+.bn-step-hl .bn-step-time { background: #FDECEA; color: #CC2936; }
+.bn-step-text { font-size: 13.5px; color: #4B5563; line-height: 1.7; }
+
+/* Anslutningskort */
+.bn-card {
+  background: #fff; border: 0.5px solid rgba(17,24,39,.09);
+  border-radius: 15px; padding: 20px; margin-bottom: 14px;
+}
+.bn-card-head { display: flex; align-items: center; gap: 11px; margin-bottom: 11px; }
+.bn-card-icon {
+  width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+  font-size: 19px; display: flex; align-items: center; justify-content: center;
+}
+.bn-icon-el   { background: #FEF3C7; color: #B45309; }
+.bn-icon-va   { background: #E0F2FE; color: #0369A1; }
+.bn-icon-mark { background: #F4EAE1; color: #C2622A; }
+.bn-card-title {
+  font-size: 17px; font-weight: 700; letter-spacing: -.03em; color: #111827;
+}
+.bn-card-lead { font-size: 13.5px; color: #6B7280; line-height: 1.7; margin-bottom: 14px; }
+
+.bn-rows {
+  border: 0.5px solid rgba(17,24,39,.09); border-radius: 11px;
+  overflow: hidden; margin-bottom: 16px;
+}
+.bn-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; padding: 11px 14px; background: #F9F6F1;
+}
+.bn-row + .bn-row { border-top: 0.5px solid rgba(17,24,39,.07); }
+.bn-row span { font-size: 12.5px; color: #6B7280; }
+.bn-row strong {
+  font-size: 12.5px; font-weight: 600; color: #111827;
+  text-align: right; white-space: nowrap;
+}
+
+.bn-tips-label {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .09em;
+  text-transform: uppercase; color: #9CA3AF; margin-bottom: 9px;
+}
+.bn-tips { list-style: none; margin: 0; padding: 0; }
+.bn-tips li {
+  display: flex; gap: 9px; align-items: flex-start;
+  font-size: 13px; color: #4B5563; line-height: 1.65; margin-bottom: 8px;
+}
+.bn-tips li i { font-size: 8px; color: #CC2936; margin-top: 7px; flex-shrink: 0; }
+.bn-tips strong { color: #111827; font-weight: 600; }
+
+/* Fallgropar */
+.bn-pitfalls { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+.bn-pitfall {
+  display: flex; gap: 12px; align-items: flex-start;
+  background: #FFF8EF; border: 0.5px solid rgba(194,98,42,.22);
+  border-radius: 12px; padding: 14px 16px;
+}
+.bn-pitfall i { font-size: 17px; color: #C2622A; flex-shrink: 0; margin-top: 1px; }
+.bn-pitfall strong {
+  display: block; font-size: 13.5px; font-weight: 600;
+  color: #111827; margin-bottom: 3px;
+}
+.bn-pitfall span { display: block; font-size: 13px; color: #6B7280; line-height: 1.65; }
+
+.bn-disclaimer {
+  display: flex; gap: 11px; align-items: flex-start;
+  background: #F3F4F6; border-radius: 12px; padding: 14px 16px;
+  margin-top: 26px; font-size: 12px; color: #6B7280; line-height: 1.65;
+}
+.bn-disclaimer i { font-size: 16px; color: #9CA3AF; flex-shrink: 0; margin-top: 1px; }
+
+.bn-cta {
+  background: #1E2A38; border-radius: 16px;
+  padding: 30px 24px; text-align: center; margin-top: 26px;
+}
+.bn-cta-title {
+  font-size: 20px; font-weight: 700; letter-spacing: -.04em;
+  color: #fff; margin-bottom: 7px;
+}
+.bn-cta-text {
+  font-size: 14px; color: rgba(255,255,255,.68);
+  line-height: 1.65; margin-bottom: 18px;
+  max-width: 380px; margin-left: auto; margin-right: auto;
+}
+
+@media (max-width: 620px) {
+  .bn-hero { padding: 34px 18px 32px; }
+  .bn-title { font-size: 29px; }
+  .bn-lead { font-size: 14px; }
+  .bn-wrap { padding: 24px 16px 0; }
+  .bn-h2 { font-size: 19px; margin-top: 30px; }
+  .bn-role { flex-direction: column; gap: 13px; padding: 18px 16px; }
+  .bn-card { padding: 17px 16px; }
+  .bn-row { flex-direction: column; align-items: flex-start; gap: 3px; }
+  .bn-row strong { text-align: left; white-space: normal; }
+  .bn-step-body { padding: 13px 14px; }
+}
+
 /* ===== Vykort — förhandsvisning i modalen ===== */
 .postcard-preview {
   position: relative; background: #FDFBF7;

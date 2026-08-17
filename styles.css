@@ -1173,3 +1173,74 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
   }
   .type-pills-hero > :last-child { margin-right: 34px; }
 }
+
+
+/* =========================================================
+   Scenarier — "Så här kan det gå till"
+   Mörk sektion som bryter av mot de ljusa ovanför och nedanför,
+   så att sidan får rytm i stället för ett långt ljust fält.
+   ========================================================= */
+.stories { background: var(--green-900); padding-block: 52px 56px; margin-top: 8px; }
+.stories-head { max-width: 520px; margin-bottom: 28px; }
+.stories-title {
+  font-family: var(--font-display); font-size: 26px; font-weight: 700;
+  letter-spacing: -.02em; color: #fff; margin: 0 0 8px;
+}
+.stories-sub { font-size: 14px; line-height: 1.65; color: rgba(255,255,255,.60); margin: 0; }
+
+.stories-grid { display: grid; gap: 16px; }
+
+.story {
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 16px;
+  padding: 22px 22px 18px;
+  display: flex; flex-direction: column;
+}
+.story-tag {
+  font-family: var(--font-data); font-size: 10px; font-weight: 500;
+  letter-spacing: .08em; text-transform: uppercase;
+  margin-bottom: 11px;
+}
+.story-buyer .story-tag { color: var(--green-300); }
+.story-owner .story-tag { color: #E8B46A; }
+
+.story-headline {
+  font-family: var(--font-display); font-size: 19px; font-weight: 700;
+  line-height: 1.25; letter-spacing: -.02em; color: #fff; margin: 0 0 12px;
+}
+.story-body { flex: 1; }
+.story-body p {
+  font-size: 13.5px; line-height: 1.72;
+  color: rgba(255,255,255,.70); margin: 0 0 11px;
+}
+.story-body p:last-child {
+  color: rgba(255,255,255,.92);
+  font-weight: 500;
+  margin-bottom: 0;
+}
+
+.story-foot {
+  margin-top: 18px; padding-top: 14px;
+  border-top: 1px solid rgba(255,255,255,.10);
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-wrap: wrap;
+}
+.story-foot .beteckning { color: rgba(255,255,255,.45); text-transform: none; letter-spacing: .02em; }
+.story-link {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: none; cursor: pointer; padding: 0;
+  font-family: var(--font-body); font-size: 13px; font-weight: 600;
+}
+.story-buyer .story-link { color: var(--green-300); }
+.story-owner .story-link { color: #E8B46A; }
+.story-link i { font-size: 14px; transition: transform .14s ease; }
+.story-link:hover i { transform: translateX(3px); }
+
+@media (min-width: 900px) {
+  .stories { padding-block: 64px 68px; }
+  .stories-grid { grid-template-columns: 1fr 1fr; gap: 20px; }
+  .stories-title { font-size: 30px; }
+  .story { padding: 26px 26px 20px; }
+  .story-headline { font-size: 20px; }
+}

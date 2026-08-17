@@ -2273,6 +2273,48 @@ function renderWelcome() {
         </div>
       </div>
 
+      <!-- Scenarier. MEDVETET märkta som exempel, inte som kundomdömen —
+           uppdiktade recensioner är vilseledande marknadsföring. Syftet är
+           att förklara vad man faktiskt gör med tjänsten. -->
+      <div class="stories">
+        <div class="shell">
+          <div class="stories-head">
+            <h2 class="stories-title">Så här kan det gå till</h2>
+            <p class="stories-sub">Två situationer som ifound är byggt för. Exemplen är påhittade och beskriver hur tjänsten är tänkt att fungera.</p>
+          </div>
+
+          <div class="stories-grid">
+            <article class="story story-buyer">
+              <div class="story-tag">Exempel · Köparen</div>
+              <h3 class="story-headline">Tomten fanns. Den var bara inte till salu.</h3>
+              <div class="story-body">
+                <p>Ett par letade villatomt i ett år utan att hitta något. På en promenad gick de förbi en stor trädgård där halva ytan stod oanvänd — men fastigheten låg förstås inte ute.</p>
+                <p>Via ifound ritade de ut den del av tomten de var intresserade av och skickade en fråga om avstyckning. Ägaren, ett pensionerat par som tyckte trädgården blivit för stor att sköta, hade funderat på saken i flera år utan att veta hur man börjar.</p>
+                <p>De hade aldrig hittat varandra på Hemnet, eftersom det inte fanns någon annons att hitta.</p>
+              </div>
+              <div class="story-foot">
+                <span class="beteckning">Skulle du göra samma sak?</span>
+                <button class="story-link" onclick="currentView='map';render();">Hitta mark på kartan <i class="ti ti-arrow-right" aria-hidden="true"></i></button>
+              </div>
+            </article>
+
+            <article class="story story-owner">
+              <div class="story-tag">Exempel · Ägaren</div>
+              <h3 class="story-headline">Sålde utan att någonsin lägga ut huset.</h3>
+              <div class="story-body">
+                <p>En familj funderade på att flytta, men drog sig för hela processen: styling, fotografering, visningar varje söndag, och risken att ligga ute i flera månader med ett pris som sakta måste sänkas.</p>
+                <p>I stället claimade de sin fastighet på ifound och angav vad de skulle kunna tänka sig att sälja för. Huset syntes aldrig som annonserat — bara som möjligt.</p>
+                <p>Efter några veckor hörde någon av sig som redan gillat huset tidigare. Affären gjordes upp innan den blev en försäljningsprocess.</p>
+              </div>
+              <div class="story-foot">
+                <span class="beteckning">Äger du en fastighet?</span>
+                <button class="story-link" onclick="focusLandingSearch()">Sök upp din fastighet <i class="ti ti-arrow-right" aria-hidden="true"></i></button>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+
       <!-- Topplistor -->
       <div style="max-width:900px;margin:0 auto;padding:0 20px 36px;">
         <div style="text-align:center;margin-bottom:22px;">

@@ -1122,3 +1122,37 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
 @media (min-width: 900px) {
   .type-pills-hero { max-width: 560px; }
 }
+
+
+/* =========================================================
+   Chips och typfilter: scroll på mobil, radbrytning på desktop.
+   Horisontell scroll kräver Shift+hjul med mus — i praktiken
+   oupptäckbart. På desktop finns plats att radbryta i stället.
+   ========================================================= */
+@media (min-width: 900px) {
+  .hero-chips,
+  .type-pills-hero {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    scroll-snap-type: none;
+  }
+  .hero-chips { row-gap: 7px; }
+  .type-pills-hero { row-gap: 7px; max-width: 100%; }
+
+  /* Ingen överflödsyta kvar att antyda */
+  .hero-chips-wrap::after { display: none; }
+  .hero-chips > :last-child { margin-right: 0; }
+  .chip { max-width: 260px; }
+}
+
+/* Mobil: typfiltret får samma bortoning som snabbvalen ovanför,
+   annars ser ett avklippt piller ut som ett fel. */
+@media (max-width: 899px) {
+  .type-pills-wrap { position: relative; }
+  .type-pills-wrap::after {
+    content: ""; position: absolute; right: 0; top: 12px; bottom: 0;
+    width: 40px; pointer-events: none;
+    background: linear-gradient(to right, transparent, var(--green-900));
+  }
+  .type-pills-hero > :last-child { margin-right: 34px; }
+}

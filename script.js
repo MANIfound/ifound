@@ -2188,6 +2188,7 @@ function renderWelcome() {
               </div>
             </div>
 
+            <div class="type-pills-wrap">
             <div id="landingTypePills" class="type-pills type-pills-hero">
               ${(() => {
                 const active = localStorage.getItem("ifound_type_filter") || "Alla typer";
@@ -2195,6 +2196,7 @@ function renderWelcome() {
                   `<button class="type-pill ${t === active ? "active" : ""}" data-type="${t}" onclick="landingSelectType(this)">${t}</button>`
                 ).join("");
               })()}
+            </div>
             </div>
           </div>
 

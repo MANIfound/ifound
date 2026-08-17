@@ -3631,25 +3631,46 @@ function autoLoadCentrum() {
   const statusEl = document.getElementById("mapStatus");
   if (statusEl) statusEl.textContent = "Hämtar fastighetsdata...";
 
-  // Load from GitHub repo
-  const url = "https://raw.githubusercontent.com/MANIfound/ifound/main/helsingborg_centrum.geojson";
+  // Hämtas från den egna sajten, inte från raw.githubusercontent.com.
+  // GitHubs råfilstjänst är byggd för enstaka nedladdningar och strypar med
+  // HTTP 429 per IP — vid skarp trafik hade kartan slutat fungera för alla
+  // samtidigt. Filen deployas ändå med projektet, så omvägen fyllde ingen
+  // funktion. GitHub finns kvar som reserv om filen skulle saknas lokalt.
+  const LOCAL_URL = "helsingborg_centrum.geojson";
+  const FALLBACK_URL = "https://raw.githubusercontent.com/MANIfound/ifound/main/helsingborg_centrum.geojson";
 
-  fetch(url)
+  const load = (url, isFallback) => fetch(url)
     .then(r => {
       if (!r.ok) throw new Error("HTTP " + r.status);
       return r.json();
     })
     .then(geojson => {
+      if (isFallback) console.warn("[ifound] Lokal geojson saknas — hämtade från GitHub. Lägg filen i projektroten.");
       geojson = reprojectGeoJsonIfNeeded(geojson);
       addGeoJsonToMap(geojson, { keepView: false });
       updateMapStatus(geojson.features?.length || 0);
       try { localStorage.setItem(LS_GEOJSON, JSON.stringify(geojson)); } catch {}
       addClaimedMarkers();
-    })
+    });
+
+  load(LOCAL_URL, false)
+    .catch(() => load(FALLBACK_URL, true))
     .catch(err => {
-      console.error(err);
+      console.error("[ifound] Kunde inte ladda fastighetsdata:", err.message);
       if (statusEl) statusEl.textContent = "Kunde inte ladda fastighetsdata";
-      toast("Kunde inte hämta fastighetsdata — kontrollera anslutningen.");
+      // Sista utvägen: tidigare hämtad data ur webbläsarens lagring
+      try {
+        const cached = localStorage.getItem(LS_GEOJSON);
+        if (cached) {
+          const gj = JSON.parse(cached);
+          addGeoJsonToMap(gj, { keepView: false });
+          updateMapStatus(gj.features?.length || 0);
+          addClaimedMarkers();
+          toast("Visar senast hämtade fastighetsdata.");
+          return;
+        }
+      } catch {}
+      toast("Kunde inte hämta fastighetsdata — försök igen om en stund.");
     });
 }
 

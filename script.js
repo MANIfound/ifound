@@ -970,7 +970,7 @@ const TYPE_SOURCE = { MANUAL: "manuell", STRONG: "byggnad", WEAK: "indikation", 
 
 // Höj denna vid varje ändring i klassificeringslogiken — den ogiltigförklarar
 // cachade resultat på alla enheter så att förbättringar faktiskt slår igenom.
-const CLASSIFIER_VERSION = 3;
+const CLASSIFIER_VERSION = 4;
 const PREFETCH_FLAG = "ifound_osm_prefetch_ok_v" + CLASSIFIER_VERSION;
 
 function classifyOsmTags(tagsList) {
@@ -1062,6 +1062,24 @@ function classifyLanduse(tags) {
 function classifyOsmBuildings(tagsList) {
   const r = classifyOsmTags(tagsList);
   return r ? r.type : null;
+}
+
+// Areabaserad bedömning. Fungerar HELT utan nätverk och är sista utvägen när
+// OSM saknar användbara taggar. En bebyggd tomt på 200–3000 kvm i tätort är i
+// svensk bebyggelse nästan undantagslöst ett småhus.
+function areaToNumber(v) {
+  if (v == null) return null;
+  const n = parseFloat(String(v).replace(/\s/g, "").replace(",", "."));
+  return isFinite(n) ? n : null;
+}
+function classifyByArea(areaM2, buildingCount) {
+  if (!areaM2) return null;
+  if (buildingCount === 0) return null;          // tomt utan byggnad — inte vår gissning
+  if (areaM2 < 150) return null;                 // för litet: garage, transformator, komplement
+  if (areaM2 <= 3000 && buildingCount <= 3) {
+    return { type: PROPERTY_TYPES.SMAHUS, source: TYPE_SOURCE.WEAK };
+  }
+  return null;                                   // stort eller tätbebyggt: vågar inte gissa
 }
 
 // Tomtens mittpunkt (räcker för att testa mot markanvändningspolygoner)
@@ -1174,6 +1192,7 @@ async function prefetchBuildingTypesInView() {
     const buildings = (data.elements || [])
       .map(e => ({ lon: e.center?.lon, lat: e.center?.lat, tags: e.tags || {} }))
       .filter(x => x.lon && x.lat && x.tags.building);
+    const buildingsOk = buildings.length > 0;
     console.log("[ifound]", buildings.length, "byggnader hämtade för hela området");
 
     // Markanvändning som fallback för tomter utan användbar byggnadstagg.
@@ -1220,8 +1239,17 @@ async function prefetchBuildingTypesInView() {
         }
       }
 
-      // Ingen byggnad alls på tomten är i sig ett svar
-      if (!result && !inParcel.length) {
+      // Areabaserad bedömning innan vi ger upp — fångar building=yes utan taggar,
+      // vilket är det absolut vanligaste fallet för villor i svensk OSM.
+      if (!result && inParcel.length) {
+        const a = areaToNumber(getParcelMeta(f)?.area);
+        result = classifyByArea(a, inParcel.length);
+      }
+
+      // Ingen byggnad alls är i sig ett svar — men BARA om byggnadsfrågan
+      // faktiskt lyckades. Annars skulle ett nätverksfel märka hela kartan
+      // som obebyggd, vilket är sämre än att inte veta.
+      if (!result && !inParcel.length && buildingsOk) {
         result = { type: PROPERTY_TYPES.OBEBYGGD, source: TYPE_SOURCE.LANDUSE };
       }
 
@@ -1254,19 +1282,23 @@ async function prefetchBuildingTypesInView() {
         const c = parcelCentroid(f);
         if (!c) continue;
 
-        // Åtta närmaste grannar (plan approximation räcker på stadsdelsnivå)
+        // Endast grannar inom ~300 m får rösta. Utan denna spärr hämtade
+        // omröstningen röster från flerbostadshus flera kvarter bort, vilket
+        // gjorde den verkningslös i just villaområden.
+        const MAX_D2 = 0.0035 ** 2; // ~300 m i grader på denna breddgrad
         const near = classified
           .map(o => ({ type: o.type, d: (o.c[0]-c[0])**2 + (o.c[1]-c[1])**2 }))
+          .filter(o => o.d <= MAX_D2)
           .sort((a, b) => a.d - b.d)
           .slice(0, 8);
-        if (near.length < 5) continue;
+        if (near.length < 4) continue;
 
         const votes = {};
         for (const n of near) votes[n.type] = (votes[n.type] || 0) + 1;
         const [winner, count] = Object.entries(votes).sort((a, b) => b[1] - a[1])[0];
 
-        // Krav på tydlig majoritet — annars är området blandat och vi avstår
-        if (count >= 6) {
+        // Krav på tydlig majoritet (minst 70%) — annars är området blandat
+        if (count / near.length >= 0.7) {
           s.buildingTypes[pid] = winner;
           s.typeSources = s.typeSources || {};
           s.typeSources[pid] = TYPE_SOURCE.GRANNE;

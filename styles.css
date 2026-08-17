@@ -997,7 +997,6 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
 .arch-cta i { font-size: 14px; transition: transform .14s ease; }
 .arch:hover .arch-cta i { transform: translateX(3px); }
 
-.type-filter-row { margin-top: 30px; }
 .type-pills {
   display: flex; gap: 6px;
   overflow-x: auto; scrollbar-width: none; padding-bottom: 3px;
@@ -1090,3 +1089,36 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
 /* Övriga sektioner på startsidan delar shellens mått */
 .how-inner, .bn-wrap { max-width: calc(760px + 2 * var(--gutter)); padding-inline: var(--gutter); }
 .how-section { padding-block: 40px 44px; padding-inline: 0; }
+
+
+/* Typfilter i hero — mot mörk botten behöver pillren egen behandling.
+   Vitt på vitt fungerade när de låg på den ljusa sidan. */
+.type-pills-hero {
+  margin-top: 11px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,.10);
+}
+.type-pills-hero .type-pill {
+  background: transparent;
+  color: rgba(255,255,255,.62);
+  border: 0.5px solid rgba(255,255,255,.18);
+  padding: 7px 13px;
+  font-size: 12.5px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background .14s ease, color .14s ease, border-color .14s ease;
+}
+.type-pills-hero .type-pill:hover {
+  color: #fff;
+  border-color: rgba(255,255,255,.36);
+}
+.type-pills-hero .type-pill.active {
+  background: var(--green-300);
+  color: var(--green-900);
+  border-color: transparent;
+  font-weight: 600;
+}
+
+@media (min-width: 900px) {
+  .type-pills-hero { max-width: 560px; }
+}

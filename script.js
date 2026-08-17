@@ -2064,7 +2064,21 @@ function landingSelectType(btn) {
   const wrap = document.getElementById("landingTypePills");
   if (wrap) wrap.querySelectorAll(".type-pill").forEach(p => p.classList.remove("active"));
   btn.classList.add("active");
-  window._landingType = btn.dataset.type;
+
+  // Tidigare satte den här funktionen bara en variabel som ingen läste — knapparna
+  // var alltså rent dekorativa. Nu skrivs valet till samma nyckel som feeden
+  // redan filtrerar på, så det följer med när användaren går vidare.
+  const type = btn.dataset.type;
+  window._landingType = type;
+  if (type && type !== "Alla typer") localStorage.setItem("ifound_type_filter", type);
+  else localStorage.removeItem("ifound_type_filter");
+
+  const label = document.getElementById("typeFilterHint");
+  if (label) {
+    label.textContent = (type && type !== "Alla typer")
+      ? `Visar ${type.toLowerCase()} när du söker eller utforskar`
+      : "";
+  }
 }
 
 function clearFeedTypeFilter() {
@@ -2137,8 +2151,8 @@ function renderWelcome() {
       <div class="hero-green">
         <div class="shell hero-grid">
           <div class="hero-main">
-            <h1 class="hero-title">Varje hus har<br>någon som undrar</h1>
-            <p class="hero-lead">Visa intresse för hus som inte är till salu — och se vad folk tycker om ditt eget. Utan att blanda in en mäklare.</p>
+            <h1 class="hero-title">Alla hus.<br>Inte bara de<br>till salu.</h1>
+            <p class="hero-lead">Varje fastighet i Helsingborg finns här. Visa intresse för det du fastnat för — eller se vad folk tycker om ditt eget hus.</p>
             <div class="hero-search" id="landingSearchWrap">
               <i class="ti ti-search" aria-hidden="true"></i>
               <input id="landingSearch" placeholder="Sök adress eller fastighet..." />
@@ -2157,6 +2171,15 @@ function renderWelcome() {
                   ).join('');
                 })()}
               </div>
+            </div>
+
+            <div id="landingTypePills" class="type-pills type-pills-hero">
+              ${(() => {
+                const active = localStorage.getItem("ifound_type_filter") || "Alla typer";
+                return ["Alla typer","Villa","Lägenhet","Tomt/Gård","Fritidshus","Uthyrning"].map(t =>
+                  `<button class="type-pill ${t === active ? "active" : ""}" data-type="${t}" onclick="landingSelectType(this)">${t}</button>`
+                ).join("");
+              })()}
             </div>
           </div>
 
@@ -2195,14 +2218,6 @@ function renderWelcome() {
             <div class="arch-text">Se vem som gillat eller visat intresse för din fastighet.</div>
             <div class="arch-cta">Sök upp min fastighet <i class="ti ti-arrow-right" aria-hidden="true"></i></div>
           </div>
-        </div>
-      </div>
-
-      <div class="shell type-filter-row">
-        <div id="landingTypePills" class="type-pills">
-          ${["Alla typer","Villa","Lägenhet","Tomt/Gård","Fritidshus","Uthyrning"].map((t,i) => `
-            <button class="type-pill ${i===0 ? "active" : ""}" data-type="${t}" onclick="landingSelectType(this)">${t}</button>
-          `).join("")}
         </div>
       </div>
 

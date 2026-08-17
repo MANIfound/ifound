@@ -1188,7 +1188,7 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
 }
 .stories-sub { font-size: 14px; line-height: 1.65; color: rgba(255,255,255,.60); margin: 0; }
 
-.stories-grid { display: grid; gap: 16px; }
+
 
 .story {
   background: rgba(255,255,255,.05);
@@ -1237,10 +1237,118 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
 .story-link i { font-size: 14px; transition: transform .14s ease; }
 .story-link:hover i { transform: translateX(3px); }
 
-@media (min-width: 900px) {
-  .stories { padding-block: 64px 68px; }
-  .stories-grid { grid-template-columns: 1fr 1fr; gap: 20px; }
+
+
+
+/* =========================================================
+   Scenarier som utspridda bubblor — "ordnad röra".
+   Olika bredd, förskjutna i höjdled, lätt lutade åt olika håll.
+   Ingen symmetri, men ett tydligt system: udda kort går åt vänster,
+   jämna åt höger, och de överlappar varandra en aning.
+   ========================================================= */
+.stories-scatter { display: flex; flex-direction: column; gap: 16px; }
+
+.story {
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 20px;
+  padding: 22px 22px 18px;
+  display: flex; flex-direction: column;
+  transition: transform .25s ease, background .25s ease;
+}
+.story:hover { background: rgba(255,255,255,.08); }
+
+@media (min-width: 760px) {
+  .stories-scatter { display: block; position: relative; padding-bottom: 20px; }
+
+  .story {
+    width: 62%;
+    padding: 28px 30px 22px;
+  }
+  .story-buyer {
+    margin-right: auto;
+    transform: rotate(-0.7deg);
+    border-top-left-radius: 34px;
+  }
+  .story-owner {
+    margin-left: auto;
+    margin-top: -34px;
+    transform: rotate(0.9deg);
+    border-bottom-right-radius: 34px;
+    position: relative; z-index: 2;
+  }
+  .story-buyer:hover { transform: rotate(-0.7deg) translateY(-5px); }
+  .story-owner:hover { transform: rotate(0.9deg) translateY(-5px); z-index: 3; }
+
+  .stories-head { margin-bottom: 34px; }
   .stories-title { font-size: 30px; }
-  .story { padding: 26px 26px 20px; }
-  .story-headline { font-size: 20px; }
+  .story-headline { font-size: 21px; }
+  .stories { padding-block: 64px 72px; }
+}
+
+/* Mobil: staplade, men lätt indragna åt olika håll så rytmen finns kvar */
+@media (max-width: 759px) {
+  .story-buyer { margin-right: 14px; }
+  .story-owner { margin-left: 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .story, .story-buyer, .story-owner { transform: none !important; }
+}
+
+
+/* ===== Önskepris ===== */
+.wish-intro {
+  font-size: 12.5px; line-height: 1.65; color: var(--ink-soft);
+  margin-bottom: 14px;
+}
+.wish-intro strong { color: var(--ink); font-weight: 600; }
+
+.wish-input-row { position: relative; display: flex; align-items: center; }
+.wish-input-row .input { padding-right: 38px; font-size: 16px; font-weight: 600; }
+.wish-suffix {
+  position: absolute; right: 13px; pointer-events: none;
+  font-size: 13px; color: var(--ink-muted); font-weight: 500;
+}
+
+.wish-toggle {
+  display: flex; gap: 10px; align-items: flex-start;
+  margin: 13px 0 15px; cursor: pointer;
+}
+.wish-toggle input { margin-top: 2px; width: 16px; height: 16px; accent-color: var(--green-600); flex-shrink: 0; }
+.wish-toggle strong { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink); }
+.wish-toggle em {
+  display: block; font-style: normal; font-size: 11.5px;
+  color: var(--ink-muted); line-height: 1.5; margin-top: 2px;
+}
+
+.wish-meta { font-size: 11px; color: var(--ink-muted); margin-top: 9px; text-align: center; }
+
+.wish-row strong { color: var(--green-700); }
+
+
+/* Önskepris i kartpanelen — eget fält, inte en rad bland metadata.
+   Är det angivet är det ofta det första besökaren vill veta. */
+.wish-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  background: var(--green-100); border: 1px solid rgba(82,109,51,.28);
+  border-radius: 12px; padding: 12px 15px; margin-top: 12px;
+}
+.wish-banner i { font-size: 19px; color: var(--green-700); flex-shrink: 0; }
+.wish-banner-label {
+  font-family: var(--font-data); font-size: 9.5px; font-weight: 500;
+  letter-spacing: .09em; text-transform: uppercase; color: var(--green-800);
+  opacity: .75; margin-bottom: 3px;
+}
+.wish-banner-amount {
+  font-family: var(--font-display); font-size: 19px; font-weight: 700;
+  letter-spacing: -.02em; color: var(--green-800);
+}
+.wish-banner-private { background: var(--surface-2); border-color: var(--hairline); }
+.wish-banner-private .wish-banner-amount,
+.wish-banner-private .wish-banner-label { color: var(--ink-soft); }
+.wish-banner-private i { color: var(--ink-muted); }
+.wish-banner-note {
+  font-size: 11.5px; color: var(--ink-muted); line-height: 1.5;
+  margin-top: 6px; padding: 0 3px;
 }

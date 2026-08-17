@@ -1486,6 +1486,7 @@ function _renderParcelPanelInner(feature) {
     <div class="panel-meta-row"><span>Beteckning</span><strong>${formatValue(meta.beteckning)}</strong></div>
     <div class="panel-meta-row"><span>Typ</span>${typCell}</div>
     <div class="panel-meta-row"><span>Area</span><strong>${formatValue(meta.area)}</strong></div>
+
     ${typValue ? `<div style="text-align:right;padding:5px 2px 0;">
       <button onclick="openTypePicker('${pid.replace(/'/g, "\\'")}','${escName}')"
         style="background:none;border:none;padding:2px;cursor:pointer;font-family:var(--font-body);font-size:11px;color:var(--ink-muted);text-decoration:underline;">
@@ -1626,6 +1627,21 @@ function _renderParcelPanelInner(feature) {
       <div class="panel-name">${name}</div>
     `}
     <div class="panel-mode">${isBrf ? "Flerbostadshus — gilla och intresse gäller hela föreningen." : "Spara intresse och följ objektet."}</div>
+    ${(() => {
+      const wp = (state.wishPrices || {})[pid];
+      if (!wp?.amount) return "";
+      const own = state.ownerParcelId === pid;
+      if (!wp.visible && !own) return "";
+      return `
+      <div class="wish-banner ${own && !wp.visible ? "wish-banner-private" : ""}">
+        <div>
+          <div class="wish-banner-label">${own && !wp.visible ? "Ditt önskepris (privat)" : "Ägarens önskepris"}</div>
+          <div class="wish-banner-amount">${wp.amount} kr</div>
+        </div>
+        <i class="ti ${own && !wp.visible ? "ti-lock" : "ti-tag"}" aria-hidden="true"></i>
+      </div>
+      ${own ? "" : `<div class="wish-banner-note">Fastigheten är inte till salu — men ägaren har angett vad de skulle kunna tänka sig.</div>`}`;
+    })()}
     ${teaserHtml}
     <div class="panel-meta">${metaRows}</div>
     <div class="panel-actions">
@@ -2283,14 +2299,14 @@ function renderWelcome() {
             <p class="stories-sub">Två situationer som ifound är byggt för. Exemplen är påhittade och beskriver hur tjänsten är tänkt att fungera.</p>
           </div>
 
-          <div class="stories-grid">
+          <div class="stories-scatter">
             <article class="story story-buyer">
               <div class="story-tag">Exempel · Köparen</div>
               <h3 class="story-headline">Tomten fanns. Den var bara inte till salu.</h3>
               <div class="story-body">
                 <p>Ett par letade villatomt i ett år utan att hitta något. På en promenad gick de förbi en stor trädgård där halva ytan stod oanvänd — men fastigheten låg förstås inte ute.</p>
                 <p>Via ifound ritade de ut den del av tomten de var intresserade av och skickade en fråga om avstyckning. Ägaren, ett pensionerat par som tyckte trädgården blivit för stor att sköta, hade funderat på saken i flera år utan att veta hur man börjar.</p>
-                <p>De hade aldrig hittat varandra på Hemnet, eftersom det inte fanns någon annons att hitta.</p>
+                <p>De hade aldrig hittat varandra på bostadssajterna, eftersom det inte fanns någon annons att hitta.</p>
               </div>
               <div class="story-foot">
                 <span class="beteckning">Skulle du göra samma sak?</span>
@@ -3083,7 +3099,6 @@ function renderDashboard() {
               <div class="extra-form" id="sale-extra">
                 <div class="card-title" style="font-size:13px;margin-bottom:10px;">Försäljningsdetaljer</div>
                 <div class="two-fields">
-                  <div class="field-group"><label class="label">Utgångspris</label><input class="input" placeholder="3 500 000 kr" /></div>
                   <div class="field-group"><label class="label">Visningsdatum</label><input class="input" type="date" /></div>
                 </div>
               </div>
@@ -3091,6 +3106,37 @@ function renderDashboard() {
             </div>
           </div>
           <div>
+            ${ownerId ? (() => {
+              const wp = (state.wishPrices || {})[ownerId] || {};
+              const amount = wp.amount || "";
+              const visible = !!wp.visible;
+              return `
+            <div class="card wish-card" style="margin-bottom:12px;">
+              <div class="card-title">Önskepris</div>
+              <div class="wish-intro">
+                Din fastighet är <strong>inte</strong> till salu. Men anger du vad du skulle kunna tänka dig att sälja för vet den som är intresserad om det är någon idé att höra av sig — och du slipper bud som ligger långt under.
+              </div>
+
+              <div class="wish-input-row">
+                <input id="wishPriceInput" class="input" inputmode="numeric" placeholder="t.ex. 4 200 000" value="${amount}" />
+                <span class="wish-suffix">kr</span>
+              </div>
+
+              <label class="wish-toggle">
+                <input type="checkbox" id="wishPriceVisible" ${visible ? "checked" : ""} />
+                <span>
+                  <strong>Visa priset för intressenter</strong>
+                  <em>${visible
+                    ? "Den som visar intresse ser summan direkt."
+                    : "Priset är privat. Du ser det själv, men ingen annan."}</em>
+                </span>
+              </label>
+
+              <button class="save-btn" id="saveWishPriceBtn">Spara önskepris</button>
+
+              ${wp.updatedAt ? `<div class="wish-meta">Senast ändrat ${new Date(wp.updatedAt).toLocaleDateString("sv-SE")}</div>` : ""}
+            </div>`;
+            })() : ""}
             <div class="card" style="margin-bottom:12px;">
               <div class="card-title">Aktivitet</div>
               ${ownerId && state.interestMessages?.[ownerId]?.length ? `
@@ -3146,6 +3192,43 @@ function renderDashboard() {
 
   const clearBtn = document.getElementById("clearOwnerBtn");
   if (clearBtn) clearBtn.onclick = () => { const s = loadState(); s.ownerParcelId = null; saveState(s); toast("Välj en ny fastighet."); render(); };
+
+  const wishBtn = document.getElementById("saveWishPriceBtn");
+  if (wishBtn) wishBtn.onclick = () => {
+    const raw = document.getElementById("wishPriceInput").value;
+    const visible = document.getElementById("wishPriceVisible").checked;
+    const digits = String(raw).replace(/\D/g, "");
+    const st = loadState();
+    st.wishPrices = st.wishPrices || {};
+    const pid = st.ownerParcelId;
+    if (!pid) return;
+
+    if (!digits) {
+      delete st.wishPrices[pid];
+      saveState(st);
+      toast("Önskepriset är borttaget.");
+      return render();
+    }
+    const num = parseInt(digits, 10);
+    if (num < 10000) { toast("Ange priset i kronor, till exempel 4 200 000."); return; }
+
+    st.wishPrices[pid] = {
+      amount: num.toLocaleString("sv-SE"),
+      value: num,
+      visible,
+      updatedAt: new Date().toISOString(),
+    };
+    saveState(st);
+    toast(visible ? "Önskepriset sparat och synligt för intressenter." : "Önskepriset sparat — bara du ser det.");
+    render();
+  };
+
+  // Formatera med tusentalsavgränsare medan man skriver
+  const wishInput = document.getElementById("wishPriceInput");
+  if (wishInput) wishInput.addEventListener("input", () => {
+    const d = wishInput.value.replace(/\D/g, "");
+    wishInput.value = d ? parseInt(d, 10).toLocaleString("sv-SE") : "";
+  });
 
   document.getElementById("saveHomeProfileBtn").onclick = () => {
     const u = getCurrentUser(); if (!u) return;
@@ -4017,6 +4100,27 @@ function renderInterestMessages() {
 
 let adminTab = "overview";
 
+// Godkänn eller avslå ett ägaranspråk. Sätter claimStatus, som tidigare
+// aldrig kunde bli något annat än 'pending'.
+function decideClaim(email, decision) {
+  const users = loadUsers();
+  const u = users[email];
+  if (!u?.pendingClaim) return;
+  u.pendingClaim.status = decision;
+  u.pendingClaim.decidedAt = new Date().toISOString();
+  saveUsers(users);
+
+  const st = loadState();
+  st.claimStatus = decision === "verified" ? "verified" : "rejected";
+  if (decision !== "verified") st.ownerParcelId = null;
+  saveState(st);
+
+  toast(decision === "verified"
+    ? `${u.pendingClaim.prop} är nu verifierad för ${u.name}.`
+    : `Anspråket på ${u.pendingClaim.prop} avslogs.`);
+  renderAdmin();
+}
+
 function renderAdmin() {
   const users = loadUsers();
   const state = loadState();
@@ -4055,6 +4159,7 @@ function renderAdmin() {
 
   const tabs = [
     { id:"overview",    label:"Översikt",       icon:"ti-layout-dashboard" },
+    { id:"claims",      label:"Ägaranspråk",    icon:"ti-id-badge-2" },
     { id:"users",       label:"Användare",      icon:"ti-users" },
     { id:"properties",  label:"Fastigheter",    icon:"ti-home-check" },
     { id:"moderation",  label:"Moderering",     icon:"ti-shield-check" },
@@ -4418,7 +4523,44 @@ function renderAdmin() {
     </div>
   `;
 
-  const tabContent = { overview:overviewHtml, users:usersHtml, properties:propertiesHtml, moderation:moderationHtml, insights:insightsHtml, premium:premiumHtml };
+  // Ägaranspråk. Innan BankID finns är detta den manuella verifieringen —
+  // claimStatus sattes tidigare till 'pending' utan att något kunde godkänna den.
+  const claimUsers = Object.values(loadUsers()).filter(u => u.pendingClaim);
+  const claimsHtml = `
+    <div class="card">
+      <div class="card-title">Ägaranspråk att granska</div>
+      <div style="font-size:12.5px;color:var(--ink-soft);line-height:1.65;margin-bottom:16px;">
+        Manuell verifiering tills BankID är på plats. Kontrollera att personen står som lagfaren ägare
+        till fastigheten innan du godkänner — det är den enda spärren mot att någon claimar ett hus de inte äger.
+      </div>
+      ${claimUsers.length ? claimUsers.map(u => {
+        const c = u.pendingClaim;
+        const done = c.status && c.status !== "pending";
+        return `
+        <div style="border:1px solid var(--hairline);border-radius:13px;padding:15px 16px;margin-bottom:10px;background:${done ? "var(--surface-2)" : "var(--surface)"};">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+            <div>
+              <div style="font-family:var(--font-data);font-size:13px;font-weight:500;letter-spacing:.04em;color:var(--ink);">${c.prop}</div>
+              <div style="font-size:13px;color:var(--ink);margin-top:5px;font-weight:600;">${c.name}</div>
+              <div style="font-size:12px;color:var(--ink-muted);margin-top:2px;">${c.pnr} · ${u.email}</div>
+              <div style="font-size:11.5px;color:var(--ink-muted);margin-top:5px;">
+                Synlighet: ${c.visibility || "—"} · Inskickad ${new Date(c.submittedAt).toLocaleDateString("sv-SE")}
+              </div>
+            </div>
+            <div style="display:flex;gap:7px;flex-shrink:0;">
+              ${done
+                ? `<span style="font-size:11.5px;font-weight:600;padding:6px 12px;border-radius:999px;background:${c.status === "verified" ? "var(--green-100)" : "#FDE7E3"};color:${c.status === "verified" ? "var(--green-800)" : "#9B3A22"};">
+                     ${c.status === "verified" ? "Godkänd" : "Avslagen"}
+                   </span>`
+                : `<button onclick="decideClaim('${u.email}','verified')" style="padding:8px 14px;border-radius:9px;border:none;background:var(--green-600);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--font-body);">Godkänn</button>
+                   <button onclick="decideClaim('${u.email}','rejected')" style="padding:8px 14px;border-radius:9px;border:0.5px solid var(--hairline);background:transparent;color:var(--ink-soft);font-size:12.5px;font-weight:500;cursor:pointer;font-family:var(--font-body);">Avslå</button>`}
+            </div>
+          </div>
+        </div>`;
+      }).join("") : `<div style="font-size:13px;color:var(--ink-muted);padding:22px 0;text-align:center;">Inga anspråk väntar på granskning.</div>`}
+    </div>`;
+
+  const tabContent = { overview:overviewHtml, claims:claimsHtml, users:usersHtml, properties:propertiesHtml, moderation:moderationHtml, insights:insightsHtml, premium:premiumHtml };
 
   app.innerHTML = `
     <div style="min-height:100vh;background:var(--page-bg);">

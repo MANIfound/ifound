@@ -1009,13 +1009,19 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
    ========================================================= */
 @media (min-width: 900px) {
   :root { --gutter: 28px; }
+
+  /* Något bredare skal på desktop — textspalten var för smal för att rymma
+     sex filterpiller på en rad. Rubrik och ingress har egna radlängdstak,
+     så de påverkas inte. */
+  .shell { max-width: calc(880px + 2 * var(--gutter)); }
+
   .hero-green { padding-block: 64px 78px; }
 
   /* Asymmetriskt: text får den breda spalten, listan den smala. */
   .hero-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.55fr) minmax(240px, .95fr);
-    gap: 56px; align-items: start;
+    grid-template-columns: minmax(0, 1.62fr) minmax(230px, .88fr);
+    gap: 44px; align-items: start;
   }
   .hero-title { font-size: clamp(42px, 4.4vw, 56px); }
   .hero-lead { font-size: 16.5px; margin-bottom: 30px; }
@@ -1137,7 +1143,18 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
     scroll-snap-type: none;
   }
   .hero-chips { row-gap: 7px; }
-  .type-pills-hero { row-gap: 7px; max-width: 100%; }
+
+  /* Typfiltret får bryta ut ur textspalten så att alla sex pillren ryms på
+     en rad. Rubriken och ingressen mår bra av begränsad radlängd — det gör
+     inte en rad med knappar. */
+  .type-pills-hero {
+    row-gap: 7px;
+    max-width: none;
+    width: max-content;
+    max-width: 100%;
+    gap: 5px;
+  }
+  .type-pills-hero .type-pill { padding: 7px 12px; font-size: 12px; }
 
   /* Ingen överflödsyta kvar att antyda */
   .hero-chips-wrap::after { display: none; }

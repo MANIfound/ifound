@@ -2181,7 +2181,7 @@ function renderWelcome() {
                 ${(()=>{
                   const recent = JSON.parse(localStorage.getItem('ifound_recent_searches') || '[]');
                   if (!recent.length) return '';
-                  return recent.slice(0,5).map(q =>
+                  return recent.slice(0,3).map(q =>
                     '<button class="chip" title="' + q.replace(/"/g,'&quot;') + '" onclick="currentView=\'feed\';render();">' + q + '</button>'
                   ).join('');
                 })()}

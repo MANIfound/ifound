@@ -1242,60 +1242,75 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
 
 /* =========================================================
    Scenarier som utspridda bubblor — "ordnad röra".
-   Olika bredd, förskjutna i höjdled, lätt lutade åt olika håll.
-   Ingen symmetri, men ett tydligt system: udda kort går åt vänster,
-   jämna åt höger, och de överlappar varandra en aning.
+   Förskjutna i sidled och lätt lutade, men INTE överlappande:
+   överlappet gjorde att texten hamnade under nästa kort.
    ========================================================= */
-.stories-scatter { display: flex; flex-direction: column; gap: 16px; }
+.stories-scatter { display: flex; flex-direction: column; gap: 20px; }
 
 .story {
   background: rgba(255,255,255,.05);
   border: 1px solid rgba(255,255,255,.10);
   border-radius: 20px;
-  padding: 22px 22px 18px;
+  overflow: hidden;
   display: flex; flex-direction: column;
-  transition: transform .25s ease, background .25s ease;
+  transition: transform .25s ease, background .25s ease, box-shadow .25s ease;
 }
 .story:hover { background: rgba(255,255,255,.08); }
 
-@media (min-width: 760px) {
-  .stories-scatter { display: block; position: relative; padding-bottom: 20px; }
+.story-img { height: 150px; overflow: hidden; background: var(--green-800); }
+.story-img img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  transition: transform .5s ease;
+  filter: saturate(.85);
+}
+.story:hover .story-img img { transform: scale(1.04); }
 
-  .story {
-    width: 62%;
-    padding: 28px 30px 22px;
-  }
+.story-tag { margin: 18px 22px 9px; }
+.story-headline { margin: 0 22px 12px; }
+.story-body { flex: 1; padding: 0 22px; }
+.story-foot { margin: 16px 22px 18px; padding-top: 14px; }
+
+@media (min-width: 760px) {
+  .stories-scatter { display: block; position: relative; }
+
+  .story { width: 58%; }
+
   .story-buyer {
     margin-right: auto;
-    transform: rotate(-0.7deg);
-    border-top-left-radius: 34px;
+    transform: rotate(-0.8deg);
+    border-top-left-radius: 36px;
   }
   .story-owner {
     margin-left: auto;
-    margin-top: -34px;
+    margin-top: 34px;              /* luft, inte överlapp */
     transform: rotate(0.9deg);
-    border-bottom-right-radius: 34px;
-    position: relative; z-index: 2;
+    border-bottom-right-radius: 36px;
   }
-  .story-buyer:hover { transform: rotate(-0.7deg) translateY(-5px); }
-  .story-owner:hover { transform: rotate(0.9deg) translateY(-5px); z-index: 3; }
+  .story-buyer:hover { transform: rotate(-0.8deg) translateY(-6px); box-shadow: 0 18px 44px rgba(0,0,0,.30); }
+  .story-owner:hover { transform: rotate(0.9deg) translateY(-6px); box-shadow: 0 18px 44px rgba(0,0,0,.30); }
 
-  .stories-head { margin-bottom: 34px; }
+  .story-img { height: 190px; }
+  .story-tag { margin: 22px 28px 10px; }
+  .story-headline { margin: 0 28px 14px; font-size: 21px; }
+  .story-body { padding: 0 28px; }
+  .story-foot { margin: 18px 28px 22px; }
+
+  .stories-head { margin-bottom: 36px; }
   .stories-title { font-size: 30px; }
-  .story-headline { font-size: 21px; }
-  .stories { padding-block: 64px 72px; }
+  .stories { padding-block: 64px 76px; }
 }
 
-/* Mobil: staplade, men lätt indragna åt olika håll så rytmen finns kvar */
+/* Mobil: staplade med små indrag så rytmen finns kvar */
 @media (max-width: 759px) {
-  .story-buyer { margin-right: 14px; }
-  .story-owner { margin-left: 14px; }
+  .story-buyer { margin-right: 12px; }
+  .story-owner { margin-left: 12px; }
+  .story-img { height: 140px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .story, .story-buyer, .story-owner { transform: none !important; }
+  .story-img img { transition: none; }
 }
-
 
 /* ===== Önskepris ===== */
 .wish-intro {

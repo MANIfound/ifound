@@ -2301,6 +2301,9 @@ function renderWelcome() {
 
           <div class="stories-scatter">
             <article class="story story-buyer">
+              <div class="story-img">
+                <img src="https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=900&q=75&auto=format" alt="Stor villaträdgård med gräsmatta och träd" loading="lazy" />
+              </div>
               <div class="story-tag">Exempel · Köparen</div>
               <h3 class="story-headline">Tomten fanns. Den var bara inte till salu.</h3>
               <div class="story-body">
@@ -2315,6 +2318,9 @@ function renderWelcome() {
             </article>
 
             <article class="story story-owner">
+              <div class="story-img">
+                <img src="https://images.unsplash.com/photo-1449844908441-8829872d2607?w=900&q=75&auto=format" alt="Villa i kvällsljus" loading="lazy" />
+              </div>
               <div class="story-tag">Exempel · Ägaren</div>
               <h3 class="story-headline">Sålde utan att någonsin lägga ut huset.</h3>
               <div class="story-body">

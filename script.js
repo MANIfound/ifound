@@ -1319,7 +1319,11 @@ async function prefetchBuildingTypesInView() {
     }
 
     let voted = 0;
-    if (classified.length >= 8) {
+    if (classified.length > 1500) console.log("[ifound] Hoppar över grannskapsomröstning —", classified.length, "klassade fastigheter är för många för att rösta synkront.");
+    // O(n²) — med tusentals fastigheter låser den fliken helt. Vi kör den
+    // bara när mängden är hanterbar; annars räcker de andra stegen.
+    const VOTE_LIMIT = 1500;
+    if (classified.length >= 8 && classified.length <= VOTE_LIMIT) {
       for (const f of (lastGeoJson.features || [])) {
         const pid = getParcelId(f);
         if (s.buildingTypes[pid]) continue;
@@ -1425,6 +1429,22 @@ async function detectBuildingType(feature, pid) {
 }
 
 function renderParcelPanel(feature) {
+  // Skydd mot renderingsloop. Anropar något i panelen renderParcelPanel igen
+  // medan den redan renderar, avbryts det andra anropet i stället för att
+  // låsa fliken. Räknaren nollställs alltid i finally.
+  if (_panelRenderDepth > 0) {
+    console.warn("[ifound] renderParcelPanel anropade sig själv — avbryter för att undvika loop.");
+    return;
+  }
+  _panelRenderDepth++;
+  try {
+  return _renderParcelPanelInner(feature);
+  } finally { _panelRenderDepth--; }
+}
+
+let _panelRenderDepth = 0;
+
+function _renderParcelPanelInner(feature) {
   const state = loadState();
   const pid = getParcelId(feature);
   const name = prettyName(feature);

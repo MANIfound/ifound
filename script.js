@@ -1002,6 +1002,11 @@ const TYPE_SOURCE = { MANUAL: "manuell", STRONG: "byggnad", WEAK: "indikation", 
 // Höj denna vid varje ändring i klassificeringslogiken — den ogiltigförklarar
 // cachade resultat på alla enheter så att förbättringar faktiskt slår igenom.
 const CLASSIFIER_VERSION = 4;
+
+// Ort som ges företräde i sökningen. Sätt till null när kartdata täcker fler
+// orter — sökningen fungerar i hela Sverige oavsett, detta styr bara vad som
+// prioriteras vid tvetydiga sökningar ("Storgatan" finns i varje stad).
+const SEARCH_BIAS = "Helsingborg";
 const PREFETCH_FLAG = "ifound_osm_prefetch_ok_v" + CLASSIFIER_VERSION;
 
 function classifyOsmTags(tagsList) {
@@ -1878,9 +1883,19 @@ async function showAreaSearch(query) {
 
   // Search with Nominatim
   try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query + ' Helsingborg')}&format=json&limit=3&polygon_geojson=1&accept-language=sv`);
-    const results = await res.json();
+    // Landsomfattande sökning. Tidigare klistrades ' Helsingborg' på varje fråga,
+    // vilket gjorde det omöjligt att söka någon annanstans i Sverige.
+    // countrycodes=se begränsar till Sverige; SEARCH_BIAS ger hemorten företräde
+    // utan att utesluta resten av landet.
+    const biased = SEARCH_BIAS ? `${query}, ${SEARCH_BIAS}` : query;
+    let res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(biased)}&format=json&limit=3&polygon_geojson=1&countrycodes=se&accept-language=sv`);
+    let results = await res.json();
 
+    // Ingen träff nära hemorten? Sök då i hela landet.
+    if (!results.length && SEARCH_BIAS) {
+      res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=3&polygon_geojson=1&countrycodes=se&accept-language=sv`);
+      results = await res.json();
+    }
     if (!results.length) {
       document.getElementById('areaTitle').textContent = 'Inga resultat för "' + query + '"';
       document.getElementById('areaResults').innerHTML = '<div style="text-align:center;padding:40px 16px;color:#BBB;font-size:13px;">Hittade inget område. Prova en annan sökning.</div>';
@@ -2152,7 +2167,7 @@ function renderWelcome() {
         <div class="shell hero-grid">
           <div class="hero-main">
             <h1 class="hero-title">Alla hus.<br>Inte bara de<br>till salu.</h1>
-            <p class="hero-lead">Varje fastighet i Helsingborg finns här. Visa intresse för det du fastnat för — eller se vad folk tycker om ditt eget hus.</p>
+            <p class="hero-lead">Varje fastighet finns här, inte bara de som annonseras. Visa intresse för huset du fastnat för — eller se vad folk tycker om ditt eget.</p>
             <div class="hero-search" id="landingSearchWrap">
               <i class="ti ti-search" aria-hidden="true"></i>
               <input id="landingSearch" placeholder="Sök adress eller fastighet..." />
@@ -2260,7 +2275,7 @@ function renderWelcome() {
       <div style="max-width:900px;margin:0 auto;padding:0 20px 36px;">
         <div style="text-align:center;margin-bottom:22px;">
           <div style="font-size:15px;font-weight:600;letter-spacing:-.03em;color:var(--ink);">Husen folk fastnar för just nu</div>
-          <div style="font-size:13px;color:var(--ink-muted);margin-top:3px;">Riktiga fastigheter i Helsingborg — och intresset de fått den senaste tiden.</div>
+          <div style="font-size:13px;color:var(--ink-muted);margin-top:3px;">Riktiga fastigheter — och intresset de fått den senaste tiden.</div>
         </div>
         <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;">
           <div style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:var(--ink);">Mest gillade</div>

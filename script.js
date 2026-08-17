@@ -966,7 +966,12 @@ const PROPERTY_TYPES = {
 };
 
 // Hur säker klassningen är — styr om vi visar den rakt av eller med förbehåll.
-const TYPE_SOURCE = { MANUAL: "manuell", STRONG: "byggnad", WEAK: "indikation", LANDUSE: "område" };
+const TYPE_SOURCE = { MANUAL: "manuell", STRONG: "byggnad", WEAK: "indikation", LANDUSE: "område", GRANNE: "grannskap" };
+
+// Höj denna vid varje ändring i klassificeringslogiken — den ogiltigförklarar
+// cachade resultat på alla enheter så att förbättringar faktiskt slår igenom.
+const CLASSIFIER_VERSION = 3;
+const PREFETCH_FLAG = "ifound_osm_prefetch_ok_v" + CLASSIFIER_VERSION;
 
 function classifyOsmTags(tagsList) {
   if (!tagsList || !tagsList.length) return null;
@@ -1023,13 +1028,16 @@ function classifyOsmTags(tagsList) {
   if (addrCount >= 4) {
     return { type: PROPERTY_TYPES.FLERBO, source: TYPE_SOURCE.WEAK };
   }
-  // building=yes med 1–2 våningar och en adress: nästan alltid småhus
+  // building=yes med 1–2 våningar: nästan alltid småhus
   if (has(t => (t.building || "").toLowerCase() === "yes")) {
     const levels = Math.max(...tagsList.map(t => num(t, "building:levels")));
     if (levels > 0 && levels <= 2) {
       return { type: PROPERTY_TYPES.SMAHUS, source: TYPE_SOURCE.WEAK };
     }
   }
+  // building=yes helt utan våningsuppgift är vanligast av allt i svensk OSM.
+  // Den lämnas medvetet oklassad här så att markanvändning och grannskap får
+  // avgöra — de källorna är bättre än en ren gissning.
   return null;
 }
 
@@ -1130,7 +1138,9 @@ let _prefetchBusy = false;
 let _prefetchAttempts = 0;
 async function prefetchBuildingTypesInView() {
   if (!lastGeoJson || _prefetchBusy) return;
-  if (localStorage.getItem("ifound_osm_prefetch_ok")) return; // redan klart på denna enhet
+  // Versionerad flagga: höj CLASSIFIER_VERSION när klassificeringslogiken ändras,
+  // annars kör befintliga enheter aldrig om och sitter kvar på gamla resultat.
+  if (localStorage.getItem(PREFETCH_FLAG)) return; // redan klart med denna logikversion
   if (_prefetchAttempts >= 3) return; // ge upp för sessionen — Overpass onåbar från detta nät
   const lastTry = parseInt(localStorage.getItem("ifound_osm_prefetch_at") || "0", 10);
   if (Date.now() - lastTry < 120000) return; // max ett försök per 2 min
@@ -1223,9 +1233,51 @@ async function prefetchBuildingTypesInView() {
       }
     }
 
+    // --- 5. Grannskapsomröstning ------------------------------------------
+    // building=yes utan våningsuppgift är den vanligaste taggen i svensk OSM och
+    // säger ingenting i sig. Men en oklassad tomt omgiven av småhus ÄR i praktiken
+    // ett småhus. Vi röstar utifrån de närmaste klassade grannarna.
+    const classified = [];
+    for (const f of (lastGeoJson.features || [])) {
+      const pid = getParcelId(f);
+      const t = s.buildingTypes[pid];
+      if (!t || t === PROPERTY_TYPES.OBEBYGGD) continue;
+      const c = parcelCentroid(f);
+      if (c) classified.push({ c, type: t });
+    }
+
+    let voted = 0;
+    if (classified.length >= 8) {
+      for (const f of (lastGeoJson.features || [])) {
+        const pid = getParcelId(f);
+        if (s.buildingTypes[pid]) continue;
+        const c = parcelCentroid(f);
+        if (!c) continue;
+
+        // Åtta närmaste grannar (plan approximation räcker på stadsdelsnivå)
+        const near = classified
+          .map(o => ({ type: o.type, d: (o.c[0]-c[0])**2 + (o.c[1]-c[1])**2 }))
+          .sort((a, b) => a.d - b.d)
+          .slice(0, 8);
+        if (near.length < 5) continue;
+
+        const votes = {};
+        for (const n of near) votes[n.type] = (votes[n.type] || 0) + 1;
+        const [winner, count] = Object.entries(votes).sort((a, b) => b[1] - a[1])[0];
+
+        // Krav på tydlig majoritet — annars är området blandat och vi avstår
+        if (count >= 6) {
+          s.buildingTypes[pid] = winner;
+          s.typeSources = s.typeSources || {};
+          s.typeSources[pid] = TYPE_SOURCE.GRANNE;
+          voted++;
+        }
+      }
+    }
+
     saveState(s);
-    localStorage.setItem("ifound_osm_prefetch_ok", "1");
-    console.log("[ifound] Klart! Förklassade", updated, "fastigheter i hela området — körs aldrig igen på denna enhet");
+    localStorage.setItem(PREFETCH_FLAG, "1");
+    console.log(`[ifound] Klart! ${updated} klassade från kartdata, ${voted} via grannskap. Logikversion ${CLASSIFIER_VERSION}.`);
 
     // Uppdatera öppen panel om dess tomt just fick en klassning
     const panelEl = document.getElementById("panel");
@@ -1312,7 +1364,7 @@ function renderParcelPanel(feature) {
   const rawTyp = detectedType || (meta.typ && meta.typ !== "-" ? meta.typ : null);
   const typValue = isBrf ? PROPERTY_TYPES.FLERBO : rawTyp;
   const typSource = isBrf ? TYPE_SOURCE.MANUAL : getTypeSource(pid);
-  const uncertain = typValue && (typSource === TYPE_SOURCE.WEAK || typSource === TYPE_SOURCE.LANDUSE);
+  const uncertain = typValue && [TYPE_SOURCE.WEAK, TYPE_SOURCE.LANDUSE, TYPE_SOURCE.GRANNE].includes(typSource);
   const escName = String(name).replace(/'/g, "\\'");
 
   const typCell = typValue
@@ -4796,3 +4848,43 @@ window.addEventListener("keydown", ev => { if (currentView === "map" && ev.key =
   currentView = session?.email ? "feed" : "welcome";
   render();
 })();
+
+
+// =========================
+// DIAGNOSTIK — kör ifoundTypeStats() i konsolen för att se täckningsgrad,
+// och ifoundReclassify() för att tvinga en omklassning av hela området.
+// =========================
+window.ifoundTypeStats = function () {
+  const st = loadState();
+  const types = st.buildingTypes || {};
+  const sources = st.typeSources || {};
+  const feats = (lastGeoJson?.features || []);
+  const total = feats.length;
+  let known = 0;
+  const byType = {}, bySource = {};
+  for (const f of feats) {
+    const pid = getParcelId(f);
+    const t = getKnownType(pid);
+    if (t) { known++; byType[t] = (byType[t] || 0) + 1; }
+    const src = sources[pid] || (t ? "manuell" : "—");
+    bySource[src] = (bySource[src] || 0) + 1;
+  }
+  console.log(`[ifound] Täckning: ${known} av ${total} (${total ? Math.round(known / total * 100) : 0}%)`);
+  console.table(byType);
+  console.table(bySource);
+  console.log("Overpass-fel denna session:", _overpassFailures, "| Förklassning klar:", !!localStorage.getItem(PREFETCH_FLAG));
+  return { total, known, byType, bySource };
+};
+
+window.ifoundReclassify = function () {
+  const st = loadState();
+  st.buildingTypes = {};
+  st.typeSources = {};
+  saveState(st);
+  localStorage.removeItem(PREFETCH_FLAG);
+  localStorage.removeItem("ifound_osm_prefetch_at");
+  _overpassFailures = 0;
+  _prefetchAttempts = 0;
+  console.log("[ifound] Cache rensad. Startar omklassning...");
+  prefetchBuildingTypesInView();
+};

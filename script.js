@@ -318,7 +318,7 @@ function openInterestModal(feature, pid, name) {
     <div style="background:#fff;border-radius:20px;padding:28px;width:100%;max-width:420px;box-shadow:0 24px 64px rgba(0,0,0,.2);font-family:'Inter',sans-serif;">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;">
         <div>
-          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#CC2936;margin-bottom:4px;">Visa intresse</div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:4px;">Visa intresse</div>
           <div style="font-size:18px;font-weight:700;letter-spacing:-.03em;color:#111827;">${name}</div>
         </div>
         <button onclick="closeInterestModal()" style="width:32px;height:32px;border-radius:50%;border:none;background:#F3F4F6;cursor:pointer;font-size:16px;color:#6B7280;display:flex;align-items:center;justify-content:center;flex-shrink:0;">✕</button>
@@ -337,7 +337,7 @@ function openInterestModal(feature, pid, name) {
       </div>
 
       <div style="display:flex;flex-direction:column;gap:10px;">
-        <button id="sendInterestBtn" style="width:100%;padding:13px;border-radius:11px;border:none;background:#CC2936;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+        <button id="sendInterestBtn" style="width:100%;padding:13px;border-radius:11px;border:none;background:var(--accent);color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
           <i class="ti ti-star" aria-hidden="true"></i> Skicka intresse
         </button>
         <button onclick="sendInterestWithoutMessage('${pid}', '${name}')" style="width:100%;padding:11px;border-radius:11px;border:0.5px solid rgba(17,24,39,.12);background:transparent;color:#6B7280;font-size:13px;font-weight:500;font-family:'Inter',sans-serif;cursor:pointer;">
@@ -471,7 +471,7 @@ function openPostcardModal(pid, name, afterInterest = false) {
     <div style="background:#fff;border-radius:20px;padding:28px;width:100%;max-width:460px;box-shadow:0 24px 64px rgba(0,0,0,.2);font-family:'Inter',sans-serif;margin:auto;">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;">
         <div>
-          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#CC2936;margin-bottom:4px;">Uppmärksamma ägaren</div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:4px;">Uppmärksamma ägaren</div>
           <div style="font-size:18px;font-weight:700;letter-spacing:-.03em;color:#111827;">${name}</div>
         </div>
         <button onclick="closePostcardModal()" style="width:32px;height:32px;border-radius:50%;border:none;background:#F3F4F6;cursor:pointer;font-size:16px;color:#6B7280;display:flex;align-items:center;justify-content:center;flex-shrink:0;">✕</button>
@@ -504,14 +504,14 @@ function openPostcardModal(pid, name, afterInterest = false) {
       </div>
 
       <div style="display:flex;align-items:center;gap:10px;background:#F9F6F1;border-radius:11px;padding:12px 14px;margin:16px 0;">
-        <i class="ti ti-mail-fast" style="font-size:20px;color:#CC2936;flex-shrink:0;" aria-hidden="true"></i>
+        <i class="ti ti-mail-fast" style="font-size:20px;color:var(--accent);flex-shrink:0;" aria-hidden="true"></i>
         <div style="font-size:12px;color:#6B7280;line-height:1.55;">
           Skickas som brev inom 2–3 arbetsdagar. Ditt namn står <strong style="color:#111827;">inte</strong> på kortet — du är anonym tills du själv väljer annat.
         </div>
       </div>
 
       <label style="display:flex;gap:9px;align-items:flex-start;font-size:12px;color:#6B7280;line-height:1.55;margin-bottom:16px;cursor:pointer;">
-        <input type="checkbox" id="postcardConsent" style="margin-top:2px;flex-shrink:0;width:15px;height:15px;accent-color:#CC2936;" />
+        <input type="checkbox" id="postcardConsent" style="margin-top:2px;flex-shrink:0;width:15px;height:15px;accent-color:var(--accent);" />
         <span>Jag intygar att mitt intresse är seriöst och att vykortet inte skickas för att störa ägaren.</span>
       </label>
 
@@ -521,7 +521,7 @@ function openPostcardModal(pid, name, afterInterest = false) {
       </div>
 
       <div style="display:flex;flex-direction:column;gap:9px;">
-        <button id="confirmPostcardBtn" style="width:100%;padding:13px;border-radius:11px;border:none;background:#CC2936;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:not-allowed;display:flex;align-items:center;justify-content:center;gap:8px;opacity:.5;" disabled>
+        <button id="confirmPostcardBtn" style="width:100%;padding:13px;border-radius:11px;border:none;background:var(--accent);color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:not-allowed;display:flex;align-items:center;justify-content:center;gap:8px;opacity:.5;" disabled>
           <i class="ti ti-send" aria-hidden="true"></i> Skicka vykortet
         </button>
         <button onclick="closePostcardModal()" style="width:100%;padding:11px;border-radius:11px;border:0.5px solid rgba(17,24,39,.12);background:transparent;color:#6B7280;font-size:13px;font-weight:500;font-family:'Inter',sans-serif;cursor:pointer;">
@@ -626,12 +626,12 @@ function startDrawSubdivision(feature) {
       <button class="panel-close" id="cancelDrawBtn">✕</button>
       <div class="panel-eyebrow">Avstyckning</div>
       <div class="panel-name" style="font-size:15px;">${prettyName(feature)}</div>
-      <div style="margin:12px 0;padding:12px;background:#FDECEA;border-radius:10px;font-size:12px;color:#7F1D1D;line-height:1.6;">
+      <div style="margin:12px 0;padding:12px;background:var(--accent-soft);border-radius:10px;font-size:12px;color:#7F1D1D;line-height:1.6;">
         <strong>Rita det område du är intresserad av.</strong><br>
         Klicka på kartan för att markera hörnen. Dubbelklicka för att avsluta.
       </div>
       <div style="display:flex;gap:8px;margin-top:8px;">
-        <button id="drawPolygonBtn" class="panel-btn" style="flex:1;background:#CC2936;color:#fff;border-color:#CC2936;">
+        <button id="drawPolygonBtn" class="panel-btn" style="flex:1;background:var(--accent);color:#fff;border-color:var(--accent);">
           <i class="ti ti-vector-triangle"></i> Rita polygon
         </button>
         <button id="drawRectBtn" class="panel-btn" style="flex:1;">
@@ -1169,8 +1169,8 @@ function renderParcelPanel(feature) {
   const isClaimed = !!claimedProp || isOwner;
   const hasActivity = likes > 0 || interests > 0;
   const teaserHtml = (!isClaimed && hasActivity) ? `
-    <div style="margin-bottom:12px;padding:12px 14px;background:#FDECEA;border:0.5px solid rgba(204,41,54,.25);border-radius:11px;">
-      <div style="font-size:13px;font-weight:600;color:#CC2936;line-height:1.5;">
+    <div style="margin-bottom:12px;padding:12px 14px;background:var(--accent-soft);border:0.5px solid rgba(204,41,54,.25);border-radius:11px;">
+      <div style="font-size:13px;font-weight:600;color:var(--accent);line-height:1.5;">
         <i class="ti ti-flame" style="font-size:14px;" aria-hidden="true"></i>
         ${isBrf
           ? `${interests > 0 ? interests + " vill bo i den här föreningen" : likes + " har gillat den här fastigheten"}`
@@ -1179,7 +1179,7 @@ function renderParcelPanel(feature) {
       <div style="font-size:12px;color:#9A2530;margin-top:3px;line-height:1.5;">
         ${isBrf ? "Bor du här? Claima och se intresset — och få en notis när det kommer nya." : "Är det din? Claima och se vilka — och få en notis när någon ny gillar."}
       </div>
-      <button id="teaserClaimBtn" style="margin-top:9px;width:100%;padding:8px;border-radius:8px;background:#CC2936;color:#fff;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">
+      <button id="teaserClaimBtn" style="margin-top:9px;width:100%;padding:8px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">
         Claima fastigheten
       </button>
     </div>
@@ -1199,14 +1199,14 @@ function renderParcelPanel(feature) {
       </div>
     ` : `
       <div style="margin-top:10px;padding:12px 13px;background:#FFF8EF;border:0.5px solid rgba(194,98,42,.30);border-radius:11px;">
-        <div style="font-size:12px;font-weight:600;color:#8A4517;line-height:1.5;">
+        <div style="font-size:12px;font-weight:600;color:var(--accent-text);line-height:1.5;">
           <i class="ti ti-alert-circle" style="font-size:13px;" aria-hidden="true"></i>
           Ägaren vet inte om ditt intresse ännu
         </div>
         <div style="font-size:11px;color:#9A6B45;margin-top:3px;line-height:1.5;">
           Fastigheten är inte claimad på ifound. Vi kan skicka ett vykort hem till ägaren och berätta att du finns.
         </div>
-        <button id="postcardBtn" style="margin-top:9px;width:100%;padding:9px;border-radius:8px;background:#C2622A;color:#fff;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;justify-content:center;gap:6px;">
+        <button id="postcardBtn" style="margin-top:9px;width:100%;padding:9px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;justify-content:center;gap:6px;">
           <i class="ti ti-mail-fast" style="font-size:14px;" aria-hidden="true"></i> Uppmärksamma fastighetsägaren
         </button>
       </div>
@@ -1236,7 +1236,7 @@ function renderParcelPanel(feature) {
       <button id="interestBtn" class="panel-btn ${iInterested ? "active-interest" : ""}"><i class="ti ti-star"></i> ${isBrf ? (iInterested ? "Intresseanmäld" : "Vill bo här") : (iInterested ? "Intresserad" : "Markera intresse")}</button>
     </div>
     <div style="margin-top:8px;">
-      <button id="followBtn" class="panel-btn" style="width:100%;${iFollow ? 'background:#FDECEA;border-color:#CC2936;color:#CC2936;' : ''}">
+      <button id="followBtn" class="panel-btn" style="width:100%;${iFollow ? 'background:var(--accent-soft);border-color:var(--accent);color:var(--accent);' : ''}">
         <i class="ti ${iFollow ? 'ti-bell-check' : 'ti-bell-plus'}"></i> ${iFollow ? "Följer — notis vid nytt" : "Följ fastigheten"}
       </button>
     </div>
@@ -1366,7 +1366,7 @@ function openAuthModal(tab = 'login') {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
         <div style="display:flex;align-items:center;gap:8px;">
           <svg width="16" height="20" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
-          <span style="font-size:17px;font-weight:700;letter-spacing:-.04em;color:#111827;">i<em style="font-style:normal;color:#CC2936;">found</em></span>
+          <span style="font-size:17px;font-weight:700;letter-spacing:-.04em;color:#111827;">i<em style="font-style:normal;color:var(--accent);">found</em></span>
         </div>
         <button onclick="closeAuthModal()" style="width:30px;height:30px;border-radius:50%;border:none;background:#F3F4F6;cursor:pointer;font-size:16px;color:#6B7280;display:flex;align-items:center;justify-content:center;">✕</button>
       </div>
@@ -1387,7 +1387,7 @@ function openAuthModal(tab = 'login') {
       </div>
 
       <div id="regForm" style="display:none;flex-direction:column;gap:12px;">
-        <div style="background:#FDECEA;border-radius:10px;padding:10px 14px;font-size:12px;color:#7F1D1D;line-height:1.5;">
+        <div style="background:var(--accent-soft);border-radius:10px;padding:10px 14px;font-size:12px;color:#7F1D1D;line-height:1.5;">
           Gratis konto — spara dina favoriter och visa intresse för fastigheter.
         </div>
         <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#6B7280;margin-bottom:5px;">Namn</label><input id="regName" class="input" placeholder="Ditt namn" style="width:100%;" /></div>
@@ -1596,7 +1596,7 @@ async function showAreaSearch(query) {
                 <i class="ti ti-chevron-right" style="font-size:14px;color:#DDD;" aria-hidden="true"></i>
               </div>
             `).join('')}
-            <button onclick="closeAreaSearch();currentView='feed';render();" style="width:100%;padding:10px;border-radius:10px;border:1.5px solid #CC2936;background:transparent;color:#CC2936;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;margin-top:4px;">
+            <button onclick="closeAreaSearch();currentView='feed';render();" style="width:100%;padding:10px;border-radius:10px;border:1.5px solid #CC2936;background:transparent;color:var(--accent);font-size:13px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;margin-top:4px;">
               Se alla fastigheter i ${name}
             </button>
           `;
@@ -1611,7 +1611,7 @@ async function showAreaSearch(query) {
       if (resultsEl) {
         resultsEl.innerHTML = `
           <div style="font-size:12px;color:#999;margin-bottom:12px;">Öppna kartan för att se alla tomter</div>
-          <button onclick="closeAreaSearch();currentView='map';render();" style="width:100%;padding:10px;border-radius:10px;border:1.5px solid #CC2936;background:transparent;color:#CC2936;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
+          <button onclick="closeAreaSearch();currentView='map';render();" style="width:100%;padding:10px;border-radius:10px;border:1.5px solid #CC2936;background:transparent;color:var(--accent);font-size:13px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
             Visa ${name} på kartan
           </button>
         `;
@@ -1727,23 +1727,27 @@ function renderWelcome() {
 
       <!-- Hero: 50/50 mellan de två rollerna. Marknadsplatsen kräver båda sidorna. -->
       <div style="max-width:760px;margin:0 auto;padding:40px 24px 36px;text-align:center;">
-        <h1 class="hero-title" style="font-size:40px;font-weight:700;letter-spacing:-.05em;line-height:1.05;color:#111827;margin-bottom:14px;font-family:'Inter',sans-serif;">Varje hus har någon<br>som <em style="font-style:normal;color:#CC2936;">undrar</em></h1>
+        <h1 class="hero-title" style="font-size:40px;font-weight:700;letter-spacing:-.05em;line-height:1.05;color:#111827;margin-bottom:14px;font-family:'Inter',sans-serif;">Varje hus har någon<br>som <em style="font-style:normal;color:var(--accent);">undrar</em></h1>
         <p style="font-size:16px;color:#6B7280;line-height:1.7;margin-bottom:26px;max-width:520px;margin-left:auto;margin-right:auto;">Visa intresse för hus som inte är till salu — och se vad folk tycker om ditt eget. Utan att blanda in en mäklare.</p>
 
         <!-- De två dörrarna: besökaren och ägaren, likvärdiga. -->
         <div class="dual-doors">
           <div class="door-card" onclick="currentView='map';render();">
-            <div class="door-icon door-icon-visitor"><i class="ti ti-map-search" aria-hidden="true"></i></div>
-            <div class="door-eyebrow">Jag har sett ett hus</div>
+            <div class="door-head">
+              <span class="door-icon door-icon-visitor"><i class="ti ti-map-search" aria-hidden="true"></i></span>
+              <span class="door-eyebrow">Jag har sett ett hus</span>
+            </div>
             <div class="door-title">Åkte du förbi ett hus du aldrig kan glömma?</div>
-            <div class="door-text">Hitta det på kartan och visa ditt intresse — även om det inte är till salu. Vi ser till att ägaren får veta.</div>
+            <div class="door-text">Visa ditt intresse — även om det inte är till salu.</div>
             <div class="door-cta">Utforska på kartan <i class="ti ti-arrow-right" aria-hidden="true"></i></div>
           </div>
           <div class="door-card" onclick="focusLandingSearch()">
-            <div class="door-icon door-icon-owner"><i class="ti ti-home-heart" aria-hidden="true"></i></div>
-            <div class="door-eyebrow">Jag äger ett hus</div>
+            <div class="door-head">
+              <span class="door-icon door-icon-owner"><i class="ti ti-home-heart" aria-hidden="true"></i></span>
+              <span class="door-eyebrow">Jag äger ett hus</span>
+            </div>
             <div class="door-title">Vad tycker folk om ditt hus?</div>
-            <div class="door-text">Sök upp din fastighet och se om någon har gillat den eller visat intresse för att köpa.</div>
+            <div class="door-text">Se vem som gillat eller visat intresse för din fastighet.</div>
             <div class="door-cta">Sök upp min fastighet <i class="ti ti-arrow-right" aria-hidden="true"></i></div>
           </div>
         </div>
@@ -1761,7 +1765,7 @@ function renderWelcome() {
         <div id="landingSearchWrap" style="display:flex;gap:8px;background:#fff;border:1.5px solid rgba(17,24,39,.12);border-radius:13px;padding:5px 5px 5px 14px;align-items:center;margin-bottom:12px;">
           <i class="ti ti-search" style="font-size:18px;color:#9CA3AF;flex-shrink:0;" aria-hidden="true"></i>
           <input id="landingSearch" placeholder="Sök adress eller fastighet..." style="flex:1;border:none;background:transparent;font-size:15px;font-family:'Inter',sans-serif;color:#111827;outline:none;padding:7px 0;" />
-          <button id="landingSearchBtn" style="background:#CC2936;color:#fff;border:none;border-radius:9px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;">Sök</button>
+          <button id="landingSearchBtn" style="background:var(--accent);color:#fff;border:none;border-radius:9px;padding:10px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;white-space:nowrap;">Sök</button>
         </div>
         <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
           <button id="landingNearMe" style="display:flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;font-size:12px;font-weight:600;background:#1A1A1A;color:#fff;border:none;cursor:pointer;font-family:'Inter',sans-serif;">
@@ -1820,7 +1824,7 @@ function renderWelcome() {
         </div>
         <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;">
           <div style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:#111827;">Mest gillade</div>
-          <button onclick="currentView='feed';render();" style="font-size:12px;font-weight:600;color:#CC2936;background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;gap:3px;">Alla <i class="ti ti-chevron-right" style="font-size:12px;" aria-hidden="true"></i></button>
+          <button onclick="currentView='feed';render();" style="font-size:12px;font-weight:600;color:var(--accent);background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;gap:3px;">Alla <i class="ti ti-chevron-right" style="font-size:12px;" aria-hidden="true"></i></button>
         </div>
         <div class="tops-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:28px;">
           ${TOPS.map(c=>`
@@ -1839,7 +1843,7 @@ function renderWelcome() {
         <!-- Masonry grid -->
         <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;">
           <div style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:#111827;">Utforska fastigheter</div>
-          <button onclick="currentView='feed';render();" style="font-size:12px;font-weight:600;color:#CC2936;background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;gap:3px;">Se alla <i class="ti ti-chevron-right" style="font-size:12px;" aria-hidden="true"></i></button>
+          <button onclick="currentView='feed';render();" style="font-size:12px;font-weight:600;color:var(--accent);background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;gap:3px;">Se alla <i class="ti ti-chevron-right" style="font-size:12px;" aria-hidden="true"></i></button>
         </div>
         <div class="landing-masonry" style="columns:4;column-gap:10px;margin-bottom:36px;">
           ${PINS.map(p=>`
@@ -1854,7 +1858,7 @@ function renderWelcome() {
                 <div style="font-size:11px;color:#9CA3AF;margin-top:2px;">${p.meta}</div>
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-top:7px;font-size:11px;color:#9CA3AF;">
                   <span>♡ ${p.likes}</span>
-                  ${p.interested ? `<span style="font-size:10px;font-weight:600;color:#CC2936;background:#FDECEA;padding:2px 7px;border-radius:999px;">${p.interested} intresserade</span>` : ''}
+                  ${p.interested ? `<span style="font-size:10px;font-weight:600;color:var(--accent);background:var(--accent-soft);padding:2px 7px;border-radius:999px;">${p.interested} intresserade</span>` : ''}
                 </div>
               </div>
             </div>
@@ -1869,7 +1873,7 @@ function renderWelcome() {
             {num:"03", title:"Ägaren bestämmer", desc:"Fastighetsägaren ser ditt intresse och väljer om de vill svara, visa upp sin bostad eller sätta ett pris."},
           ].map(s=>`
             <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;padding:20px;">
-              <div style="font-size:11px;font-weight:700;color:#CC2936;letter-spacing:.08em;margin-bottom:10px;">${s.num}</div>
+              <div style="font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.08em;margin-bottom:10px;">${s.num}</div>
               <div style="font-size:14px;font-weight:600;color:#111827;margin-bottom:6px;">${s.title}</div>
               <div style="font-size:12px;color:#6B7280;line-height:1.6;">${s.desc}</div>
             </div>
@@ -2259,7 +2263,7 @@ function renderFeed() {
           ].map((s,i) => `
             <div style="display:flex;align-items:center;gap:8px;padding:0 14px;border-right:${i<3?'0.5px solid rgba(255,255,255,.08)':'none'};flex-shrink:0;">
               <div style="width:28px;height:28px;border-radius:7px;background:rgba(204,41,54,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                <i class="ti ${s.icon}" style="font-size:14px;color:#CC2936;"></i>
+                <i class="ti ${s.icon}" style="font-size:14px;color:var(--accent);"></i>
               </div>
               <div>
                 <div style="font-size:11px;font-weight:600;color:#fff;">${s.label}</div>
@@ -2304,7 +2308,7 @@ function renderFeed() {
 
       <!-- Claim nudge -->
       <div class="claim-nudge" onclick="${isLoggedIn ? "navigate('dashboard')" : "openAuthModal('reg')"}">
-        <div class="claim-nudge-icon"><i class="ti ti-home-check" style="font-size:20px;color:#CC2936;"></i></div>
+        <div class="claim-nudge-icon"><i class="ti ti-home-check" style="font-size:20px;color:var(--accent);"></i></div>
         <div style="flex:1;">
           <div class="claim-nudge-title">${isLoggedIn ? '18 gillar ditt hem' : 'Är det ditt hus?'}</div>
           <div class="claim-nudge-sub">${isLoggedIn ? 'Pålsjö 4:7 — claima för att se vem som är intresserad' : 'Claima din fastighet och se vem som är intresserad'}</div>
@@ -2589,8 +2593,8 @@ function renderDashboard() {
             <div class="card" style="margin-bottom:12px;">
               <div class="card-title">Aktivitet</div>
               ${ownerId && state.interestMessages?.[ownerId]?.length ? `
-                <div style="margin-bottom:12px;padding:12px;background:#FDECEA;border-radius:10px;">
-                  <div style="font-size:12px;font-weight:700;color:#CC2936;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+                <div style="margin-bottom:12px;padding:12px;background:var(--accent-soft);border-radius:10px;">
+                  <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px;display:flex;align-items:center;gap:6px;">
                     <i class="ti ti-message" style="font-size:14px;"></i>
                     ${state.interestMessages[ownerId].length} meddelande${state.interestMessages[ownerId].length > 1 ? 'n' : ''} från intressenter
                   </div>
@@ -2617,11 +2621,11 @@ function renderDashboard() {
                 }
                 return follows.map(fpid => `
                   <div class="act-row" style="justify-content:space-between;">
-                    <span style="display:flex;align-items:center;gap:8px;"><i class="ti ti-bell-check" style="font-size:13px;color:#CC2936;"></i>${(state.parcelNames || {})[fpid] || fpid}</span>
+                    <span style="display:flex;align-items:center;gap:8px;"><i class="ti ti-bell-check" style="font-size:13px;color:var(--accent);"></i>${(state.parcelNames || {})[fpid] || fpid}</span>
                   </div>
                 `).join('') + areaFollows.map(a => `
                   <div class="act-row" style="justify-content:space-between;">
-                    <span style="display:flex;align-items:center;gap:8px;"><i class="ti ti-map-pin" style="font-size:13px;color:#CC2936;"></i>${a} <span style="font-size:10px;color:#9CA3AF;">område</span></span>
+                    <span style="display:flex;align-items:center;gap:8px;"><i class="ti ti-map-pin" style="font-size:13px;color:var(--accent);"></i>${a} <span style="font-size:10px;color:#9CA3AF;">område</span></span>
                   </div>
                 `).join('');
               })()}
@@ -3091,7 +3095,7 @@ async function feedSearch(query, dropdown, input) {
       return `<div data-idx="${idx}"
         style="padding:11px 16px;font-size:13px;color:#111827;cursor:pointer;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;align-items:center;gap:10px;"
         onmouseover="this.style.background='#F9F6F1'" onmouseout="this.style.background=''">
-        <i class="ti ti-map-pin" style="font-size:14px;color:#CC2936;flex-shrink:0;" aria-hidden="true"></i>
+        <i class="ti ti-map-pin" style="font-size:14px;color:var(--accent);flex-shrink:0;" aria-hidden="true"></i>
         <span>${name}</span>
       </div>`;
     }).join('');
@@ -3139,7 +3143,7 @@ async function mapSearch(query, dropdown, input) {
       return `<div data-idx="${idx}"
         style="padding:11px 16px;font-size:13px;color:#111827;cursor:pointer;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;align-items:center;gap:10px;"
         onmouseover="this.style.background='#F9F6F1'" onmouseout="this.style.background=''">
-        <i class="ti ti-map-pin" style="font-size:14px;color:#CC2936;flex-shrink:0;" aria-hidden="true"></i>
+        <i class="ti ti-map-pin" style="font-size:14px;color:var(--accent);flex-shrink:0;" aria-hidden="true"></i>
         <span>${name}</span>
       </div>`;
     }).join('');
@@ -3264,12 +3268,12 @@ function showMapAreaCard(areaName, bounds) {
               <div style="font-size:12px;font-weight:500;color:#1A1A1A;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
               <div style="font-size:11px;color:#999;margin-top:1px;">${p.meta}</div>
             </div>
-            <div style="font-size:11px;color:#CC2936;font-weight:500;">♡ ${p.likes}</div>
+            <div style="font-size:11px;color:var(--accent);font-weight:500;">♡ ${p.likes}</div>
           </div>
         `).join('')}
       </div>
       <div style="padding:10px 14px;display:flex;flex-direction:column;gap:8px;">
-        <button onclick="closeMapAreaCard()" style="width:100%;padding:9px;border-radius:9px;background:#CC2936;color:#fff;border:none;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
+        <button onclick="closeMapAreaCard()" style="width:100%;padding:9px;border-radius:9px;background:var(--accent);color:#fff;border:none;font-size:13px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
           Utforska alla i ${areaName}
         </button>
         <button id="followAreaBtn" onclick="toggleFollowArea('${areaName.replace(/'/g, "\\'")}')" style="width:100%;padding:8px;border-radius:9px;background:#fff;color:#374151;border:0.5px solid rgba(17,24,39,.14);font-size:12px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
@@ -3342,14 +3346,14 @@ function openClaimModal() {
     <div style="background:#fff;border-radius:20px;padding:28px;width:100%;max-width:440px;box-shadow:0 24px 64px rgba(0,0,0,.2);">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
         <div>
-          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#CC2936;margin-bottom:4px;">Claima fastighet</div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:4px;">Claima fastighet</div>
           <div style="font-size:18px;font-weight:700;letter-spacing:-.03em;color:#111827;">Verifiera ditt ägande</div>
         </div>
         <button onclick="closeClaimModal()" style="width:32px;height:32px;border-radius:50%;border:none;background:#F3F4F6;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:#6B7280;">✕</button>
       </div>
 
       <div style="background:#F9F6F1;border-radius:12px;padding:14px 16px;margin-bottom:20px;display:flex;align-items:center;gap:12px;">
-        <i class="ti ti-home" style="font-size:20px;color:#CC2936;" aria-hidden="true"></i>
+        <i class="ti ti-home" style="font-size:20px;color:var(--accent);" aria-hidden="true"></i>
         <div>
           <div style="font-size:13px;font-weight:600;color:#111827;">Ingen fastighet vald</div>
           <div style="font-size:11px;color:#9CA3AF;">Välj fastighet via kartan för att koppla den till din profil</div>
@@ -3372,8 +3376,8 @@ function openClaimModal() {
         </div>
       </div>
 
-      <div style="background:#FDECEA;border-radius:10px;padding:12px 14px;margin-bottom:20px;display:flex;gap:10px;align-items:flex-start;">
-        <i class="ti ti-clock" style="font-size:16px;color:#CC2936;flex-shrink:0;margin-top:1px;" aria-hidden="true"></i>
+      <div style="background:var(--accent-soft);border-radius:10px;padding:12px 14px;margin-bottom:20px;display:flex;gap:10px;align-items:flex-start;">
+        <i class="ti ti-clock" style="font-size:16px;color:var(--accent);flex-shrink:0;margin-top:1px;" aria-hidden="true"></i>
         <div style="font-size:12px;color:#7F1D1D;line-height:1.5;">Din claim behandlas inom <strong>24 timmar</strong>. Vi verifierar manuellt att uppgifterna stämmer mot fastighetsregistret innan fastigheten kopplas till din profil.</div>
       </div>
 
@@ -3396,7 +3400,7 @@ function openClaimModal() {
         `).join('')}
       </div>
 
-      <button onclick="submitClaim()" style="width:100%;padding:14px;border-radius:12px;border:none;background:#CC2936;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;letter-spacing:-.01em;">
+      <button onclick="submitClaim()" style="width:100%;padding:14px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;letter-spacing:-.01em;">
         Skicka in claim
       </button>
 
@@ -3494,11 +3498,11 @@ function renderInterestMessages() {
 
   return allMsgs.map(m => `
     <div style="padding:14px 20px;border-bottom:0.5px solid rgba(17,24,39,.05);display:flex;gap:12px;align-items:flex-start;">
-      <div style="width:36px;height:36px;border-radius:9px;background:#FDECEA;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-        <i class="ti ti-message" style="font-size:16px;color:#CC2936;" aria-hidden="true"></i>
+      <div style="width:36px;height:36px;border-radius:9px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <i class="ti ti-message" style="font-size:16px;color:var(--accent);" aria-hidden="true"></i>
       </div>
       <div style="flex:1;">
-        <div style="font-size:12px;font-weight:600;color:#CC2936;margin-bottom:3px;">${m.parcel}</div>
+        <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:3px;">${m.parcel}</div>
         <div style="font-size:13px;color:#374151;line-height:1.5;">&ldquo;${m.message}&rdquo;</div>
         <div style="font-size:11px;color:#9CA3AF;margin-top:4px;">${new Date(m.sentAt).toLocaleDateString('sv-SE')} · Anonymt</div>
       </div>
@@ -3574,8 +3578,8 @@ function renderAdmin() {
       ].map(s=>`
         <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;padding:18px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-            <div style="width:38px;height:38px;border-radius:9px;background:#FDECEA;display:flex;align-items:center;justify-content:center;">
-              <i class="ti ${s.icon}" style="font-size:18px;color:#CC2936;" aria-hidden="true"></i>
+            <div style="width:38px;height:38px;border-radius:9px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;">
+              <i class="ti ${s.icon}" style="font-size:18px;color:var(--accent);" aria-hidden="true"></i>
             </div>
           </div>
           <div style="font-size:28px;font-weight:700;letter-spacing:-.04em;color:#111827;line-height:1;">${s.num}</div>
@@ -3647,7 +3651,7 @@ function renderAdmin() {
             <tr style="border-top:0.5px solid rgba(17,24,39,.05);">
               <td style="padding:12px 20px;">
                 <div style="display:flex;align-items:center;gap:10px;">
-                  <div style="width:32px;height:32px;border-radius:50%;background:#FDECEA;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#CC2936;flex-shrink:0;">${u.name[0]}</div>
+                  <div style="width:32px;height:32px;border-radius:50%;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0;">${u.name[0]}</div>
                   <div>
                     <div style="font-size:13px;font-weight:600;color:#111827;">${u.name}</div>
                     <div style="font-size:11px;color:#9CA3AF;">${u.email}</div>
@@ -3715,7 +3719,7 @@ function renderAdmin() {
           <div style="font-size:13px;font-weight:600;color:#111827;">${u.pendingClaim.prop}</div>
           <div style="font-size:11px;color:#9CA3AF;margin-top:2px;">Inskickad av ${u.pendingClaim.name}</div>
         </div>
-        <span style="font-size:10px;font-weight:600;background:#FDECEA;color:#CC2936;border-radius:999px;padding:3px 9px;flex-shrink:0;margin-left:10px;">Inväntar</span>
+        <span style="font-size:10px;font-weight:600;background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:3px 9px;flex-shrink:0;margin-left:10px;">Inväntar</span>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
         <div style="background:#F9F6F1;border-radius:8px;padding:10px 12px;">
@@ -3746,12 +3750,12 @@ function renderAdmin() {
     <div style="display:grid;gap:12px;">
 
       <div style="background:#fff;border:1.5px solid #CC2936;border-radius:14px;overflow:hidden;">
-        <div style="padding:14px 20px;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;align-items:center;justify-content:space-between;background:#FDECEA;">
+        <div style="padding:14px 20px;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;align-items:center;justify-content:space-between;background:var(--accent-soft);">
           <div style="display:flex;align-items:center;gap:8px;">
-            <i class="ti ti-home-check" style="font-size:16px;color:#CC2936;" aria-hidden="true"></i>
-            <div style="font-size:13px;font-weight:600;color:#CC2936;">Claims som väntar verifiering</div>
+            <i class="ti ti-home-check" style="font-size:16px;color:var(--accent);" aria-hidden="true"></i>
+            <div style="font-size:13px;font-weight:600;color:var(--accent);">Claims som väntar verifiering</div>
           </div>
-          <span style="font-size:11px;font-weight:700;background:#CC2936;color:#fff;border-radius:999px;padding:2px 8px;">${pendingClaims.length}</span>
+          <span style="font-size:11px;font-weight:700;background:var(--accent);color:#fff;border-radius:999px;padding:2px 8px;">${pendingClaims.length}</span>
         </div>
         ${pendingClaimsHtml}
       </div>
@@ -3804,7 +3808,7 @@ function renderAdmin() {
         <div style="font-size:13px;font-weight:600;color:#111827;margin-bottom:4px;">Blockerade användare</div>
         <div style="font-size:12px;color:#9CA3AF;margin-bottom:14px;">1 blockerat konto</div>
         <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-top:0.5px solid rgba(17,24,39,.06);">
-          <div style="width:32px;height:32px;border-radius:50%;background:#FDECEA;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#CC2936;">E</div>
+          <div style="width:32px;height:32px;border-radius:50%;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--accent);">E</div>
           <div style="flex:1;">
             <div style="font-size:13px;font-weight:600;color:#111827;">Erik Strand</div>
             <div style="font-size:11px;color:#9CA3AF;">erik@example.se · Blockerad 2025-06-18</div>
@@ -3822,7 +3826,7 @@ function renderAdmin() {
         <div style="display:flex;align-items:flex-end;gap:6px;height:100px;">
           ${[12,19,8,24,31,18,27].map((v,i)=>`
             <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
-              <div style="width:100%;background:#CC2936;border-radius:4px 4px 0 0;opacity:${0.4+v/60};" title="${v}" style="height:${v*3}px;"></div>
+              <div style="width:100%;background:var(--accent);border-radius:4px 4px 0 0;opacity:${0.4+v/60};" title="${v}" style="height:${v*3}px;"></div>
               <div style="font-size:10px;color:#9CA3AF;">${['M','T','O','T','F','L','S'][i]}</div>
             </div>
           `).join('')}
@@ -3839,7 +3843,7 @@ function renderAdmin() {
                 <span style="font-size:12px;color:#9CA3AF;">${pct}%</span>
               </div>
               <div style="height:4px;background:#F3F4F6;border-radius:999px;">
-                <div style="height:4px;background:#CC2936;border-radius:999px;width:${pct}%;"></div>
+                <div style="height:4px;background:var(--accent);border-radius:999px;width:${pct}%;"></div>
               </div>
             </div>
           `).join('')}
@@ -3895,7 +3899,7 @@ function renderAdmin() {
           { name:"Lena Svensson", email:"lena@example.se",   plan:"Synlig", since:"2025-06-18", mrr:"49 kr" },
         ].map(u=>`
           <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:0.5px solid rgba(17,24,39,.05);">
-            <div style="width:32px;height:32px;border-radius:50%;background:#FDECEA;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#CC2936;flex-shrink:0;">${u.name[0]}</div>
+            <div style="width:32px;height:32px;border-radius:50%;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0;">${u.name[0]}</div>
             <div style="flex:1;">
               <div style="font-size:13px;font-weight:600;color:#111827;">${u.name}</div>
               <div style="font-size:11px;color:#9CA3AF;">${u.email} · sedan ${u.since}</div>
@@ -3920,8 +3924,8 @@ function renderAdmin() {
       <nav style="height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:#111827;border-bottom:0.5px solid rgba(255,255,255,.08);position:sticky;top:0;z-index:50;">
         <div style="display:flex;align-items:center;gap:10px;">
           <svg width="18" height="23" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
-          <span style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:#fff;font-family:'Inter',sans-serif;">i<em style="font-style:normal;color:#CC2936;">found</em></span>
-          <span style="font-size:10px;font-weight:700;background:rgba(204,41,54,.25);color:#CC2936;border-radius:999px;padding:3px 9px;letter-spacing:.08em;">ADMIN</span>
+          <span style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:#fff;font-family:'Inter',sans-serif;">i<em style="font-style:normal;color:var(--accent);">found</em></span>
+          <span style="font-size:10px;font-weight:700;background:rgba(204,41,54,.25);color:var(--accent);border-radius:999px;padding:3px 9px;letter-spacing:.08em;">ADMIN</span>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:12px;color:rgba(255,255,255,.4);">admin@ifound.se</span>
@@ -4052,9 +4056,9 @@ function renderBrokerWelcome() {
           <div style="text-align:center;margin-bottom:32px;">
             <div style="display:inline-flex;align-items:center;gap:9px;margin-bottom:20px;">
               <svg width="22" height="27" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
-              <span style="font-size:22px;font-weight:700;letter-spacing:-.04em;color:#fff;">i<em style="font-style:normal;color:#CC2936;">found</em></span>
+              <span style="font-size:22px;font-weight:700;letter-spacing:-.04em;color:#fff;">i<em style="font-style:normal;color:var(--accent);">found</em></span>
             </div>
-            <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(204,41,54,.15);border:1px solid rgba(204,41,54,.3);color:#CC2936;border-radius:999px;padding:4px 12px;font-size:11px;font-weight:600;letter-spacing:.06em;margin-bottom:16px;">
+            <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(204,41,54,.15);border:1px solid rgba(204,41,54,.3);color:var(--accent);border-radius:999px;padding:4px 12px;font-size:11px;font-weight:600;letter-spacing:.06em;margin-bottom:16px;">
               <i class="ti ti-building" style="font-size:12px;" aria-hidden="true"></i> MÄKLARPORTAL
             </div>
             <div style="font-size:24px;font-weight:700;letter-spacing:-.04em;color:#fff;margin-bottom:8px;">Logga in</div>
@@ -4063,7 +4067,7 @@ function renderBrokerWelcome() {
 
           <!-- Tab switcher -->
           <div style="display:flex;background:rgba(255,255,255,.06);border-radius:10px;padding:3px;margin-bottom:16px;">
-            <button id="bTabLogin" onclick="switchBrokerTab('login')" style="flex:1;padding:8px;border-radius:8px;border:none;background:#CC2936;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">Logga in</button>
+            <button id="bTabLogin" onclick="switchBrokerTab('login')" style="flex:1;padding:8px;border-radius:8px;border:none;background:var(--accent);color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;">Logga in</button>
             <button id="bTabReg"   onclick="switchBrokerTab('reg')"   style="flex:1;padding:8px;border-radius:8px;border:none;background:transparent;color:rgba(255,255,255,.5);font-size:13px;font-weight:500;cursor:pointer;font-family:'Inter',sans-serif;">Skapa konto</button>
           </div>
 
@@ -4077,7 +4081,7 @@ function renderBrokerWelcome() {
               <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.4);margin-bottom:6px;">Lösenord</label>
               <input id="brokerPass" type="password" style="width:100%;background:rgba(255,255,255,.06);border:0.5px solid rgba(255,255,255,.12);border-radius:9px;padding:10px 13px;font-size:13px;font-family:'Inter',sans-serif;color:#fff;outline:none;" placeholder="••••••••" />
             </div>
-            <button id="brokerLoginBtn" style="width:100%;padding:13px;border-radius:11px;border:none;background:#CC2936;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
+            <button id="brokerLoginBtn" style="width:100%;padding:13px;border-radius:11px;border:none;background:var(--accent);color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
               Logga in
             </button>
             <div style="font-size:11px;color:rgba(255,255,255,.25);text-align:center;">Demo: maklare@fastighetsbyran.se / demo2025</div>
@@ -4101,7 +4105,7 @@ function renderBrokerWelcome() {
               <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.4);margin-bottom:6px;">Lösenord</label>
               <input id="bRegPass" type="password" style="width:100%;background:rgba(255,255,255,.06);border:0.5px solid rgba(255,255,255,.12);border-radius:9px;padding:10px 13px;font-size:13px;font-family:'Inter',sans-serif;color:#fff;outline:none;" placeholder="Min 6 tecken" />
             </div>
-            <button id="brokerRegBtn" style="width:100%;padding:13px;border-radius:11px;border:none;background:#CC2936;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
+            <button id="brokerRegBtn" style="width:100%;padding:13px;border-radius:11px;border:none;background:var(--accent);color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
               Skapa mäklarkonto
             </button>
             <div style="font-size:11px;color:rgba(255,255,255,.25);text-align:center;">Kontot aktiveras inom 24h efter verifiering.</div>
@@ -4176,8 +4180,8 @@ function renderBrokerDashboard() {
       <nav style="height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:rgba(255,255,255,.03);border-bottom:0.5px solid rgba(255,255,255,.08);position:sticky;top:0;z-index:50;">
         <div style="display:flex;align-items:center;gap:10px;">
           <svg width="18" height="23" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
-          <span style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:#fff;">i<em style="font-style:normal;color:#CC2936;">found</em></span>
-          <span style="font-size:10px;font-weight:700;background:rgba(204,41,54,.2);color:#CC2936;border-radius:999px;padding:3px 9px;letter-spacing:.08em;">MÄKLARE</span>
+          <span style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:#fff;">i<em style="font-style:normal;color:var(--accent);">found</em></span>
+          <span style="font-size:10px;font-weight:700;background:rgba(204,41,54,.2);color:var(--accent);border-radius:999px;padding:3px 9px;letter-spacing:.08em;">MÄKLARE</span>
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
           <button onclick="navigate('feed')" style="font-size:12px;color:rgba(255,255,255,.45);background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;display:flex;align-items:center;gap:5px;">
@@ -4187,7 +4191,7 @@ function renderBrokerDashboard() {
             <i class="ti ti-map-2" style="font-size:14px;" aria-hidden="true"></i> Karta
           </button>
           <div style="width:1px;height:20px;background:rgba(255,255,255,.1);"></div>
-          <div style="width:32px;height:32px;border-radius:50%;background:rgba(204,41,54,.2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#CC2936;">${broker.logo}</div>
+          <div style="width:32px;height:32px;border-radius:50%;background:rgba(204,41,54,.2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--accent);">${broker.logo}</div>
           <button onclick="clearSession();navigate('brokerWelcome');" style="font-size:12px;color:rgba(255,255,255,.35);background:transparent;border:none;cursor:pointer;font-family:'Inter',sans-serif;">Logga ut</button>
         </div>
       </nav>
@@ -4195,7 +4199,7 @@ function renderBrokerDashboard() {
       <div style="max-width:900px;margin:0 auto;padding:28px 20px 60px;">
 
         <div style="margin-bottom:28px;">
-          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#CC2936;margin-bottom:6px;">Välkommen</div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:6px;">Välkommen</div>
           <div style="font-size:26px;font-weight:700;letter-spacing:-.04em;color:#fff;">${broker.name}</div>
           <div style="font-size:13px;color:rgba(255,255,255,.4);margin-top:3px;">${broker.firm}</div>
         </div>
@@ -4210,7 +4214,7 @@ function renderBrokerDashboard() {
           ].map(s => `
             <div style="background:rgba(255,255,255,.04);border:0.5px solid rgba(255,255,255,.08);border-radius:14px;padding:16px;">
               <div style="width:36px;height:36px;border-radius:9px;background:rgba(204,41,54,.15);display:flex;align-items:center;justify-content:center;margin-bottom:10px;">
-                <i class="ti ${s.icon}" style="font-size:17px;color:#CC2936;" aria-hidden="true"></i>
+                <i class="ti ${s.icon}" style="font-size:17px;color:var(--accent);" aria-hidden="true"></i>
               </div>
               <div style="font-size:26px;font-weight:700;letter-spacing:-.04em;color:#fff;line-height:1;">${s.num}</div>
               <div style="font-size:11px;color:rgba(255,255,255,.35);margin-top:4px;">${s.lbl}</div>
@@ -4221,7 +4225,7 @@ function renderBrokerDashboard() {
         <!-- Listings header -->
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
           <div style="font-size:16px;font-weight:600;letter-spacing:-.03em;color:#fff;">Mina objekt</div>
-          <button id="addListingBtn" style="display:flex;align-items:center;gap:7px;background:#CC2936;color:#fff;border:none;border-radius:9px;padding:8px 16px;font-size:12px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
+          <button id="addListingBtn" style="display:flex;align-items:center;gap:7px;background:var(--accent);color:#fff;border:none;border-radius:9px;padding:8px 16px;font-size:12px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;">
             <i class="ti ti-plus" aria-hidden="true"></i> Lägg till objekt
           </button>
         </div>
@@ -4241,7 +4245,7 @@ function renderBrokerDashboard() {
                   <span style="font-size:11px;color:rgba(255,255,255,.35);display:flex;align-items:center;gap:4px;"><i class="ti ti-heart" style="font-size:12px;" aria-hidden="true"></i> ${l.likes}</span>
                   <span style="font-size:11px;color:rgba(255,255,255,.35);display:flex;align-items:center;gap:4px;"><i class="ti ti-star" style="font-size:12px;" aria-hidden="true"></i> ${l.interested}</span>
                   <span style="font-size:11px;color:rgba(255,255,255,.35);display:flex;align-items:center;gap:4px;"><i class="ti ti-eye" style="font-size:12px;" aria-hidden="true"></i> ${l.views}</span>
-                  ${l.messages ? `<span style="font-size:11px;color:#CC2936;display:flex;align-items:center;gap:4px;font-weight:600;"><i class="ti ti-message" style="font-size:12px;" aria-hidden="true"></i> ${l.messages} nya</span>` : ''}
+                  ${l.messages ? `<span style="font-size:11px;color:var(--accent);display:flex;align-items:center;gap:4px;font-weight:600;"><i class="ti ti-message" style="font-size:12px;" aria-hidden="true"></i> ${l.messages} nya</span>` : ''}
                 </div>
               </div>
               <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0;">
@@ -4263,10 +4267,10 @@ function renderBrokerDashboard() {
           ].map((m,i,arr) => `
             <div style="display:flex;gap:14px;padding:14px 18px;border-bottom:${i<arr.length-1?'0.5px solid rgba(255,255,255,.06)':'none'};">
               <div style="width:36px;height:36px;border-radius:50%;background:rgba(204,41,54,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                <i class="ti ti-user" style="font-size:16px;color:#CC2936;" aria-hidden="true"></i>
+                <i class="ti ti-user" style="font-size:16px;color:var(--accent);" aria-hidden="true"></i>
               </div>
               <div style="flex:1;min-width:0;">
-                <div style="font-size:12px;font-weight:600;color:#CC2936;margin-bottom:3px;">${m.obj}</div>
+                <div style="font-size:12px;font-weight:600;color:var(--accent);margin-bottom:3px;">${m.obj}</div>
                 <div style="font-size:13px;color:rgba(255,255,255,.65);line-height:1.5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">"${m.msg}"</div>
                 <div style="font-size:11px;color:rgba(255,255,255,.25);margin-top:4px;">${m.time} · Anonymt</div>
               </div>
@@ -4359,7 +4363,7 @@ function renderBrokerAddListing() {
             <div style="font-size:12px;color:rgba(255,255,255,.35);margin-bottom:14px;">Ladda upp planritning som PDF eller bild.</div>
             <label id="planLabel" style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.04);border:1.5px dashed rgba(255,255,255,.15);border-radius:10px;padding:16px;cursor:pointer;">
               <div style="width:40px;height:40px;border-radius:9px;background:rgba(204,41,54,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-                <i class="ti ti-file-upload" style="font-size:19px;color:#CC2936;" aria-hidden="true"></i>
+                <i class="ti ti-file-upload" style="font-size:19px;color:var(--accent);" aria-hidden="true"></i>
               </div>
               <div>
                 <div style="font-size:13px;font-weight:600;color:#fff;" id="planName">Klicka för att ladda upp</div>
@@ -4391,7 +4395,7 @@ function renderBrokerAddListing() {
           <div style="background:rgba(255,255,255,.04);border:0.5px solid rgba(255,255,255,.08);border-radius:14px;padding:20px;">
             <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:14px;">Ansvarig mäklare</div>
             <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;padding:14px;background:rgba(255,255,255,.04);border-radius:10px;border:0.5px solid rgba(255,255,255,.08);">
-              <div style="width:44px;height:44px;border-radius:50%;background:rgba(204,41,54,.2);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#CC2936;flex-shrink:0;">${broker.logo}</div>
+              <div style="width:44px;height:44px;border-radius:50%;background:rgba(204,41,54,.2);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--accent);flex-shrink:0;">${broker.logo}</div>
               <div style="flex:1;">
                 <div style="font-size:14px;font-weight:600;color:#fff;">${broker.name}</div>
                 <div style="font-size:12px;color:rgba(255,255,255,.4);">${broker.firm}</div>
@@ -4434,7 +4438,7 @@ function renderBrokerAddListing() {
             </div>
           </div>
 
-          <button id="publishBtn" style="width:100%;padding:14px;border-radius:12px;border:none;background:#CC2936;color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
+          <button id="publishBtn" style="width:100%;padding:14px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:14px;font-weight:600;font-family:'Inter',sans-serif;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
             <i class="ti ti-send" aria-hidden="true"></i> Publicera objekt
           </button>
           <button onclick="navigate('broker')" style="width:100%;padding:12px;border-radius:12px;border:0.5px solid rgba(255,255,255,.1);background:transparent;font-size:13px;color:rgba(255,255,255,.4);font-family:'Inter',sans-serif;cursor:pointer;">

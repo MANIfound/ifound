@@ -922,7 +922,7 @@ function getTypeSource(pid) {
 function setTypeCorrection(pid, type, name) {
   const st = loadState();
   st.typeCorrections = st.typeCorrections || {};
-  if (type) st.typeCorrections[pid] = type; else delete st.typeCorrections[pid];
+  if (type) st.typeCorrections[pid] = type; else { delete st.typeCorrections[pid]; _typeLookupDone.delete(pid); }
   saveState(st);
   closeTypePicker();
   toast(type ? `Tack! ${name} är nu märkt som ${type.toLowerCase()}.` : "Rättelsen är borttagen.");
@@ -1125,6 +1125,8 @@ function parcelCentroid(feature) {
 }
 
 const _pendingTypeLookups = {};
+// Tomter vi redan försökt slå upp — spärr mot upprepade omrenderingar
+const _typeLookupDone = new Set();
 
 // Delad Overpass-hämtning: spegeln först (overpass-api.de är onåbar från vissa nät),
 // snabb timeout (6s) så döda servrar inte hänger.
@@ -1470,7 +1472,11 @@ function renderParcelPanel(feature) {
   // Hämta byggnadstyp från OSM i bakgrunden om okänd; rendera om ifall panelen fortfarande visar samma tomt
   window._currentPanelPid = pid;
   window._currentPanelFeature = feature;
-  if (!isBrf && !(state.buildingTypes || {})[pid]) {
+  // Kolla mot getKnownType, inte bara den lokala cachen. Annars ansågs typen
+  // saknas trots att den fanns i types.json, uppslaget svarade synkront, och
+  // panelen renderade om sig i all oändlighet.
+  if (!isBrf && !typValue && !_typeLookupDone.has(pid)) {
+    _typeLookupDone.add(pid);   // en gång per tomt och session — aldrig en loop
     detectBuildingType(feature, pid).then(type => {
       if (!type) return;
       if (window._currentPanelPid !== pid) return; // användaren har klickat vidare

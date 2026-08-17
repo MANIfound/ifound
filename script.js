@@ -2302,7 +2302,7 @@ function renderWelcome() {
           <div class="stories-scatter">
             <article class="story story-buyer">
               <div class="story-img">
-                <img src="https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=900&q=75&auto=format" alt="Stor villaträdgård med gräsmatta och träd" loading="lazy" />
+                <img src="img/story-tomt.jpg" alt="Nybyggt hus under uppförande på en avstyckad tomt" loading="lazy" width="1200" height="675" />
               </div>
               <div class="story-tag">Exempel · Köparen</div>
               <h3 class="story-headline">Tomten fanns. Den var bara inte till salu.</h3>
@@ -2319,7 +2319,7 @@ function renderWelcome() {
 
             <article class="story story-owner">
               <div class="story-img">
-                <img src="https://images.unsplash.com/photo-1449844908441-8829872d2607?w=900&q=75&auto=format" alt="Villa i kvällsljus" loading="lazy" />
+                <img src="img/story-villa.jpg" alt="Villa med blommande trädgård" loading="lazy" width="1200" height="675" />
               </div>
               <div class="story-tag">Exempel · Ägaren</div>
               <h3 class="story-headline">Sålde utan att någonsin lägga ut huset.</h3>

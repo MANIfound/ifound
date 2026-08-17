@@ -864,6 +864,36 @@ const KNOWN_TYPE_OVERRIDES = {
 
 function normParcel(s) { return String(s).toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g, ""); }
 
+// Förklassad statisk fil, genererad av tools/classify-offline.mjs.
+// Laddas en gång vid start. Detta är den PRIMÄRA källan — Overpass i
+// webbläsaren är bara reserv för fastigheter som saknas här.
+let STATIC_TYPES = { types: {}, sources: {}, count: 0 };
+
+// Ett löfte som allt typuppslag väntar på. Utan det hann panelen fråga efter
+// en typ innan filen laddats, fick null, och drog igång ett Overpass-anrop
+// helt i onödan — vilket är exakt vad konsolloggen visade.
+const STATIC_TYPES_READY = (async () => {
+  try {
+    const res = await fetch("types.json", { cache: "force-cache" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    if (!data.types || typeof data.types !== "object") throw new Error("oväntat format");
+    STATIC_TYPES = { types: data.types, sources: data.sources || {}, count: Object.keys(data.types).length };
+
+    // Normaliserat register så BRITA 1 matchar "BRITA1", "Brita 1" osv.
+    STATIC_TYPES.norm = {};
+    for (const [k, v] of Object.entries(data.types)) STATIC_TYPES.norm[normParcel(k)] = v;
+    STATIC_TYPES.normSrc = {};
+    for (const [k, v] of Object.entries(STATIC_TYPES.sources)) STATIC_TYPES.normSrc[normParcel(k)] = v;
+
+    console.log(`[ifound] ✓ Förklassad typdata laddad: ${STATIC_TYPES.count} fastigheter (genererad ${data.generated?.slice(0, 10)}). Overpass behövs inte.`);
+    if (typeof redrawLayer === "function") redrawLayer();
+  } catch (err) {
+    console.warn(`[ifound] ✗ types.json kunde inte laddas (${err.message}). Ligger filen bredvid index.html?`);
+  }
+  return STATIC_TYPES;
+})();
+
 function getKnownType(pid) {
   const n = normParcel(pid);
   for (const [k, v] of Object.entries(KNOWN_TYPE_OVERRIDES)) {
@@ -872,7 +902,8 @@ function getKnownType(pid) {
   // Användarrättelser vinner över automatisk klassning
   const st = loadState();
   if (st.typeCorrections?.[pid]) return st.typeCorrections[pid];
-  return (st.buildingTypes || {})[pid] || null;
+  if (st.buildingTypes?.[pid]) return st.buildingTypes[pid];
+  return STATIC_TYPES.norm?.[n] || STATIC_TYPES.types?.[pid] || null;
 }
 
 // Hur säker är typen? "manuell" och "byggnad" visas rakt av,
@@ -882,7 +913,7 @@ function getTypeSource(pid) {
   const n = normParcel(pid);
   if (Object.keys(KNOWN_TYPE_OVERRIDES).some(k => normParcel(k) === n)) return TYPE_SOURCE.MANUAL;
   if (st.typeCorrections?.[pid]) return TYPE_SOURCE.MANUAL;
-  return st.typeSources?.[pid] || null;
+  return st.typeSources?.[pid] || STATIC_TYPES.normSrc?.[n] || null;
 }
 
 // Användaren rättar typen. Detta är inte bara en UI-finess — rättelserna är
@@ -1098,6 +1129,7 @@ const _pendingTypeLookups = {};
 // Delad Overpass-hämtning: spegeln först (overpass-api.de är onåbar från vissa nät),
 // snabb timeout (6s) så döda servrar inte hänger.
 let _overpassFailures = 0;
+let _overpassGivenUp = false;
 async function overpassFetch(query, timeoutMs = 6000) {
   if (_overpassFailures >= 2) return null; // Overpass onåbar från detta nät — sluta försöka denna session
   const endpoints = [
@@ -1125,7 +1157,10 @@ async function overpassFetch(query, timeoutMs = 6000) {
     }
   }
   _overpassFailures++;
-  if (_overpassFailures >= 2) console.warn("[ifound] Overpass onåbar — pausar typuppslag för denna session.");
+  if (_overpassFailures >= 2 && !_overpassGivenUp) {
+    _overpassGivenUp = true;
+    console.warn("[ifound] Overpass onåbar från webbläsaren (CORS/timeout) — typuppslag avstängda för sessionen. Kör tools/classify-offline.mjs och lägg types.json bredvid index.html.");
+  }
   return null;
 }
 
@@ -1159,6 +1194,13 @@ async function prefetchBuildingTypesInView() {
   // Versionerad flagga: höj CLASSIFIER_VERSION när klassificeringslogiken ändras,
   // annars kör befintliga enheter aldrig om och sitter kvar på gamla resultat.
   if (localStorage.getItem(PREFETCH_FLAG)) return; // redan klart med denna logikversion
+
+  // Har vi förklassad data behövs ingen Overpass-körning alls.
+  await STATIC_TYPES_READY;
+  if (STATIC_TYPES.count > 0) {
+    console.log("[ifound] Statisk typdata finns — hoppar över Overpass-klassning.");
+    return;
+  }
   if (_prefetchAttempts >= 3) return; // ge upp för sessionen — Overpass onåbar från detta nät
   const lastTry = parseInt(localStorage.getItem("ifound_osm_prefetch_at") || "0", 10);
   if (Date.now() - lastTry < 120000) return; // max ett försök per 2 min
@@ -1323,6 +1365,11 @@ async function prefetchBuildingTypesInView() {
 }
 
 async function detectBuildingType(feature, pid) {
+  // Vänta in den statiska filen först. Finns typen där behövs inget nätverk.
+  await STATIC_TYPES_READY;
+  if (STATIC_TYPES.count > 0) {
+    return getKnownType(pid);   // saknas den i filen har vi ändå inget bättre svar
+  }
   const state = loadState();
   const cached = (state.buildingTypes || {})[pid];
   if (cached) return cached; // bara lyckade klassningar är slutgiltiga — null försöks om

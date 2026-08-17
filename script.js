@@ -869,7 +869,69 @@ function getKnownType(pid) {
   for (const [k, v] of Object.entries(KNOWN_TYPE_OVERRIDES)) {
     if (normParcel(k) === n) return v;
   }
-  return (loadState().buildingTypes || {})[pid] || null;
+  // Användarrättelser vinner över automatisk klassning
+  const st = loadState();
+  if (st.typeCorrections?.[pid]) return st.typeCorrections[pid];
+  return (st.buildingTypes || {})[pid] || null;
+}
+
+// Hur säker är typen? "manuell" och "byggnad" visas rakt av,
+// "indikation" och "område" visas med förbehåll.
+function getTypeSource(pid) {
+  const st = loadState();
+  const n = normParcel(pid);
+  if (Object.keys(KNOWN_TYPE_OVERRIDES).some(k => normParcel(k) === n)) return TYPE_SOURCE.MANUAL;
+  if (st.typeCorrections?.[pid]) return TYPE_SOURCE.MANUAL;
+  return st.typeSources?.[pid] || null;
+}
+
+// Användaren rättar typen. Detta är inte bara en UI-finess — rättelserna är
+// utsädet till riktig typdata när Supabase kopplas in, och de kommer från de
+// personer som faktiskt känner till fastigheten.
+function setTypeCorrection(pid, type, name) {
+  const st = loadState();
+  st.typeCorrections = st.typeCorrections || {};
+  if (type) st.typeCorrections[pid] = type; else delete st.typeCorrections[pid];
+  saveState(st);
+  closeTypePicker();
+  toast(type ? `Tack! ${name} är nu märkt som ${type.toLowerCase()}.` : "Rättelsen är borttagen.");
+  if (window._currentPanelFeature) renderParcelPanel(window._currentPanelFeature);
+}
+
+function openTypePicker(pid, name) {
+  const existing = document.getElementById("type-picker-overlay");
+  if (existing) existing.remove();
+  const current = getKnownType(pid);
+  const options = Object.values(PROPERTY_TYPES);
+
+  const overlay = document.createElement("div");
+  overlay.id = "type-picker-overlay";
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(31,42,22,.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;";
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:18px;padding:24px;width:100%;max-width:380px;font-family:var(--font-body);box-shadow:0 24px 64px rgba(0,0,0,.2);">
+      <div style="font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--ink);margin-bottom:5px;">Vad är det här för fastighet?</div>
+      <div style="font-size:13px;color:var(--ink-soft);line-height:1.6;margin-bottom:16px;">
+        Vi gissar utifrån öppna kartdata, och ibland blir det fel. Känner du till ${name} får du gärna rätta oss.
+      </div>
+      <div style="display:flex;flex-direction:column;gap:7px;">
+        ${options.map(o => `
+          <button onclick="setTypeCorrection('${pid.replace(/'/g,"\\'")}','${o}','${name.replace(/'/g,"\\'")}')"
+            style="width:100%;text-align:left;padding:12px 14px;border-radius:10px;cursor:pointer;font-family:var(--font-body);font-size:13.5px;font-weight:${o===current?'600':'500'};
+            background:${o===current?'var(--green-100)':'var(--surface-2)'};color:${o===current?'var(--green-800)':'var(--ink)'};
+            border:1px solid ${o===current?'var(--green-600)':'transparent'};">
+            ${o}${o===current?' <span style="float:right;">✓</span>':''}
+          </button>
+        `).join("")}
+      </div>
+      <button onclick="closeTypePicker()" style="width:100%;margin-top:12px;padding:11px;border-radius:10px;border:0.5px solid var(--hairline);background:transparent;color:var(--ink-soft);font-size:13px;font-family:var(--font-body);cursor:pointer;">Avbryt</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener("click", e => { if (e.target === overlay) closeTypePicker(); });
+}
+
+function closeTypePicker() {
+  const el = document.getElementById("type-picker-overlay");
+  if (el) el.remove();
 }
 
 function isBrfParcel(pid) {
@@ -879,19 +941,130 @@ function isBrfParcel(pid) {
 }
 
 // =========================
-// BYGGNADSTYP VIA OPENSTREETMAP (gratis proxy tills riktig registerdata
-// (typkod från Lantmäteriet/Skatteverket, licensierad) kopplas in i Supabase)
+// BYGGNADSTYP — klassificering med fallback-kedja
+//
+// Källa i prototypen: OpenStreetMap. Den RIKTIGA källan är typkod från
+// Fastighetstaxeringsregistret (220 småhusenhet, 320 hyreshusenhet,
+// 800 specialenhet, 325 kontor/handel osv). Den är licensierad och kopplas
+// in via Supabase — se TYPE_SOURCE nedan för hur data flaggas.
+//
+// Kedjan, i prioritetsordning:
+//   1. Manuell rättelse (KNOWN_TYPE_OVERRIDES eller användarrättelse)
+//   2. Starka OSM-taggar på byggnad (amenity/office/shop/building)
+//   3. Svaga signaler (våningsantal, antal lägenheter, adresspunkter)
+//   4. Omgivande markanvändning (landuse) — täcker building=yes och tomma tomter
+//   5. "Obebyggd tomt" om ingen byggnad hittades men marken är känd
+//   6. Okänd — visas som sådan, med möjlighet för användaren att rätta
 // =========================
+
+const PROPERTY_TYPES = {
+  SMAHUS:   "Villa/Småhus",
+  FLERBO:   "Flerbostadshus",
+  SAMHALLE: "Samhällsfastighet",
+  KOMMERS:  "Kommersiell",
+  OBEBYGGD: "Obebyggd tomt",
+};
+
+// Hur säker klassningen är — styr om vi visar den rakt av eller med förbehåll.
+const TYPE_SOURCE = { MANUAL: "manuell", STRONG: "byggnad", WEAK: "indikation", LANDUSE: "område" };
+
+function classifyOsmTags(tagsList) {
+  if (!tagsList || !tagsList.length) return null;
+
+  const has = (fn) => tagsList.some(fn);
+  const num = (t, k) => parseInt(t[k] || "", 10) || 0;
+
+  // --- 2. Starka signaler ---------------------------------------------------
+  // Samhällsfastighet: skola, vård, omsorg, myndighet. Prövas först eftersom
+  // en skola ofta ÄVEN har building=yes och annars skulle bli feltolkad.
+  const samhalleAmenity = ["school","kindergarten","childcare","university","college","hospital",
+                           "clinic","doctors","nursing_home","social_facility","townhall","courthouse",
+                           "police","fire_station","library","community_centre","place_of_worship",
+                           "public_building","prison"];
+  const samhalleBuilding = ["school","kindergarten","hospital","university","civic","government",
+                            "public","church","chapel","fire_station","train_station"];
+  if (has(t => samhalleAmenity.includes((t.amenity || "").toLowerCase())) ||
+      has(t => samhalleBuilding.includes((t.building || "").toLowerCase())) ||
+      has(t => t.healthcare || t.government)) {
+    return { type: PROPERTY_TYPES.SAMHALLE, source: TYPE_SOURCE.STRONG };
+  }
+
+  const flerboBuilding = ["apartments","residential","dormitory","terrace"];
+  if (has(t => flerboBuilding.includes((t.building || "").toLowerCase()))) {
+    return { type: PROPERTY_TYPES.FLERBO, source: TYPE_SOURCE.STRONG };
+  }
+
+  const kommersBuilding = ["retail","commercial","office","industrial","warehouse","supermarket",
+                           "kiosk","hotel","hangar","service"];
+  if (has(t => kommersBuilding.includes((t.building || "").toLowerCase())) ||
+      has(t => t.shop || t.office || t.craft || t.industrial) ||
+      has(t => ["hotel","motel","hostel","guest_house"].includes((t.tourism || "").toLowerCase()))) {
+    return { type: PROPERTY_TYPES.KOMMERS, source: TYPE_SOURCE.STRONG };
+  }
+
+  const smahusBuilding = ["house","detached","semidetached_house","bungalow","villa","farm",
+                          "farmhouse","cabin","static_caravan","houseboat"];
+  if (has(t => smahusBuilding.includes((t.building || "").toLowerCase()))) {
+    return { type: PROPERTY_TYPES.SMAHUS, source: TYPE_SOURCE.STRONG };
+  }
+
+  // --- 3. Svaga signaler ----------------------------------------------------
+  // Här fångas building=yes, som tidigare kastades bort helt.
+  // Tre våningar eller fler, eller flera lägenheter, betyder i praktiken
+  // flerbostadshus i svensk bebyggelse.
+  if (has(t => num(t, "building:flats") >= 3)) {
+    return { type: PROPERTY_TYPES.FLERBO, source: TYPE_SOURCE.WEAK };
+  }
+  if (has(t => num(t, "building:levels") >= 3)) {
+    return { type: PROPERTY_TYPES.FLERBO, source: TYPE_SOURCE.WEAK };
+  }
+  // Många separata adresspunkter på samma tomt pekar också mot flerbostadshus
+  const addrCount = tagsList.filter(t => t["addr:housenumber"]).length;
+  if (addrCount >= 4) {
+    return { type: PROPERTY_TYPES.FLERBO, source: TYPE_SOURCE.WEAK };
+  }
+  // building=yes med 1–2 våningar och en adress: nästan alltid småhus
+  if (has(t => (t.building || "").toLowerCase() === "yes")) {
+    const levels = Math.max(...tagsList.map(t => num(t, "building:levels")));
+    if (levels > 0 && levels <= 2) {
+      return { type: PROPERTY_TYPES.SMAHUS, source: TYPE_SOURCE.WEAK };
+    }
+  }
+  return null;
+}
+
+// --- 4. Markanvändning som sista utväg ------------------------------------
+function classifyLanduse(tags) {
+  const lu = (tags.landuse || "").toLowerCase();
+  const am = (tags.amenity || "").toLowerCase();
+  if (["school","kindergarten","hospital","university","college"].includes(am) ||
+      ["religious","cemetery"].includes(lu)) {
+    return { type: PROPERTY_TYPES.SAMHALLE, source: TYPE_SOURCE.LANDUSE };
+  }
+  if (["retail","commercial","industrial"].includes(lu)) {
+    return { type: PROPERTY_TYPES.KOMMERS, source: TYPE_SOURCE.LANDUSE };
+  }
+  if (["residential","allotments"].includes(lu)) {
+    return { type: PROPERTY_TYPES.SMAHUS, source: TYPE_SOURCE.LANDUSE };
+  }
+  return null;
+}
+
+// Bakåtkompatibel wrapper — äldre anrop förväntar sig bara en sträng
 function classifyOsmBuildings(tagsList) {
-  // Prioritet: flerbostad > kommersiell > småhus (blandade tomter klassas efter tyngst kategori)
-  const T = tagsList.map(t => (t.building || "").toLowerCase());
-  const apartment = ["apartments", "residential", "dormitory"];
-  const commercial = ["retail", "commercial", "office", "industrial", "warehouse", "supermarket", "kiosk", "hotel"];
-  const house = ["house", "detached", "semidetached_house", "terrace", "bungalow", "villa", "farm", "cabin"];
-  if (T.some(b => apartment.includes(b))) return "Flerbostadshus";
-  if (T.some(b => commercial.includes(b))) return "Kommersiell";
-  if (T.some(b => house.includes(b))) return "Villa/Småhus";
-  return null; // "yes" och okända taggar ger ingen klassning
+  const r = classifyOsmTags(tagsList);
+  return r ? r.type : null;
+}
+
+// Tomtens mittpunkt (räcker för att testa mot markanvändningspolygoner)
+function parcelCentroid(feature) {
+  const g = feature?.geometry;
+  const coords = g?.type === "Polygon" ? g.coordinates[0]
+               : g?.type === "MultiPolygon" ? g.coordinates[0][0] : null;
+  if (!coords || !coords.length) return null;
+  let x = 0, y = 0;
+  for (const c of coords) { x += c[0]; y += c[1]; }
+  return [x / coords.length, y / coords.length];
 }
 
 const _pendingTypeLookups = {};
@@ -985,11 +1158,26 @@ async function prefetchBuildingTypesInView() {
     const data = await overpassFetch(query, 30000);
     if (!data) { console.warn("[ifound] Engångsklassning misslyckades — nytt försök om 2 min"); return; }
 
+    // ALLA taggar behålls, inklusive building=yes. Tidigare filtrerades yes bort,
+    // vilket är den vanligaste taggen i svensk OSM — det var därför de flesta
+    // fastigheter aldrig fick någon typ.
     const buildings = (data.elements || [])
-      .map(e => ({ lon: e.center?.lon, lat: e.center?.lat, building: (e.tags?.building || "").toLowerCase() }))
-      .filter(x => x.lon && x.lat && x.building && x.building !== "yes");
-    console.log("[ifound]", buildings.length, "typmärkta byggnader hämtade för hela området");
-    if (!buildings.length) return;
+      .map(e => ({ lon: e.center?.lon, lat: e.center?.lat, tags: e.tags || {} }))
+      .filter(x => x.lon && x.lat && x.tags.building);
+    console.log("[ifound]", buildings.length, "byggnader hämtade för hela området");
+
+    // Markanvändning som fallback för tomter utan användbar byggnadstagg.
+    // Betydligt färre objekt än byggnader, så full geometri är rimligt här.
+    let landuse = [];
+    const luQuery = `[out:json][timeout:25];(way["landuse"](${bbox});way["amenity"~"^(school|kindergarten|hospital|university|college)$"](${bbox}););out geom tags;`;
+    const luData = await overpassFetch(luQuery, 30000);
+    if (luData) {
+      landuse = (luData.elements || [])
+        .filter(e => e.geometry && e.geometry.length > 2)
+        .map(e => ({ tags: e.tags || {}, ring: e.geometry.map(g => [g.lon, g.lat]) }));
+      console.log("[ifound]", landuse.length, "markanvändningsområden hämtade");
+    }
+    if (!buildings.length && !landuse.length) return;
 
     const s = loadState();
     s.buildingTypes = s.buildingTypes || {};
@@ -1010,9 +1198,29 @@ async function prefetchBuildingTypesInView() {
         bd.lon >= fMinLon && bd.lon <= fMaxLon && bd.lat >= fMinLat && bd.lat <= fMaxLat &&
         featureContainsPoint(f, bd.lon, bd.lat)
       );
-      if (!inParcel.length) continue;
-      const type = classifyOsmBuildings(inParcel.map(bd => ({ building: bd.building })));
-      if (type) { s.buildingTypes[pid] = type; updated++; }
+
+      let result = inParcel.length ? classifyOsmTags(inParcel.map(bd => bd.tags)) : null;
+
+      // Fallback: vilken markanvändning ligger tomtens mittpunkt i?
+      if (!result) {
+        const c = parcelCentroid(f);
+        if (c) {
+          const hit = landuse.find(lu => pointInRing(c[0], c[1], lu.ring));
+          if (hit) result = classifyLanduse(hit.tags);
+        }
+      }
+
+      // Ingen byggnad alls på tomten är i sig ett svar
+      if (!result && !inParcel.length) {
+        result = { type: PROPERTY_TYPES.OBEBYGGD, source: TYPE_SOURCE.LANDUSE };
+      }
+
+      if (result) {
+        s.buildingTypes[pid] = result.type;
+        s.typeSources = s.typeSources || {};
+        s.typeSources[pid] = result.source;
+        updated++;
+      }
     }
 
     saveState(s);
@@ -1054,7 +1262,14 @@ async function detectBuildingType(feature, pid) {
 
       const tagsList = (data.elements || []).map(e => e.tags || {});
       console.log("[ifound] OSM-byggnader på", pid, ":", tagsList.map(t => t.building));
-      const type = classifyOsmBuildings(tagsList);
+      const res = classifyOsmTags(tagsList);
+      const type = res ? res.type : null;
+      if (res) {
+        const st = loadState();
+        st.typeSources = st.typeSources || {};
+        st.typeSources[pid] = res.source;
+        saveState(st);
+      }
       console.log("[ifound] Klassning för", pid, "→", type);
 
       if (type) {
@@ -1093,12 +1308,32 @@ function renderParcelPanel(feature) {
   rememberParcelName(pid, name);
 
   const detectedType = getKnownType(pid);
-  const typDisplay = isBrf ? "Flerbostadshus" : (detectedType || formatValue(meta.typ));
+  // Typraden ska ALDRIG vara tom. Vet vi inte säger vi det, och ber om hjälp.
+  const rawTyp = detectedType || (meta.typ && meta.typ !== "-" ? meta.typ : null);
+  const typValue = isBrf ? PROPERTY_TYPES.FLERBO : rawTyp;
+  const typSource = isBrf ? TYPE_SOURCE.MANUAL : getTypeSource(pid);
+  const uncertain = typValue && (typSource === TYPE_SOURCE.WEAK || typSource === TYPE_SOURCE.LANDUSE);
+  const escName = String(name).replace(/'/g, "\\'");
+
+  const typCell = typValue
+    ? `<strong id="parcelTypeValue" style="display:inline-flex;align-items:center;gap:5px;">
+         ${typValue}${uncertain ? '<i class="ti ti-help-circle" title="Uppskattad utifrån kartdata" style="font-size:13px;color:var(--ink-muted);"></i>' : ''}
+       </strong>`
+    : `<button onclick="openTypePicker('${pid.replace(/'/g, "\\'")}','${escName}')"
+         style="background:none;border:none;padding:0;cursor:pointer;font-family:var(--font-body);font-size:13px;font-weight:600;color:var(--green-600);text-decoration:underline;">
+         Okänd — hjälp oss?
+       </button>`;
 
   const metaRows = `
     <div class="panel-meta-row"><span>Beteckning</span><strong>${formatValue(meta.beteckning)}</strong></div>
-    <div class="panel-meta-row"><span>Typ</span><strong id="parcelTypeValue">${typDisplay}</strong></div>
+    <div class="panel-meta-row"><span>Typ</span>${typCell}</div>
     <div class="panel-meta-row"><span>Area</span><strong>${formatValue(meta.area)}</strong></div>
+    ${typValue ? `<div style="text-align:right;padding:5px 2px 0;">
+      <button onclick="openTypePicker('${pid.replace(/'/g, "\\'")}','${escName}')"
+        style="background:none;border:none;padding:2px;cursor:pointer;font-family:var(--font-body);font-size:11px;color:var(--ink-muted);text-decoration:underline;">
+        ${uncertain ? "Stämmer inte typen?" : "Rätta typen"}
+      </button>
+    </div>` : ''}
   `;
 
   // Hämta byggnadstyp från OSM i bakgrunden om okänd; rendera om ifall panelen fortfarande visar samma tomt

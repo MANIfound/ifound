@@ -2035,6 +2035,21 @@ function landingLike(btn) {
   toast(isLiked ? 'Gillning borttagen' : 'Gillad!');
 }
 
+// Visar toningen bara när det finns mer att scrolla till, och döljer den när
+// användaren nått slutet. Annars lovar den innehåll som inte finns.
+function initHeroChipsOverflow() {
+  const wrap = document.getElementById("heroChipsWrap");
+  const strip = document.getElementById("heroChips");
+  if (!wrap || !strip) return;
+  const update = () => {
+    const more = strip.scrollWidth - strip.clientWidth - strip.scrollLeft > 8;
+    wrap.classList.toggle("has-overflow", more);
+  };
+  strip.addEventListener("scroll", update, { passive: true });
+  window.addEventListener("resize", update);
+  requestAnimationFrame(update);
+}
+
 function focusLandingSearch() {
   const wrap = document.getElementById("landingSearchWrap");
   const input = document.getElementById("landingSearch");
@@ -2129,17 +2144,19 @@ function renderWelcome() {
               <input id="landingSearch" placeholder="Sök adress eller fastighet..." />
               <button id="landingSearchBtn">Sök</button>
             </div>
-            <div class="hero-chips">
-              <button id="landingNearMe" class="chip chip-solid">
-                <i class="ti ti-current-location" aria-hidden="true"></i> Nära mig
-              </button>
-              ${(()=>{
-                const recent = JSON.parse(localStorage.getItem('ifound_recent_searches') || '[]');
-                if (!recent.length) return '';
-                return recent.slice(0,3).map(q =>
-                  '<button class="chip" onclick="currentView=\'feed\';render();">' + q + '</button>'
-                ).join('');
-              })()}
+            <div class="hero-chips-wrap" id="heroChipsWrap">
+              <div class="hero-chips" id="heroChips">
+                <button id="landingNearMe" class="chip chip-solid">
+                  <i class="ti ti-current-location" aria-hidden="true"></i> Nära mig
+                </button>
+                ${(()=>{
+                  const recent = JSON.parse(localStorage.getItem('ifound_recent_searches') || '[]');
+                  if (!recent.length) return '';
+                  return recent.slice(0,5).map(q =>
+                    '<button class="chip" title="' + q.replace(/"/g,'&quot;') + '" onclick="currentView=\'feed\';render();">' + q + '</button>'
+                  ).join('');
+                })()}
+              </div>
             </div>
           </div>
 
@@ -2343,6 +2360,8 @@ function renderWelcome() {
   document.getElementById("landingSearch").addEventListener("keydown", e => {
     if (e.key === "Enter") document.getElementById("landingSearchBtn").click();
   });
+
+  initHeroChipsOverflow();
 
   // Near me
   document.getElementById("landingNearMe").onclick = () => {

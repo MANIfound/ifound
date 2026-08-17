@@ -889,21 +889,38 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
 }
 .hero-search button:hover { background: var(--green-700); }
 
-/* Chips scrollar i sidled på små skärmar i stället för att radbryta rörigt */
+/* Chips scrollar i sidled. Den avtonande högerkanten är inte dekor — den är
+   den enda signalen om att det finns mer att scrolla till, eftersom
+   scrollbaren är dold. Utan den ser ett avklippt chip ut som en bugg. */
+.hero-chips-wrap { position: relative; margin-top: 13px; }
+.hero-chips-wrap::after {
+  content: ""; position: absolute; right: 0; top: 0; bottom: 0;
+  width: 46px; pointer-events: none;
+  background: linear-gradient(to right, transparent, var(--green-900));
+  opacity: 0; transition: opacity .2s ease;
+}
+.hero-chips-wrap.has-overflow::after { opacity: 1; }
+
 .hero-chips {
-  display: flex; gap: 7px; margin-top: 13px;
+  display: flex; gap: 7px;
   overflow-x: auto; scrollbar-width: none;
   padding-bottom: 2px; -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
 }
 .hero-chips::-webkit-scrollbar { display: none; }
 .chip {
-  flex-shrink: 0;
+  flex-shrink: 0; scroll-snap-align: start;
+  max-width: 190px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
   padding: 8px 14px; border-radius: 999px;
   font-family: var(--font-body); font-size: 12.5px; font-weight: 500;
   background: rgba(255,255,255,.09); color: rgba(255,255,255,.80);
   border: 0.5px solid rgba(255,255,255,.16); cursor: pointer;
 }
 .chip:hover { background: rgba(255,255,255,.16); color: #fff; }
+
+/* Sista chippet får luft så det inte hamnar under toningen */
+.hero-chips > :last-child { margin-right: 40px; }
 .chip-solid {
   display: inline-flex; align-items: center; gap: 6px;
   background: var(--green-300); color: var(--green-900);

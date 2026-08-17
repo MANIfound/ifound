@@ -1725,37 +1725,52 @@ function renderWelcome() {
         </div>
       </nav>
 
-      <!-- Hero: mörkgrön yta, vänsterställd. Grönt som YTA, inte accent. -->
+      <!-- Hero. Mobil: en kolumn. Desktop (>=900px): asymmetriskt rutnät
+           där högerspalten bär riktigt innehåll, inte dekor. -->
       <div class="hero-green">
-        <div class="hero-green-inner">
-          <h1 class="hero-title">Varje hus har<br>någon som undrar</h1>
-          <p class="hero-lead">Visa intresse för hus som inte är till salu — och se vad folk tycker om ditt eget. Utan att blanda in en mäklare.</p>
-          <div class="hero-search" id="landingSearchWrap">
-            <i class="ti ti-search" aria-hidden="true"></i>
-            <input id="landingSearch" placeholder="Sök adress eller fastighet..." />
-            <button id="landingSearchBtn">Sök</button>
+        <div class="shell hero-grid">
+          <div class="hero-main">
+            <h1 class="hero-title">Varje hus har<br>någon som undrar</h1>
+            <p class="hero-lead">Visa intresse för hus som inte är till salu — och se vad folk tycker om ditt eget. Utan att blanda in en mäklare.</p>
+            <div class="hero-search" id="landingSearchWrap">
+              <i class="ti ti-search" aria-hidden="true"></i>
+              <input id="landingSearch" placeholder="Sök adress eller fastighet..." />
+              <button id="landingSearchBtn">Sök</button>
+            </div>
+            <div class="hero-chips">
+              <button id="landingNearMe" class="chip chip-solid">
+                <i class="ti ti-current-location" aria-hidden="true"></i> Nära mig
+              </button>
+              ${(()=>{
+                const recent = JSON.parse(localStorage.getItem('ifound_recent_searches') || '[]');
+                if (!recent.length) return '';
+                return recent.slice(0,3).map(q =>
+                  '<button class="chip" onclick="currentView=\'feed\';render();">' + q + '</button>'
+                ).join('');
+              })()}
+            </div>
           </div>
-          <div class="hero-chips">
-            <button id="landingNearMe" class="chip chip-solid">
-              <i class="ti ti-current-location" aria-hidden="true"></i> Nära mig
-            </button>
-            ${(()=>{
-              const recent = JSON.parse(localStorage.getItem('ifound_recent_searches') || '[]');
-              if (!recent.length) return '';
-              return recent.slice(0,3).map(q =>
-                '<button class="chip" onclick="currentView=\'feed\';render();">' + q + '</button>'
-              ).join('');
-            })()}
-          </div>
+
+          <aside class="hero-aside" aria-label="Fastigheter med mest intresse">
+            <div class="aside-head">Mest intresse just nu</div>
+            ${[...PROP_DATA].sort((a,b)=>b.likes-a.likes).slice(0,4).map(pr => `
+              <button class="aside-row" onclick="navigateProp(${pr.id})">
+                <span class="aside-name">
+                  <span class="beteckning">${pr.name}</span>
+                  <span class="aside-meta">${pr.meta.split(" · ").slice(-1)[0]}</span>
+                </span>
+                <span class="aside-stat">${pr.likes} <i class="ti ti-heart-filled" aria-hidden="true"></i></span>
+              </button>
+            `).join("")}
+            <button class="aside-more" onclick="currentView='feed';render();">Se alla <i class="ti ti-arrow-right" aria-hidden="true"></i></button>
+          </aside>
         </div>
       </div>
 
       <!-- Två valv. Dörren är produktens egen metafor — så rita den som en dörr. -->
-      <div class="arches">
+      <div class="shell arches">
         <div class="arch" onclick="currentView='map';render();">
-          <div class="arch-top">
-            <i class="ti ti-map-search" aria-hidden="true"></i>
-          </div>
+          <div class="arch-top"><i class="ti ti-map-search" aria-hidden="true"></i></div>
           <div class="arch-body">
             <div class="arch-label">Jag har sett ett hus</div>
             <div class="arch-title">Åkte du förbi ett hus du aldrig kan glömma?</div>
@@ -1764,9 +1779,7 @@ function renderWelcome() {
           </div>
         </div>
         <div class="arch" onclick="focusLandingSearch()">
-          <div class="arch-top arch-top-owner">
-            <i class="ti ti-home-heart" aria-hidden="true"></i>
-          </div>
+          <div class="arch-top arch-top-owner"><i class="ti ti-home-heart" aria-hidden="true"></i></div>
           <div class="arch-body">
             <div class="arch-label">Jag äger ett hus</div>
             <div class="arch-title">Vad tycker folk om ditt hus?</div>
@@ -1776,8 +1789,7 @@ function renderWelcome() {
         </div>
       </div>
 
-      <!-- Typfilter ligger nu vid innehållet det filtrerar, inte i hero -->
-      <div class="type-filter-row">
+      <div class="shell type-filter-row">
         <div id="landingTypePills" class="type-pills">
           ${["Alla typer","Villa","Lägenhet","Tomt/Gård","Fritidshus","Uthyrning"].map((t,i) => `
             <button class="type-pill ${i===0 ? "active" : ""}" data-type="${t}" onclick="landingSelectType(this)">${t}</button>

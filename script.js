@@ -874,7 +874,10 @@ let STATIC_TYPES = { types: {}, sources: {}, count: 0 };
 // helt i onödan — vilket är exakt vad konsolloggen visade.
 const STATIC_TYPES_READY = (async () => {
   try {
-    const res = await fetch("types.json", { cache: "force-cache" });
+    // Ingen force-cache. Filen uppdateras när klassificeringen körs om, och
+    // force-cache gjorde att gamla data satt kvar i webbläsaren efter varje
+    // uppdatering. no-cache låter webbläsaren fråga servern om filen ändrats.
+    const res = await fetch("types.json", { cache: "no-cache" });
     if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
     if (!data.types || typeof data.types !== "object") throw new Error("oväntat format");

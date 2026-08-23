@@ -650,7 +650,7 @@ function openPostcardModal(pid, name, afterInterest = false) {
 
       <div style="font-size:13px;color:var(--ink-soft);line-height:1.65;margin-bottom:18px;">
         ${afterInterest
-          ? `Men ägaren är inte med på ifound och kommer aldrig att se det. Vill du att de får veta? Vi skickar ett fysiskt vykort hem till fastighetens registrerade ägare.`
+          ? `Men ägaren är inte med på ifound ännu och ser inte ditt intresse förrän de claimar sin fastighet och skaffar ett konto. Vill du att de får veta redan nu? Vi skickar ett fysiskt vykort hem till fastighetens registrerade ägare.`
           : `Ägaren är inte med på ifound ännu och vet därför inte att du finns. Vi skickar ett fysiskt vykort till fastighetens registrerade ägare och berättar att någon visat intresse.`}
       </div>
 

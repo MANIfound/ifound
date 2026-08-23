@@ -736,12 +736,21 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.6; }
     display: flex;
     position: fixed; left: 0; right: 0; bottom: 0;
     z-index: 4000;
-    background: rgba(255,255,255,.96);
+    background: rgba(255,255,255,.97);
     -webkit-backdrop-filter: blur(14px);
     backdrop-filter: blur(14px);
     border-top: 0.5px solid rgba(17,24,39,.10);
-    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
   }
+  /* Höjd på tab-baren, inkl. safe-area — används för att reservera plats nedtill */
+  :root { --tabbar-h: calc(58px + env(safe-area-inset-bottom, 0px)); }
+
+  /* Varje vy måste lämna plats för baren, annars klipps sista innehållet.
+     Detta löste "botten försvinner" på både besökar- och ägarläge. */
+  #app > div { padding-bottom: var(--tabbar-h); }
+
+  /* Panelen (bottom-sheet) ska ligga OVANFÖR tab-baren, inte under den */
+  .panel { bottom: var(--tabbar-h); max-height: calc(82vh - var(--tabbar-h)); }
   .bottom-tab {
     flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
     background: transparent; border: none; cursor: pointer;
@@ -1492,8 +1501,13 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
     background: var(--hairline); border-radius: 999px;
   }
   .panel-close {
-    top: 14px; right: 14px; width: 32px; height: 32px; font-size: 14px;
+    top: 14px; right: 14px; width: 34px; height: 34px; font-size: 15px;
+    z-index: 3;                       /* över bildheadern */
+    background: rgba(0,0,0,.42); color: #fff;
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
   }
+  /* Draghandtaget får inte krocka med stäng-knappen */
+  .panel::before { margin-top: -4px; }
   /* Åtgärdsknappar blir större touch-mål */
   .panel-btn { padding: 13px 10px; font-size: 13px; }
   .panel-actions { gap: 8px; }
@@ -1510,3 +1524,74 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
 /* Gilla/intresse-färgerna följde inte den gröna profilen */
 .panel-btn.active-like { background: var(--green-100); border-color: var(--green-600); color: var(--green-800); }
 .panel-btn.active-interest { background: var(--honey-soft); border-color: var(--honey); color: #8A5A12; }
+
+
+/* Välkomst-CTA: rad på desktop, staplad på mobil så inget klipps */
+.welcome-cta {
+  background: var(--ink); border-radius: 16px; padding: 26px 28px;
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+}
+.welcome-cta-btns { display: flex; gap: 10px; flex-shrink: 0; }
+@media (max-width: 620px) {
+  .welcome-cta { flex-direction: column; align-items: flex-start; padding: 22px 20px; }
+  .welcome-cta-btns { width: 100%; }
+  .welcome-cta-btns button { flex: 1; }
+}
+
+
+/* =========================================================
+   SPARADE OBJEKT
+   ========================================================= */
+.stat-tile-btn { cursor: pointer; border: none; font-family: var(--font-body); text-align: left; width: 100%; position: relative; }
+.stat-tile-btn:hover { background: var(--green-50); }
+.stat-tile-arrow { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--ink-muted); font-size: 15px; }
+
+.saved-wrap { max-width: 720px; margin: 0 auto; padding: 24px 20px 0; }
+.saved-back { display: inline-flex; align-items: center; gap: 6px; background: none; border: none; cursor: pointer; font-family: var(--font-body); font-size: 13px; color: var(--ink-soft); padding: 0 0 12px; }
+.saved-back:hover { color: var(--ink); }
+.saved-title { font-family: var(--font-display); font-size: 28px; font-weight: 700; letter-spacing: -.03em; color: var(--ink); margin: 0 0 6px; }
+.saved-sub { font-size: 14px; color: var(--ink-soft); margin: 0 0 22px; }
+
+.saved-list { display: flex; flex-direction: column; gap: 10px; }
+.saved-card {
+  display: flex; align-items: center; gap: 14px; width: 100%;
+  background: var(--surface); border: 1px solid var(--hairline);
+  border-radius: 14px; padding: 12px; cursor: pointer; text-align: left;
+  font-family: var(--font-body); transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.saved-card:hover { border-color: var(--green-600); transform: translateY(-2px); box-shadow: 0 8px 22px rgba(31,42,22,.08); }
+.saved-thumb {
+  width: 74px; height: 74px; border-radius: 11px; flex-shrink: 0; overflow: hidden;
+  position: relative; background: var(--green-100);
+  display: flex; align-items: center; justify-content: center;
+}
+.saved-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.saved-thumb-empty { color: var(--green-600); font-size: 26px; }
+.saved-thumb-tag {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  font-family: var(--font-data); font-size: 8px; font-weight: 500; letter-spacing: .05em;
+  text-transform: uppercase; color: #fff; text-align: center;
+  background: rgba(0,0,0,.4); padding: 2px 0;
+}
+.saved-info { flex: 1; min-width: 0; }
+.saved-type { font-size: 12.5px; color: var(--ink-soft); margin: 3px 0 6px; }
+.saved-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+.saved-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10.5px; font-weight: 600; padding: 3px 8px; border-radius: 999px;
+}
+.saved-pill i { font-size: 11px; }
+.saved-pill-like { background: var(--green-100); color: var(--green-800); }
+.saved-pill-int { background: var(--honey-soft); color: #8A5A12; }
+.saved-pill-price { background: var(--surface-2); color: var(--ink-soft); font-family: var(--font-data); }
+.saved-arrow { color: var(--ink-muted); font-size: 17px; flex-shrink: 0; }
+
+.saved-empty { text-align: center; padding: 50px 24px; }
+.saved-empty > i { font-size: 40px; color: var(--green-300); }
+.saved-empty-title { font-family: var(--font-display); font-size: 18px; font-weight: 700; color: var(--ink); margin: 14px 0 6px; }
+.saved-empty-sub { font-size: 14px; color: var(--ink-soft); line-height: 1.6; max-width: 340px; margin: 0 auto 20px; }
+
+@media (max-width: 620px) {
+  .saved-wrap { padding: 18px 16px 0; }
+  .saved-title { font-size: 24px; }
+}

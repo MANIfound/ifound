@@ -2597,14 +2597,14 @@ function renderWelcome() {
         </div>
 
         <!-- CTA -->
-        <div style="background:var(--ink);border-radius:16px;padding:28px 32px;display:flex;align-items:center;justify-content:space-between;">
+        <div class="welcome-cta">
           <div>
             <div style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:#fff;margin-bottom:4px;">Är det ditt hus? Gå med.</div>
             <div style="font-size:13px;color:rgba(255,255,255,.5);">Se vem som är intresserad av din fastighet — gratis.</div>
           </div>
-          <div style="display:flex;gap:10px;flex-shrink:0;">
-            <button onclick="openAuthModal('reg')" style="padding:10px 20px;border-radius:10px;border:none;background:#fff;color:var(--ink);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font-body);">Claima din fastighet</button>
-            <button onclick="navigate('brokerWelcome')" style="padding:10px 20px;border-radius:10px;border:0.5px solid rgba(255,255,255,.25);background:transparent;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font-body);">För mäklare</button>
+          <div class="welcome-cta-btns">
+            <button onclick="openAuthModal('reg')" style="padding:11px 20px;border-radius:10px;border:none;background:#fff;color:var(--ink);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font-body);white-space:nowrap;">Claima din fastighet</button>
+            <button onclick="navigate('brokerWelcome')" style="padding:11px 20px;border-radius:10px;border:0.5px solid rgba(255,255,255,.25);background:transparent;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font-body);white-space:nowrap;">För mäklare</button>
           </div>
         </div>
       </div>
@@ -2914,6 +2914,96 @@ function renderBuildNew() {
 
   const lo = document.getElementById("logoutBtnBuild");
   if (lo) lo.onclick = () => { clearSession(); navigate("welcome"); };
+}
+
+// =========================
+// SPARADE OBJEKT — dina gillade och intresserade fastigheter
+// Läser användarens FAKTISKA likes/intressen, med den egna bilden om den finns.
+// =========================
+function renderSaved() {
+  const session = loadSession();
+  const isLoggedIn = !!session?.email;
+  const user = isLoggedIn ? getCurrentUser() : null;
+  const state = loadState();
+
+  const likes = Object.keys(state.myLikes || {});
+  const interests = Object.keys(state.myInterests || {});
+  const follows = Object.keys(state.myFollows || {});
+  const all = [...new Set([...likes, ...interests, ...follows])];
+  const names = state.parcelNames || {};
+  const photos = state.myPhotos || {};
+  const types = {};
+  all.forEach(pid => { types[pid] = getKnownType(pid); });
+
+  const card = (pid) => {
+    const nm = names[pid] || pid;
+    const photo = photos[pid];
+    const liked = !!state.myLikes?.[pid];
+    const interested = !!state.myInterests?.[pid];
+    const wp = (state.wishPrices || {})[pid];
+    return `
+      <button class="saved-card" onclick="openParcelById('${String(pid).replace(/'/g,"\\'")}','${String(nm).replace(/'/g,"\\'")}')">
+        <div class="saved-thumb ${photo ? '' : 'saved-thumb-empty'}">
+          ${photo ? `<img src="${photo}" alt="" />` : `<i class="ti ti-map-pin"></i>`}
+          ${photo ? `<span class="saved-thumb-tag">Din bild</span>` : ''}
+        </div>
+        <div class="saved-info">
+          <div class="beteckning">${nm}</div>
+          ${types[pid] ? `<div class="saved-type">${types[pid]}</div>` : ''}
+          <div class="saved-tags">
+            ${liked ? `<span class="saved-pill saved-pill-like"><i class="ti ti-thumb-up"></i> Gillad</span>` : ''}
+            ${interested ? `<span class="saved-pill saved-pill-int"><i class="ti ti-star"></i> Intresserad</span>` : ''}
+            ${wp?.visible && wp.amount ? `<span class="saved-pill saved-pill-price">${wp.amount} kr</span>` : ''}
+          </div>
+        </div>
+        <i class="ti ti-chevron-right saved-arrow"></i>
+      </button>`;
+  };
+
+  app.innerHTML = `
+    <div style="background:var(--page-bg);min-height:100vh;font-family:var(--font-body);">
+      <nav class="dashboard-nav">
+        <div class="nav-left">
+          <div class="logo" onclick="navigate('welcome')" style="cursor:pointer;">
+            <svg width="17" height="21" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
+            <span class="logo-text">i<em>found</em></span>
+          </div>
+        </div>
+        <div class="nav-center">
+          <button class="nav-tab" onclick="navigate('dashboard')">Min sida</button>
+          <button class="nav-tab" onclick="currentView='feed';render();">Utforska</button>
+          <button class="nav-tab" onclick="currentView='map';render();">Karta</button>
+        </div>
+        <div class="nav-right">
+          <button class="btn-ghost" style="font-size:12px;padding:7px 13px;" onclick="navigate('dashboard')">Tillbaka</button>
+        </div>
+      </nav>
+
+      <div class="saved-wrap">
+        <div class="saved-head">
+          <button class="saved-back" onclick="navigate('dashboard')"><i class="ti ti-arrow-left"></i> Min sida</button>
+          <h1 class="saved-title">Sparade objekt</h1>
+          <p class="saved-sub">${all.length ? `${all.length} ${all.length === 1 ? 'fastighet' : 'fastigheter'} du fastnat för.` : 'Här samlas husen du gillar och visar intresse för.'}</p>
+        </div>
+
+        ${all.length ? `<div class="saved-list">${all.map(card).join('')}</div>` : `
+          <div class="saved-empty">
+            <i class="ti ti-heart"></i>
+            <div class="saved-empty-title">Inga sparade objekt ännu</div>
+            <div class="saved-empty-sub">Åk ut, hitta ett hus du fastnar för, och gilla det på kartan. Det dyker upp här.</div>
+            <button class="bn-btn-primary" onclick="currentView='map';render();"><i class="ti ti-map-2"></i> Öppna kartan</button>
+          </div>`}
+      </div>
+      <div style="height:80px;"></div>
+    </div>
+  `;
+}
+
+// Öppna kartan och zooma till en fastighet från en lista
+function openParcelById(pid, name) {
+  currentView = "map";
+  window._pendingParcelFocus = { pid, name };
+  render();
 }
 
 // =========================
@@ -3350,7 +3440,7 @@ function renderDashboard() {
         <div class="stats-strip">
           <div class="stat-tile"><div class="stat-icon"><i class="ti ti-thumb-up"></i></div><div><div class="stat-num">${ownerLikes}</div><div class="stat-lbl">Gillar</div></div></div>
           <div class="stat-tile"><div class="stat-icon"><i class="ti ti-star"></i></div><div><div class="stat-num">${ownerInterests}</div><div class="stat-lbl">Intresserade</div></div></div>
-          <div class="stat-tile"><div class="stat-icon"><i class="ti ti-heart"></i></div><div><div class="stat-num">${myLikedIds.length}</div><div class="stat-lbl">Sparade objekt</div></div></div>
+          <button class="stat-tile stat-tile-btn" onclick="currentView='saved';render();"><div class="stat-icon"><i class="ti ti-heart"></i></div><div><div class="stat-num">${myLikedIds.length}</div><div class="stat-lbl">Sparade objekt</div></div><i class="ti ti-chevron-right stat-tile-arrow"></i></button>
         </div>
 
         <div class="two-col">
@@ -5460,6 +5550,8 @@ function renderView() {
     if (currentView === "feed")   { renderFeed(); return; }
     if (currentView === "map")    { renderMapView(); return; }
     if (currentView === "buildNew") { renderBuildNew(); return; }
+  if (currentView === "saved") { renderSaved(); return; }
+    if (currentView === "saved") { renderSaved(); return; }
     if (currentView.startsWith("property_")) { renderPropertyView(); return; }
     renderWelcome(); return;
   }
@@ -5469,6 +5561,7 @@ function renderView() {
     if (currentView === "feed")   { renderFeed(); return; }
     if (currentView === "map")    { renderMapView(); return; }
     if (currentView === "buildNew") { renderBuildNew(); return; }
+    if (currentView === "saved") { renderSaved(); return; }
     if (currentView.startsWith("property_")) { renderPropertyView(); return; }
     if (currentView === "broker" || currentView === "dashboard") { renderBrokerDashboard(); return; }
     renderBrokerDashboard(); return;

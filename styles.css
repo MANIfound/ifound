@@ -1463,3 +1463,50 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
   .setup-card { padding: 16px; }
   .setup-step-text em { display: none; }
 }
+
+
+/* =========================================================
+   MOBILANPASSNING — kartpanel som uppdragbart ark
+   Under 620px blir fastighetspanelen ett ark längst ned, fullbrett,
+   med ett draghandtag. Detta är appens viktigaste vy och var minst
+   touch-anpassad — en flytande ruta som täckte halva skärmen.
+   ========================================================= */
+@media (max-width: 620px) {
+  .panel {
+    left: 0; right: 0; bottom: 0;
+    width: 100%;
+    max-height: 82vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 20px 20px 0 0;
+    padding: 20px 18px calc(20px + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -8px 40px rgba(17,24,39,.22);
+    animation: panelUp .28s cubic-bezier(.32,.72,0,1);
+  }
+  /* Draghandtag högst upp */
+  .panel::before {
+    content: "";
+    position: sticky; top: 0;
+    display: block; width: 40px; height: 4px;
+    margin: -6px auto 12px;
+    background: var(--hairline); border-radius: 999px;
+  }
+  .panel-close {
+    top: 14px; right: 14px; width: 32px; height: 32px; font-size: 14px;
+  }
+  /* Åtgärdsknappar blir större touch-mål */
+  .panel-btn { padding: 13px 10px; font-size: 13px; }
+  .panel-actions { gap: 8px; }
+  /* Statistiken får luft */
+  .panel-stat { padding: 13px; }
+  .panel-stat-value { font-size: 22px; }
+}
+
+@keyframes panelUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* Gilla/intresse-färgerna följde inte den gröna profilen */
+.panel-btn.active-like { background: var(--green-100); border-color: var(--green-600); color: var(--green-800); }
+.panel-btn.active-interest { background: var(--honey-soft); border-color: var(--honey); color: #8A5A12; }

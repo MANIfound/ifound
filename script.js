@@ -53,6 +53,116 @@ function createDefaultState() {
 
 function loadState()     { return safeJsonParse(localStorage.getItem(LS_STATE), createDefaultState()) || createDefaultState(); }
 function saveState(s)    { localStorage.setItem(LS_STATE, JSON.stringify(s)); }
+
+// =========================
+// MIN SIDA — profil, roll och onboarding
+// Rollen formar vad som lyfts fram, men låser aldrig funktioner: en som sökte
+// bostad kan ärva ett hus nästa år, och då ska allt finnas kvar.
+// =========================
+function getProfile() {
+  const s = loadState();
+  return s.profile || (s.profile = {});
+}
+function saveProfile(patch) {
+  const s = loadState();
+  s.profile = Object.assign({}, s.profile, patch);
+  saveState(s);
+  return s.profile;
+}
+
+const ROLES = {
+  curious: { label: "Mest nyfiken", icon: "ti-map-search",
+             blurb: "Jag tittar på hus, kanske ett jag gått förbi." },
+  owner:   { label: "Jag äger ett hus", icon: "ti-home-heart",
+             blurb: "Jag vill se vad folk tycker om min fastighet." },
+  seeker:  { label: "Jag söker bostad", icon: "ti-search",
+             blurb: "Jag letar och vill bevaka hus och områden." },
+};
+
+// Vilka steg som visas på Min sida beror på rollen. Alla steg går att skjuta upp.
+function onboardingSteps(role) {
+  const common = [
+    { id: "role", label: "Välj din roll", icon: "ti-user-check",
+      done: !!getProfile().role, always: true,
+      desc: "Vi anpassar Min sida efter varför du är här. Går att ändra när som helst." },
+    { id: "notify", label: "Aviseringar", icon: "ti-bell",
+      done: getProfile().notify !== undefined,
+      desc: "Få veta när någon gillar din fastighet eller när ett bevakat hus dyker upp." },
+  ];
+  const owner = [
+    { id: "claim", label: "Koppla din fastighet", icon: "ti-home-check",
+      done: !!loadState().ownerParcelId,
+      desc: "Sök upp din fastighet på kartan och claima den. Då ser du vilka som visat intresse." },
+    { id: "wish", label: "Sätt ett önskepris", icon: "ti-tag",
+      done: !!(loadState().wishPrices || {})[loadState().ownerParcelId],
+      desc: "Ange vad du skulle kunna tänka dig att sälja för — även om huset inte är till salu." },
+    { id: "photo", label: "Lägg till en bild", icon: "ti-camera",
+      done: !!(getHomeProfile(getCurrentUser())?.images || []).length,
+      desc: "Visa upp ditt hem för den som är nyfiken." },
+  ];
+  const seeker = [
+    { id: "area", label: "Bevaka ett område", icon: "ti-map-pin",
+      done: !!(getProfile().watchedAreas || []).length,
+      desc: "Få en notis när något händer i ett område du är intresserad av." },
+    { id: "likes", label: "Gilla ditt första hus", icon: "ti-heart",
+      done: Object.keys(loadState().myLikes || {}).length > 0,
+      desc: "Spara husen du fastnar för så hittar du tillbaka till dem." },
+  ];
+  if (role === "owner")  return [...common, ...owner];
+  if (role === "seeker") return [...common, ...seeker];
+  return [...common, { id: "explore", label: "Utforska kartan", icon: "ti-map-2",
+      done: Object.keys(loadState().myLikes || {}).length > 0,
+      desc: "Klicka runt bland fastigheterna och gilla det du gillar." }];
+}
+
+function setRole(role) {
+  saveProfile({ role });
+  toast(`Min sida är nu anpassad för dig som ${ROLES[role].label.toLowerCase()}.`);
+  closeWelcomeFlow();
+  if (currentView === "dashboard" || currentView === "welcomeflow") { currentView = "dashboard"; render(); }
+}
+
+function skipWelcome() {
+  saveProfile({ welcomeSkipped: true });
+  closeWelcomeFlow();
+  currentView = "dashboard"; render();
+}
+
+function closeWelcomeFlow() {
+  const el = document.getElementById("welcome-flow-overlay");
+  if (el) el.remove();
+}
+
+// Visas första gången en inloggad användare når Min sida utan att ha valt roll.
+function maybeShowWelcomeFlow() {
+  const p = getProfile();
+  if (p.role || p.welcomeSkipped) return;
+  if (document.getElementById("welcome-flow-overlay")) return;
+
+  const overlay = document.createElement("div");
+  overlay.id = "welcome-flow-overlay";
+  overlay.className = "wf-overlay";
+  overlay.innerHTML = `
+    <div class="wf-card">
+      <div class="wf-eyebrow">Välkommen till ifound</div>
+      <h2 class="wf-title">Vad för dig hit?</h2>
+      <p class="wf-sub">Vi anpassar din sida efter svaret. Du kan ändra det när som helst — och hoppa över nu om du vill.</p>
+      <div class="wf-roles">
+        ${Object.entries(ROLES).map(([key, r]) => `
+          <button class="wf-role" onclick="setRole('${key}')">
+            <span class="wf-role-icon"><i class="ti ${r.icon}"></i></span>
+            <span class="wf-role-text">
+              <strong>${r.label}</strong>
+              <em>${r.blurb}</em>
+            </span>
+            <i class="ti ti-arrow-right wf-role-arrow"></i>
+          </button>
+        `).join("")}
+      </div>
+      <button class="wf-skip" onclick="skipWelcome()">Hoppa över för nu</button>
+    </div>`;
+  document.body.appendChild(overlay);
+}
 function loadSavedMapMode() { return localStorage.getItem(LS_MAP_MODE) || "visitor"; }
 function saveMapMode(m)  { localStorage.setItem(LS_MAP_MODE, m); }
 
@@ -3010,6 +3120,41 @@ function propToggleInterest(id) {
   renderPropertyView();
 }
 
+// Varje checklist-steg leder till rätt ställe. Inget steg är obligatoriskt.
+function runOnboardingStep(id) {
+  switch (id) {
+    case "role":    return reopenRolePicker();
+    case "notify":  return toggleNotifyPref();
+    case "claim":   return openClaimModal();
+    case "wish":
+      if (!loadState().ownerParcelId) { toast("Koppla din fastighet först, så kan du sätta ett önskepris."); return openClaimModal(); }
+      document.getElementById("wishPriceInput")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      document.getElementById("wishPriceInput")?.focus();
+      return;
+    case "photo":   return document.getElementById("homeImageInput")?.click();
+    case "area":    return navigate("map");
+    case "likes":
+    case "explore": return navigate("map");
+  }
+}
+
+function reopenRolePicker() {
+  const p = getProfile();
+  // Tvinga fram väljaren igen även om rollen redan är satt
+  saveProfile({ welcomeSkipped: false });
+  const s = loadState();
+  if (s.profile) { delete s.profile.role; saveState(s); }
+  maybeShowWelcomeFlow();
+}
+
+function toggleNotifyPref() {
+  const cur = getProfile().notify;
+  const next = cur === true ? false : true;
+  saveProfile({ notify: next });
+  toast(next ? "Aviseringar på. Vi hör av oss när något händer." : "Aviseringar av.");
+  if (currentView === "dashboard") render();
+}
+
 function renderDashboard() {
   const session = loadSession();
   if (!session?.email) return navigate("welcome");
@@ -3047,9 +3192,55 @@ function renderDashboard() {
         </div>
       </nav>
       <div class="dashboard-body">
-        <div class="page-eyebrow">Din profil</div>
-        <div class="page-title">Min bostad</div>
-        <div class="page-sub">Visa upp ditt hem, följ intresse och hitta nya möjligheter.</div>
+        ${(() => {
+          const p = getProfile();
+          const role = p.role;
+          const steps = onboardingSteps(role);
+          const doneCount = steps.filter(x => x.done).length;
+          const allDone = doneCount === steps.length;
+          const roleLabel = role ? ROLES[role].label : null;
+
+          const titles = {
+            owner:  ["Din fastighet", "Min sida", "Se vad folk tycker om ditt hus och håll koll på intresset."],
+            seeker: ["Din bevakning", "Min sida", "Husen du gillat och områdena du håller ett öga på."],
+            curious:["Ditt ifound", "Min sida", "Husen du fastnat för — och nästa steg när du vill mer."],
+          };
+          const [eyebrow, title, sub] = titles[role] || ["Din profil", "Min sida", "Kom igång med några enkla steg."];
+
+          return `
+            <div class="page-eyebrow">${eyebrow}</div>
+            <div class="page-title-row">
+              <div class="page-title">${title}</div>
+              ${role ? `<button class="role-chip" onclick="reopenRolePicker()"><i class="ti ${ROLES[role].icon}"></i> ${roleLabel} <i class="ti ti-chevron-down" style="font-size:12px;opacity:.6;"></i></button>` : ""}
+            </div>
+            <div class="page-sub">${sub}</div>
+
+            ${allDone ? "" : `
+            <div class="setup-card">
+              <div class="setup-head">
+                <div>
+                  <div class="setup-title">Bygg din sida</div>
+                  <div class="setup-sub">${doneCount} av ${steps.length} klart · gör resten när du vill</div>
+                </div>
+                <div class="setup-ring" style="--pct:${Math.round(doneCount/steps.length*100)}">
+                  <span>${Math.round(doneCount/steps.length*100)}%</span>
+                </div>
+              </div>
+              <div class="setup-steps">
+                ${steps.map(st => `
+                  <button class="setup-step ${st.done ? "is-done" : ""}" ${st.done ? "disabled" : `onclick="runOnboardingStep('${st.id}')"`}>
+                    <span class="setup-check"><i class="ti ${st.done ? "ti-circle-check-filled" : st.icon}"></i></span>
+                    <span class="setup-step-text">
+                      <strong>${st.label}</strong>
+                      <em>${st.desc}</em>
+                    </span>
+                    ${st.done ? `<span class="setup-done-tag">Klart</span>` : `<i class="ti ti-arrow-right setup-step-arrow"></i>`}
+                  </button>
+                `).join("")}
+              </div>
+            </div>`}
+          `;
+        })()}
 
         <div class="hero-section">
           ${images.length ? `<img src="${images[0]}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" alt="Bostad" />` : houseSvg}
@@ -3198,6 +3389,9 @@ function renderDashboard() {
   `;
 
   document.getElementById("logoutBtn").onclick = () => { clearSession(); toast("Utloggad."); navigate("welcome"); };
+
+  // Visa välkomstflödet för den som inte valt roll ännu
+  maybeShowWelcomeFlow();
 
   const clearBtn = document.getElementById("clearOwnerBtn");
   if (clearBtn) clearBtn.onclick = () => { const s = loadState(); s.ownerParcelId = null; saveState(s); toast("Välj en ny fastighet."); render(); };

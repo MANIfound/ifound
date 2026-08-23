@@ -462,6 +462,16 @@ function openInterestModal(feature, pid, name) {
 
   document.getElementById('sendInterestBtn').onclick = () => {
     const msg = document.getElementById('interestMessage').value.trim();
+    // Ett meddelande måste kunna besvaras. Utan konto finns ingen i andra änden,
+    // så meddelande kräver inloggning — men enkel intressemarkering gör det inte.
+    if (msg && !loadSession()?.email) {
+      const s = loadState();
+      s.pendingInterest = { pid, name, message: msg };
+      saveState(s);
+      toast("Skapa ett konto så ägaren kan svara dig.");
+      openAuthModal('reg');
+      return;
+    }
     saveInterest(pid, name, msg);
   };
 }
@@ -473,6 +483,48 @@ function closeInterestModal() {
 
 function sendInterestWithoutMessage(pid, name) {
   saveInterest(pid, name, '');
+}
+
+// Egen bild på en fastighet man fastnat för — "så här såg det ut när jag stannade".
+// Sparas lokalt per fastighet, bara för användaren själv. Skiljt från ägarens
+// officiella bilder; detta är ett minne, inte en presentation.
+function getMyPhoto(pid) {
+  return (loadState().myPhotos || {})[pid] || null;
+}
+function saveMyPhoto(pid, dataUrl, name) {
+  const s = loadState();
+  s.myPhotos = s.myPhotos || {};
+  s.parcelNames = s.parcelNames || {};
+  if (name) s.parcelNames[pid] = name;
+  s.myPhotos[pid] = dataUrl;
+  saveState(s);
+}
+function removeMyPhoto(pid) {
+  const s = loadState();
+  if (s.myPhotos) { delete s.myPhotos[pid]; saveState(s); }
+}
+function handleMyPhotoPick(pid, name, input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith("image/")) { toast("Välj en bildfil."); return; }
+  const reader = new FileReader();
+  reader.onload = () => {
+    // Skala ner till max 900px bred så localStorage inte fylls av megabytes
+    const img = new Image();
+    img.onload = () => {
+      const max = 900, scale = Math.min(1, max / img.width);
+      const cv = document.createElement("canvas");
+      cv.width = img.width * scale; cv.height = img.height * scale;
+      cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+      try {
+        saveMyPhoto(pid, cv.toDataURL("image/jpeg", 0.72), name);
+        toast("Bild sparad. Du hittar den bland dina fastigheter.");
+        if (window._currentPanelFeature) renderParcelPanel(window._currentPanelFeature);
+      } catch { toast("Kunde inte spara bilden — den kan vara för stor."); }
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
 }
 
 function saveInterest(pid, name, message) {
@@ -1724,16 +1776,20 @@ function _renderParcelPanelInner(feature) {
     `
   ) : '';
 
+  const myPhoto = getMyPhoto(pid);
+  const headerImg = myPhoto || panelImg;
+
   openPanel(`
     <button class="panel-close" id="closePanelBtn">✕</button>
-    ${panelImg ? `
-      <div style="margin:-16px -16px 14px;height:140px;overflow:hidden;border-radius:14px 14px 0 0;position:relative;">
-        <img src="${panelImg}" style="width:100%;height:100%;object-fit:cover;display:block;" />
-        <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.4) 0%,transparent 60%);"></div>
+    ${headerImg ? `
+      <div style="margin:-16px -16px 14px;height:150px;overflow:hidden;border-radius:14px 14px 0 0;position:relative;">
+        <img src="${headerImg}" style="width:100%;height:100%;object-fit:cover;display:block;" />
+        <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.45) 0%,transparent 58%);"></div>
         <div style="position:absolute;bottom:10px;left:14px;">
-          <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.08em;">${isBrf ? "Bostadsrättsförening" : "Besökarläge"}</div>
+          <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.75);text-transform:uppercase;letter-spacing:.08em;">${myPhoto ? "Din bild" : (isBrf ? "Bostadsrättsförening" : "Besökarläge")}</div>
           <div style="font-size:16px;font-weight:700;color:#fff;letter-spacing:-.03em;">${name}</div>
         </div>
+        ${myPhoto ? `<button onclick="removeMyPhoto('${escName}'); if(window._currentPanelFeature) renderParcelPanel(window._currentPanelFeature);" title="Ta bort din bild" style="position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:50%;border:none;background:rgba(0,0,0,.45);color:#fff;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);"><i class="ti ti-trash"></i></button>` : ""}
       </div>
     ` : `
       <div class="panel-eyebrow">${isBrf ? "Bostadsrättsförening" : "Besökarläge"}</div>
@@ -1766,6 +1822,14 @@ function _renderParcelPanelInner(feature) {
         <i class="ti ${iFollow ? 'ti-bell-check' : 'ti-bell-plus'}"></i> ${iFollow ? "Följer — notis vid nytt" : "Följ fastigheten"}
       </button>
     </div>
+    ${(iLiked || iInterested) && !myPhoto ? `
+    <div style="margin-top:8px;">
+      <input type="file" id="myPhotoInput" accept="image/*" capture="environment" style="display:none;" />
+      <button id="myPhotoBtn" class="panel-btn" style="width:100%;border-style:dashed;">
+        <i class="ti ti-camera"></i> Ta en bild att minnas huset med
+      </button>
+      <div style="text-align:center;margin-top:5px;font-size:11px;color:var(--ink-muted);line-height:1.5;">Sparas bara för dig — så du minns vad du fastnade för.</div>
+    </div>` : ""}
     ${postcardHtml}
     ${isBrf ? '' : `
     <div style="margin-top:8px;">
@@ -1797,6 +1861,13 @@ function _renderParcelPanelInner(feature) {
 
   const pcBtn = document.getElementById("postcardBtn");
   if (pcBtn) pcBtn.onclick = () => openPostcardModal(pid, name);
+
+  const myPhotoBtn = document.getElementById("myPhotoBtn");
+  const myPhotoInput = document.getElementById("myPhotoInput");
+  if (myPhotoBtn && myPhotoInput) {
+    myPhotoBtn.onclick = () => myPhotoInput.click();
+    myPhotoInput.onchange = () => handleMyPhotoPick(pid, name, myPhotoInput);
+  }
 
   document.getElementById("followBtn").onclick = () => {
     const session = loadSession();
@@ -1948,7 +2019,18 @@ function openAuthModal(tab = 'login') {
     if (users[email]) { toast("Det finns redan ett konto på den e-posten."); return; }
     users[email] = { name, email, password: pass };
     saveUsers(users); saveSession({ email }); closeAuthModal();
-    toast("Konto skapat — välkommen!"); currentView = "feed"; render();
+    toast("Konto skapat — välkommen!");
+
+    // Skickade de ett meddelande innan kontot fanns? Slutför det nu.
+    const st = loadState();
+    const pend = st.pendingInterest;
+    if (pend) {
+      delete st.pendingInterest; saveState(st);
+      saveInterest(pend.pid, pend.name, pend.message);
+    }
+
+    // Landa på Min sida så välkomstflödet (rollvalet) visas direkt.
+    currentView = "dashboard"; render();
   };
 }
 

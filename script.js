@@ -1016,7 +1016,60 @@ function mountBottomTabs(active) {
 
 // Kända flerbostadshus/BRF:er i prototypen — ersätts av riktig fastighetsdata i Supabase.
 // Intresse mot dessa gäller hela föreningen ("vill bo här"), inte en enskild ägare.
-const KNOWN_BRF_PARCELS = ["HELSINGÖR 1", "MUNKEN 2"];
+// =========================
+// UPPLÅTELSEFORM — vem äger huset
+//
+// SKILD FRÅN BYGGNADSTYP, med avsikt. Byggnadstypen (villa/flerbostadshus)
+// kommer från OSM och ändras nästan aldrig. Upplåtelseformen kommer från
+// lagfaren ägare och ändras varje gång ett hus ombildas eller säljs. De ska
+// därför kunna uppdateras oberoende av varandra — därav en egen fil.
+//
+// Den RIKTIGA källan är lagfaren ägare från Lantmäteriet, alternativt
+// Bolagsverkets register bakvägen: en ekonomisk förening (org.nr på 7) som
+// heter "Brf ..." och är skriven på adressen äger en bostadsrättsfastighet.
+// Ett AB på samma plats är hyresfastighet. Tills den datan finns gäller
+// enbart listan nedan — och det som INTE står här är okänt, inte BRF.
+// =========================
+
+const OWNERSHIP_FORMS = {
+  BRF:        "brf",          // bostadsrättsförening äger fastigheten
+  HYRES:      "hyresratt",    // privat hyresvärd
+  ALLMANNYTTA:"allmannytta",  // kommunalt bostadsbolag
+  SAMFALLD:   "samfalld",     // samfällighet, ägarlägenheter m.m.
+};
+
+// Manuellt verifierade fastigheter. Seed tills ägardata kopplas in.
+// Fyll på med kommunala bolag först — de är få och täcker mycket.
+const KNOWN_OWNERSHIP = {
+  "HELSINGÖR 1": { form: OWNERSHIP_FORMS.ALLMANNYTTA, owner: "Helsingborgshem AB" },
+};
+
+// Förklassad ägardata, samma nyckel som types.json. Laddas separat och får
+// saknas — appen ska fungera utan den, bara med mindre precision.
+let STATIC_OWNERSHIP = { forms: {}, norm: {}, count: 0 };
+
+const STATIC_OWNERSHIP_READY = (async () => {
+  try {
+    const res = await fetch("ownership.json", { cache: "no-cache" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const data = await res.json();
+    const parcels = data.parcels || data.forms;
+    if (!parcels || typeof parcels !== "object") throw new Error("oväntat format");
+    STATIC_OWNERSHIP = { forms: parcels, norm: {}, count: Object.keys(parcels).length };
+    for (const [k, v] of Object.entries(parcels)) {
+      STATIC_OWNERSHIP.norm[normParcel(k)] = (typeof v === "string") ? { form: v } : v;
+    }
+    console.log(`[ifound] ✓ Ägardata laddad: ${STATIC_OWNERSHIP.count} fastigheter (genererad ${data.generated?.slice(0, 10)}).`);
+    if (typeof redrawLayer === "function") redrawLayer();
+    const panelEl = document.getElementById("panel");
+    if (panelEl && !panelEl.classList.contains("hidden") && window._currentPanelFeature) {
+      renderParcelPanel(window._currentPanelFeature);
+    }
+  } catch (err) {
+    console.info(`[ifound] Ingen ägardata (${err.message}). Flerbostadshus visas som okänd upplåtelseform — det är korrekt beteende, inte ett fel.`);
+  }
+  return STATIC_OWNERSHIP;
+})();
 
 // Manuella rättelser — vinner över både cache och API. Hit läggs felklassningar
 // vi upptäcker (t.ex. mittpunkts-spill från grannbyggnader).
@@ -1130,10 +1183,41 @@ function closeTypePicker() {
   if (el) el.remove();
 }
 
+// Upplåtelseform för en fastighet, eller null när vi inte vet.
+// VI GISSAR ALDRIG utifrån byggnadstyp. Ett flerbostadshus kan lika gärna
+// vara en hyresfastighet, och att kalla en hyresvärds hus för
+// bostadsrättsförening är fel på ett sätt användaren märker direkt.
+function getOwnershipForm(pid) {
+  const n = normParcel(pid);
+  for (const [k, v] of Object.entries(KNOWN_OWNERSHIP)) {
+    if (normParcel(k) === n) return v.form || null;
+  }
+  const hit = STATIC_OWNERSHIP.norm?.[n];
+  return hit?.form || null;
+}
+
+function getOwnerName(pid) {
+  const n = normParcel(pid);
+  for (const [k, v] of Object.entries(KNOWN_OWNERSHIP)) {
+    if (normParcel(k) === n) return v.owner || null;
+  }
+  return STATIC_OWNERSHIP.norm?.[n]?.owner || null;
+}
+
 function isBrfParcel(pid) {
-  if (KNOWN_BRF_PARCELS.some(b => normParcel(b) === normParcel(pid))) return true;
-  // Automatiskt detekterad via OpenStreetMap (rättelser vinner)
-  return getKnownType(pid) === "Flerbostadshus";
+  return getOwnershipForm(pid) === OWNERSHIP_FORMS.BRF;
+}
+
+function isRentalParcel(pid) {
+  const f = getOwnershipForm(pid);
+  return f === OWNERSHIP_FORMS.HYRES || f === OWNERSHIP_FORMS.ALLMANNYTTA;
+}
+
+// Flerbostadshus oavsett upplåtelseform. Det är DENNA som ska styra sådant
+// som gäller huset snarare än ägandet: att avstyckning inte är relevant, att
+// intresse gäller hela huset, att statistiken heter "vill bo här".
+function isMultiDwelling(pid) {
+  return getKnownType(pid) === PROPERTY_TYPES.FLERBO;
 }
 
 // =========================
@@ -1166,7 +1250,7 @@ const TYPE_SOURCE = { MANUAL: "manuell", STRONG: "byggnad", WEAK: "indikation", 
 
 // Höj denna vid varje ändring i klassificeringslogiken — den ogiltigförklarar
 // cachade resultat på alla enheter så att förbättringar faktiskt slår igenom.
-const CLASSIFIER_VERSION = 4;
+const CLASSIFIER_VERSION = 5;
 
 // Ort som ges företräde i sökningen. Sätt till null när kartdata täcker fler
 // orter — sökningen fungerar i hela Sverige oavsett, detta styr bara vad som
@@ -1253,7 +1337,12 @@ function classifyLanduse(tags) {
   if (["retail","commercial","industrial"].includes(lu)) {
     return { type: PROPERTY_TYPES.KOMMERS, source: TYPE_SOURCE.LANDUSE };
   }
-  if (["residential","allotments"].includes(lu)) {
+  // landuse=residential säger BARA att området är bostäder — inte om det är
+  // villor eller flerbostadshus. Helsingborgs centrum är residential rakt
+  // igenom, och den här raden gjorde tidigare varje otaggat kvartershus till
+  // en villa. Bostadsmark lämnas därför oklassad och får avgöras av
+  // grannskapsomröstningen i stället.
+  if (lu === "allotments") {
     return { type: PROPERTY_TYPES.SMAHUS, source: TYPE_SOURCE.LANDUSE };
   }
   return null;
@@ -1273,14 +1362,41 @@ function areaToNumber(v) {
   const n = parseFloat(String(v).replace(/\s/g, "").replace(",", "."));
   return isFinite(n) ? n : null;
 }
-function classifyByArea(areaM2, buildingCount) {
+function classifyByArea(areaM2, buildingCount, urban) {
   if (!areaM2) return null;
   if (buildingCount === 0) return null;          // tomt utan byggnad — inte vår gissning
   if (areaM2 < 150) return null;                 // för litet: garage, transformator, komplement
-  if (areaM2 <= 3000 && buildingCount <= 3) {
+
+  // Stadskvarter: gissa ALDRIG villa. Tomterna i Helsingborgs centrum är
+  // 200–1300 kvm med en till tre byggnadspunkter, alltså exakt samma profil
+  // som en villatomt. Skillnaden syns bara på omgivningen. Utan den här
+  // spärren blev MINERVA 32, DELFINEN 15, KULLEN VÄSTRA 50, MAGNUS STENBOCK 7
+  // och JOHN ERICSSON 26 klassade som Villa/Småhus.
+  if (urban) return null;
+
+  // Taket sänkt från 3000 till 2000 kvm. Över det är en ensam byggnad i tätort
+  // oftare något annat än ett småhus, och gissningen är inte värd felet.
+  if (areaM2 <= 2000 && buildingCount <= 3) {
     return { type: PROPERTY_TYPES.SMAHUS, source: TYPE_SOURCE.WEAK };
   }
   return null;                                   // stort eller tätbebyggt: vågar inte gissa
+}
+
+// Ligger tomten i ett stadskvarter? Avgörs av vad grannarna redan klassats
+// som via STARKA signaler. Ett par flerbostadshus eller kommersiella lokaler
+// inom ett kvarters avstånd betyder att området inte är villabebyggelse.
+// Ingen nätverkstrafik — allt räknas ur data vi redan har.
+function isUrbanContext(c, classified) {
+  // Grovt gradmått som i grannskapsomröstningen: ~90 m på denna breddgrad.
+  const R2 = 0.0010 ** 2;
+  let near = 0, urbanHits = 0;
+  for (const o of classified) {
+    const d = (o.c[0] - c[0]) ** 2 + (o.c[1] - c[1]) ** 2;
+    if (d > R2) continue;
+    near++;
+    if (o.type === PROPERTY_TYPES.FLERBO || o.type === PROPERTY_TYPES.KOMMERS) urbanHits++;
+  }
+  return urbanHits >= 2 || (near >= 6 && urbanHits >= 1);
 }
 
 // Tomtens mittpunkt (räcker för att testa mot markanvändningspolygoner)
@@ -1425,6 +1541,11 @@ async function prefetchBuildingTypesInView() {
     const s = loadState();
     s.buildingTypes = s.buildingTypes || {};
     let updated = 0;
+    // Areagissningen skjuts upp till EFTER grannskapsomröstningen. Tidigare
+    // skrev den in "Villa/Småhus" direkt, vilket gjorde tomten klassad — och
+    // omröstningen hoppar över redan klassade tomter. Den svagaste signalen
+    // i kedjan hann alltså blockera den näst starkaste.
+    const areaCandidates = [];
 
     for (const f of (lastGeoJson.features || [])) {
       const pid = getParcelId(f);
@@ -1453,11 +1574,11 @@ async function prefetchBuildingTypesInView() {
         }
       }
 
-      // Areabaserad bedömning innan vi ger upp — fångar building=yes utan taggar,
-      // vilket är det absolut vanligaste fallet för villor i svensk OSM.
+      // Areabaserad bedömning sparas till sist — se kommentaren vid
+      // areaCandidates. Här registreras bara att tomten är en kandidat.
       if (!result && inParcel.length) {
         const a = areaToNumber(getParcelMeta(f)?.area);
-        result = classifyByArea(a, inParcel.length);
+        if (a) areaCandidates.push({ pid, f, area: a, count: inParcel.length });
       }
 
       // Ingen byggnad alls är i sig ett svar — men BARA om byggnadsfrågan
@@ -1525,9 +1646,26 @@ async function prefetchBuildingTypesInView() {
       }
     }
 
+    // --- 6. Areagissning, allra sist och bara utanför stadskvarter ---------
+    let byArea = 0, urbanSkipped = 0;
+    for (const cand of areaCandidates) {
+      if (s.buildingTypes[cand.pid]) continue;      // omröstningen hann före — bra
+      const c = parcelCentroid(cand.f);
+      const urban = c ? isUrbanContext(c, classified) : false;
+      const result = classifyByArea(cand.area, cand.count, urban);
+      if (result) {
+        s.buildingTypes[cand.pid] = result.type;
+        s.typeSources = s.typeSources || {};
+        s.typeSources[cand.pid] = result.source;
+        byArea++;
+      } else if (urban) {
+        urbanSkipped++;                              // lämnas okänd — användaren kan rätta
+      }
+    }
+
     saveState(s);
     localStorage.setItem(PREFETCH_FLAG, "1");
-    console.log(`[ifound] Klart! ${updated} klassade från kartdata, ${voted} via grannskap. Logikversion ${CLASSIFIER_VERSION}.`);
+    console.log(`[ifound] Klart! ${updated} klassade från kartdata, ${voted} via grannskap, ${byArea} via area. ${urbanSkipped} tomter i stadskvarter lämnades okända i stället för att gissas till villa. Logikversion ${CLASSIFIER_VERSION}.`);
 
     // Uppdatera öppen panel om dess tomt just fick en klassning
     const panelEl = document.getElementById("panel");
@@ -1626,15 +1764,30 @@ function _renderParcelPanelInner(feature) {
   const iLiked = !!state.myLikes?.[pid];
   const iInterested = !!state.myInterests?.[pid];
   const iFollow = !!state.myFollows?.[pid];
-  const isBrf = isBrfParcel(pid);
+  // TVÅ SKILDA FRÅGOR, med avsikt hållna isär:
+  //   isMulti — är det ett flerbostadshus? styr vad som är relevant för HUSET
+  //   ownForm — vem äger det? styr vad vi vågar PÅSTÅ om ägandet
+  // Att blanda ihop dem gjorde att Helsingborgshems hyresfastighet
+  // presenterades som bostadsrättsförening.
+  const isMulti = isMultiDwelling(pid);
+  const ownForm = getOwnershipForm(pid);
+  const isBrf = ownForm === OWNERSHIP_FORMS.BRF;
+  const isRental = isRentalParcel(pid);
+  const ownerName = getOwnerName(pid);
+
+  // Etikett som bara säger så mycket som vi faktiskt vet.
+  const formLabel = isBrf ? "Bostadsrättsförening"
+                  : isRental ? "Hyresfastighet"
+                  : isMulti ? "Flerbostadshus"
+                  : "Besökarläge";
 
   rememberParcelName(pid, name);
 
   const detectedType = getKnownType(pid);
   // Typraden ska ALDRIG vara tom. Vet vi inte säger vi det, och ber om hjälp.
   const rawTyp = detectedType || (meta.typ && meta.typ !== "-" ? meta.typ : null);
-  const typValue = isBrf ? PROPERTY_TYPES.FLERBO : rawTyp;
-  const typSource = isBrf ? TYPE_SOURCE.MANUAL : getTypeSource(pid);
+  const typValue = ownForm ? PROPERTY_TYPES.FLERBO : rawTyp;
+  const typSource = ownForm ? TYPE_SOURCE.MANUAL : getTypeSource(pid);
   const uncertain = typValue && [TYPE_SOURCE.WEAK, TYPE_SOURCE.LANDUSE, TYPE_SOURCE.GRANNE].includes(typSource);
   const escName = String(name).replace(/'/g, "\\'");
 
@@ -1666,7 +1819,7 @@ function _renderParcelPanelInner(feature) {
   // Kolla mot getKnownType, inte bara den lokala cachen. Annars ansågs typen
   // saknas trots att den fanns i types.json, uppslaget svarade synkront, och
   // panelen renderade om sig i all oändlighet.
-  if (!isBrf && !typValue && !_typeLookupDone.has(pid)) {
+  if (!ownForm && !typValue && !_typeLookupDone.has(pid)) {
     _typeLookupDone.add(pid);   // en gång per tomt och session — aldrig en loop
     detectBuildingType(feature, pid).then(type => {
       if (!type) return;
@@ -1679,7 +1832,7 @@ function _renderParcelPanelInner(feature) {
   const statsHtml = `
     <div class="panel-stats">
       <div class="panel-stat"><div class="panel-stat-value">${likes}</div><div class="panel-stat-label">Gillar</div></div>
-      <div class="panel-stat"><div class="panel-stat-value">${interests}</div><div class="panel-stat-label">${isBrf ? "Vill bo här" : "Intresserade"}</div></div>
+      <div class="panel-stat"><div class="panel-stat-value">${interests}</div><div class="panel-stat-label">${isMulti ? "Vill bo här" : "Intresserade"}</div></div>
     </div>
   `;
 
@@ -1735,12 +1888,15 @@ function _renderParcelPanelInner(feature) {
     <div style="margin-bottom:12px;padding:12px 14px;background:var(--accent-soft);border:0.5px solid rgba(204,41,54,.25);border-radius:11px;">
       <div style="font-size:13px;font-weight:600;color:var(--accent);line-height:1.5;">
         <i class="ti ti-flame" style="font-size:14px;" aria-hidden="true"></i>
-        ${isBrf
-          ? `${interests > 0 ? interests + " vill bo i den här föreningen" : likes + " har gillat den här fastigheten"}`
+        ${isMulti
+          ? `${interests > 0 ? interests + " vill bo i det här huset" : likes + " har gillat den här fastigheten"}`
           : `${likes > 0 ? likes + " har gillat den här fastigheten" : interests + " har visat intresse"}`}
       </div>
       <div style="font-size:12px;color:#9A2530;margin-top:3px;line-height:1.5;">
-        ${isBrf ? "Bor du här? Claima och se intresset — och få en notis när det kommer nya." : "Är det din? Claima och se vilka — och få en notis när någon ny gillar."}
+        ${isBrf ? "Sitter du i styrelsen? Föreningen äger fastigheten och kan claima den — enskilda medlemmar kan inte."
+         : isRental ? "Äger du fastigheten? Claima och se intresset — och få en notis när det kommer nya."
+         : isMulti ? "Äger du fastigheten? Claima och se intresset — och få en notis när det kommer nya."
+         : "Är det din? Claima och se vilka — och få en notis när någon ny gillar."}
       </div>
       <button id="teaserClaimBtn" style="margin-top:9px;width:100%;padding:8px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-body);">
         Claima fastigheten
@@ -1786,16 +1942,16 @@ function _renderParcelPanelInner(feature) {
         <img src="${headerImg}" style="width:100%;height:100%;object-fit:cover;display:block;" />
         <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.45) 0%,transparent 58%);"></div>
         <div style="position:absolute;bottom:10px;left:14px;">
-          <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.75);text-transform:uppercase;letter-spacing:.08em;">${myPhoto ? "Din bild" : (isBrf ? "Bostadsrättsförening" : "Besökarläge")}</div>
+          <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.75);text-transform:uppercase;letter-spacing:.08em;">${myPhoto ? "Din bild" : formLabel}</div>
           <div style="font-size:16px;font-weight:700;color:#fff;letter-spacing:-.03em;">${name}</div>
         </div>
         ${myPhoto ? `<button onclick="removeMyPhoto('${escName}'); if(window._currentPanelFeature) renderParcelPanel(window._currentPanelFeature);" title="Ta bort din bild" style="position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:50%;border:none;background:rgba(0,0,0,.45);color:#fff;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);"><i class="ti ti-trash"></i></button>` : ""}
       </div>
     ` : `
-      <div class="panel-eyebrow">${isBrf ? "Bostadsrättsförening" : "Besökarläge"}</div>
+      <div class="panel-eyebrow">${formLabel}</div>
       <div class="panel-name">${name}</div>
     `}
-    <div class="panel-mode">${isBrf ? "Flerbostadshus — gilla och intresse gäller hela föreningen." : "Spara intresse och följ objektet."}</div>
+    <div class="panel-mode">${isBrf ? "Gilla och intresse gäller hela föreningen." : isRental ? `Hyresfastighet${ownerName ? " — " + ownerName : ""}. Intresse gäller hela huset.` : isMulti ? "Flerbostadshus — intresse gäller hela huset." : "Spara intresse och följ objektet."}</div>
     ${(() => {
       const wp = (state.wishPrices || {})[pid];
       if (!wp?.amount) return "";
@@ -1815,7 +1971,7 @@ function _renderParcelPanelInner(feature) {
     <div class="panel-meta">${metaRows}</div>
     <div class="panel-actions">
       <button id="likeBtn"     class="panel-btn ${iLiked      ? "active-like"     : ""}"><i class="ti ti-thumb-up"></i> ${iLiked ? "Gillad" : "Gilla"}</button>
-      <button id="interestBtn" class="panel-btn ${iInterested ? "active-interest" : ""}"><i class="ti ti-star"></i> ${isBrf ? (iInterested ? "Intresseanmäld" : "Vill bo här") : (iInterested ? "Intresserad" : "Markera intresse")}</button>
+      <button id="interestBtn" class="panel-btn ${iInterested ? "active-interest" : ""}"><i class="ti ti-star"></i> ${isMulti ? (iInterested ? "Intresseanmäld" : "Vill bo här") : (iInterested ? "Intresserad" : "Markera intresse")}</button>
     </div>
     <div style="margin-top:8px;">
       <button id="followBtn" class="panel-btn" style="width:100%;${iFollow ? 'background:var(--accent-soft);border-color:var(--accent);color:var(--accent);' : ''}">
@@ -1831,7 +1987,7 @@ function _renderParcelPanelInner(feature) {
       <div style="text-align:center;margin-top:5px;font-size:11px;color:var(--ink-muted);line-height:1.5;">Sparas bara för dig — så du minns vad du fastnade för.</div>
     </div>` : ""}
     ${postcardHtml}
-    ${isBrf ? '' : `
+    ${isMulti ? '' : `
     <div style="margin-top:8px;">
       <button id="subdivisionBtn" class="panel-btn" style="width:100%;${state.subdivisionInterests?.[pid] ? 'background:#F0FDF4;border-color:#16a34a;color:#16a34a;' : ''}">
         <i class="ti ti-cut"></i> ${state.subdivisionInterests?.[pid] ? "Avstyckning — intresse skickat" : "Intresserad av att stycka av tomt"}

@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "generated": "2026-09-01",
+  "source": "manuell seed — ersätts av Bolagsverket/Lantmäteriet",
+  "note": "form: brf | hyresratt | allmannytta | samfalld. Fastigheter som INTE står här har okänd upplåtelseform, vilket är ett giltigt svar. Gissa aldrig utifrån byggnadstyp.",
+  "parcels": {
+    "HELSINGÖR 1": {
+      "form": "allmannytta",
+      "owner": "Helsingborgshem AB",
+      "confidence": "manuell"
+    }
+  }
+}

@@ -1546,6 +1546,11 @@ async function prefetchBuildingTypesInView() {
     // omröstningen hoppar över redan klassade tomter. Den svagaste signalen
     // i kedjan hann alltså blockera den näst starkaste.
     const areaCandidates = [];
+    // Samma sak för tomter utan byggnadsträff: en tom fastighet mitt i ett
+    // kvarter är nästan alltid en huskropp som delas med grannen, medan en
+    // tom fastighet i villabebyggelse verkligen är obebyggd. Skillnaden går
+    // bara att se när grannarna är klassade, alltså efter första passet.
+    const emptyCandidates = [];
 
     for (const f of (lastGeoJson.features || [])) {
       const pid = getParcelId(f);
@@ -1582,10 +1587,12 @@ async function prefetchBuildingTypesInView() {
       }
 
       // Ingen byggnad alls är i sig ett svar — men BARA om byggnadsfrågan
-      // faktiskt lyckades. Annars skulle ett nätverksfel märka hela kartan
-      // som obebyggd, vilket är sämre än att inte veta.
+      // faktiskt lyckades, och BARA utanför stadskvarter. Byggnader hämtas som
+      // mittpunkter (out center). En huskropp som löper över flera fastigheter
+      // har en enda mittpunkt, så grannfastigheterna i samma kvarter ser tomma
+      // ut trots att de bär samma hus. Prövas därför senare, mot omgivningen.
       if (!result && !inParcel.length && buildingsOk) {
-        result = { type: PROPERTY_TYPES.OBEBYGGD, source: TYPE_SOURCE.LANDUSE };
+        emptyCandidates.push({ pid, f });
       }
 
       if (result) {
@@ -1607,6 +1614,22 @@ async function prefetchBuildingTypesInView() {
       if (!t || t === PROPERTY_TYPES.OBEBYGGD) continue;
       const c = parcelCentroid(f);
       if (c) classified.push({ c, type: t });
+    }
+
+    // --- 4b. Obebyggd tomt, men bara där det är trovärdigt ------------------
+    // Utanför stadskvarter: ingen byggnad betyder obebyggd. Beslutet tas HÄR,
+    // före omröstningen, så att en riktig tomt inte röstas bort av sina
+    // bebyggda grannar — tomter är dessutom det mest värdefulla vi visar.
+    // I stadskvarter lämnas fastigheten oklassad och får gå till omröstning,
+    // som brukar landa rätt på flerbostadshus eller kommersiellt.
+    let empty = 0, sharedWall = 0;
+    for (const cand of emptyCandidates) {
+      const c = parcelCentroid(cand.f);
+      if (c && isUrbanContext(c, classified)) { sharedWall++; continue; }
+      s.buildingTypes[cand.pid] = PROPERTY_TYPES.OBEBYGGD;
+      s.typeSources = s.typeSources || {};
+      s.typeSources[cand.pid] = TYPE_SOURCE.LANDUSE;
+      empty++;
     }
 
     let voted = 0;
@@ -1665,7 +1688,7 @@ async function prefetchBuildingTypesInView() {
 
     saveState(s);
     localStorage.setItem(PREFETCH_FLAG, "1");
-    console.log(`[ifound] Klart! ${updated} klassade från kartdata, ${voted} via grannskap, ${byArea} via area. ${urbanSkipped} tomter i stadskvarter lämnades okända i stället för att gissas till villa. Logikversion ${CLASSIFIER_VERSION}.`);
+    console.log(`[ifound] Klart! ${updated} klassade från kartdata, ${empty} obebyggda, ${voted} via grannskap, ${byArea} via area. Lämnade okända i stadskvarter: ${urbanSkipped} (areagissning) + ${sharedWall} (delad huskropp). Logikversion ${CLASSIFIER_VERSION}.`);
 
     // Uppdatera öppen panel om dess tomt just fick en klassning
     const panelEl = document.getElementById("panel");

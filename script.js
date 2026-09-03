@@ -715,6 +715,29 @@ function isoDate(d) {
 
 function todayIso() { return isoDate(new Date()); }
 
+// Ägarens status för hemsidan (Passiv/Uthyrning/Till salu). Sparas i
+// claimData.visibility — samma fält som kartmarkören redan läste
+// (addClaimedMarkers, se `vis` där) men som statusväljaren i Min sida
+// aldrig skrev till. Därför hoppade den alltid tillbaka till Passiv:
+// setStatus() var bara en DOM-uppdatering, inget sparades och nästa
+// rendering byggde om knapparna från det hårdkodade startläget.
+const HOME_STATUS_META = {
+  passive: { desc: "Fastigheten visas passivt — besökare kan visa intresse utan aktiv försäljning." },
+  rent:    { desc: "Fastigheten är listad för uthyrning. Fyll i detaljer nedan." },
+  sale:    { desc: "Fastigheten är listad till salu. Fyll i detaljer nedan." },
+};
+
+function getHomeStatus(state) {
+  const vis = (state || loadState()).claimData?.visibility;
+  return vis === "sale" ? "sale" : vis === "rent" ? "rent" : "passive";
+}
+
+function saveHomeStatus(m) {
+  const s = loadState();
+  s.claimData = { ...(s.claimData || {}), visibility: m };
+  saveState(s);
+}
+
 function getRental(pid) {
   if (!pid) return null;
   return (loadState().rentalAvailability || {})[pid] || null;
@@ -4207,6 +4230,7 @@ function renderDashboard() {
   const ownerId = state.ownerParcelId;
   const ownerName = ownerId ? state.parcelNames?.[ownerId] || ownerId : null;
   const claimStatus = state.claimStatus || null;
+  const homeStatus = getHomeStatus(state);
   const myLikedIds = Object.keys(state.myLikes || {});
   const ownerLikes = ownerId ? state.likes?.[ownerId] || 0 : 0;
   const ownerInterests = ownerId ? state.interests?.[ownerId] || 0 : 0;
@@ -4293,12 +4317,12 @@ function renderDashboard() {
           </button>
           <div class="hero-content">
             <div class="status-row">
-              <button class="status-pill active-passive" id="sp-passive" onclick="setStatus('passive')">Passiv</button>
-              <button class="status-pill" id="sp-rent" onclick="setStatus('rent')">Till uthyrning</button>
-              <button class="status-pill" id="sp-sale" onclick="setStatus('sale')">Till salu</button>
+              <button class="status-pill ${homeStatus === "passive" ? "active-passive" : ""}" id="sp-passive" onclick="setStatus('passive')">Passiv</button>
+              <button class="status-pill ${homeStatus === "rent" ? "active-rent" : ""}" id="sp-rent" onclick="setStatus('rent')">Till uthyrning</button>
+              <button class="status-pill ${homeStatus === "sale" ? "active-sale" : ""}" id="sp-sale" onclick="setStatus('sale')">Till salu</button>
             </div>
             <div class="hero-name">${ownerName || "Ingen fastighet kopplad ännu"}</div>
-            <div class="hero-meta" id="hero-meta">Fastigheten visas passivt — besökare kan visa intresse utan aktiv försäljning.</div>
+            <div class="hero-meta" id="hero-meta">${HOME_STATUS_META[homeStatus].desc}</div>
             <div class="hero-actions">
               ${ownerId ? `<button class="hero-btn primary" onclick="navigate('map')"><i class="ti ti-map-pin"></i> Visa i kartan</button>` : `<button class="hero-btn primary" onclick="openClaimModal()"><i class="ti ti-home-check"></i> Claima din fastighet</button>`}
               ${ownerId && claimStatus === 'pending' ? `<span style="background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.3);color:#fff;border-radius:999px;padding:5px 13px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px;"><i class="ti ti-clock" style="font-size:13px;"></i> Verifieras inom 24h</span>` : ''}
@@ -4330,7 +4354,7 @@ function renderDashboard() {
                 </div>
                 <input id="homeImageInput" type="file" accept="image/*" multiple style="display:none;" />
               </div>
-              <div class="extra-form" id="rent-extra">
+              <div class="extra-form${homeStatus === "rent" ? " show" : ""}" id="rent-extra">
                 <div class="card-title" style="font-size:13px;margin-bottom:10px;">Uthyrningsdetaljer</div>
                 ${(() => {
                   // Fälten var attrapper — utan id, och sparknappen plockade
@@ -4370,7 +4394,7 @@ function renderDashboard() {
                 ${kort ? `<div class="rental-hint" style="margin-top:2px;">Vilka dagar som är lediga väljer du i kalendern under Uthyrning.</div>` : ""}`;
                 })()}
               </div>
-              <div class="extra-form" id="sale-extra">
+              <div class="extra-form${homeStatus === "sale" ? " show" : ""}" id="sale-extra">
                 <div class="card-title" style="font-size:13px;margin-bottom:10px;">Försäljningsdetaljer</div>
                 <div class="two-fields">
                   <div class="field-group"><label class="label">Visningsdatum</label><input class="input" type="date" /></div>
@@ -4580,10 +4604,15 @@ function renderDashboard() {
 }
 
 function setStatus(m) {
+  // Sparas direkt (som toggleNotifyPref) i stället för att vänta på
+  // "Spara profil" — statusknapparna är ett omkopplarläge, inte ett
+  // formulärfält, så det ska inte krävas ett extra klick för att det
+  // ska sitta.
+  saveHomeStatus(m);
+
   ["passive","rent","sale"].forEach(x => { const b = document.getElementById("sp-"+x); if(b) b.className="status-pill"; });
   const b = document.getElementById("sp-"+m); if(b) b.classList.add("active-"+m);
-  const desc = { passive:"Fastigheten visas passivt — besökare kan visa intresse utan aktiv försäljning.", rent:"Fastigheten är listad för uthyrning. Fyll i detaljer nedan.", sale:"Fastigheten är listad till salu. Fyll i detaljer nedan." };
-  const hm = document.getElementById("hero-meta"); if(hm) hm.textContent = desc[m];
+  const hm = document.getElementById("hero-meta"); if(hm) hm.textContent = HOME_STATUS_META[m].desc;
   const re = document.getElementById("rent-extra"); if(re) re.classList.toggle("show", m==="rent");
   const se = document.getElementById("sale-extra"); if(se) se.classList.toggle("show", m==="sale");
 }

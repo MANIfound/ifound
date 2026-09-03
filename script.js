@@ -375,6 +375,27 @@ function ensureMapMounted() {
   }
 }
 
+// =========================
+// POLYGONSTILAR
+// Samlade här för att hovring, klick och fokusmarkering tidigare satte sina
+// egna färger inline på fyra ställen. Då skrev den sist körda över de andra,
+// och fokusmarkeringen försvann så fort musen passerade fastigheten.
+// =========================
+const PARCEL_STYLE_BASE        = { color: "rgba(255,255,255,0.75)", weight: 1, fillOpacity: 0.001, fillColor: "#ffffff" };
+const PARCEL_STYLE_HOVER       = { color: "#CC2936", weight: 2, fillOpacity: 0.06,  fillColor: "#ffffff" };
+const PARCEL_STYLE_CLICK       = { color: "#CC2936", weight: 2, fillOpacity: 0.001, fillColor: "#ffffff" };
+const PARCEL_STYLE_FOCUS       = { color: "#D99A3E", weight: 3, fillOpacity: 0.10,  fillColor: "#D99A3E" };
+const PARCEL_STYLE_FOCUS_HOVER = { color: "#D99A3E", weight: 4, fillOpacity: 0.18,  fillColor: "#D99A3E" };
+
+function isFocusedLayer(layer) {
+  return Array.isArray(window._focusHighlight) && window._focusHighlight.includes(layer);
+}
+
+// Tillbaka till rätt viloläge: fokuserad fastighet blir gul igen, övriga vita.
+function restoreParcelStyle(layer) {
+  try { layer.setStyle(isFocusedLayer(layer) ? PARCEL_STYLE_FOCUS : PARCEL_STYLE_BASE); } catch {}
+}
+
 function clearLayer() {
   if (parcelsLayer) { parcelsLayer.remove(); parcelsLayer = null; }
   lastGeoJson = null;
@@ -487,20 +508,26 @@ function addGeoJsonToMap(geojson, opts = {}) {
         // rektangelns mus-släpp träffar annars tomten och skriver över bekräftelsepanelen.
         if (activeDrawFeature) return;
         if (window._lastDrawCreatedAt && Date.now() - window._lastDrawCreatedAt < 600) return;
-        if (typeof clearFocusHighlight === "function") clearFocusHighlight();
-        layer.setStyle({ color: "#CC2936", weight: 2 });
-        setTimeout(() => layer.setStyle({ color: "rgba(255,255,255,0.75)", weight: 1 }), 1000);
+        // Bara om man klickar på NÅGON ANNAN fastighet ska fokusmarkeringen släckas.
+        if (!isFocusedLayer(layer)) clearFocusHighlight();
+        if (!isFocusedLayer(layer)) {
+          layer.setStyle(PARCEL_STYLE_CLICK);
+          setTimeout(() => restoreParcelStyle(layer), 1000);
+        }
         renderParcelPanel(feature);
       });
 
       layer.on("mouseover", () => {
         map.getContainer().style.cursor = "pointer";
-        layer.setStyle({ color: "#CC2936", weight: 2, fillOpacity: 0.06 });
+        // Den fokuserade fastigheten behåller sin gula markering vid hovring.
+        // Tidigare skrev hovringen över den, så markeringen försvann så fort
+        // musen passerade — vilket är precis när man tittar på den.
+        layer.setStyle(isFocusedLayer(layer) ? PARCEL_STYLE_FOCUS_HOVER : PARCEL_STYLE_HOVER);
       });
 
       layer.on("mouseout", () => {
         map.getContainer().style.cursor = "";
-        layer.setStyle({ color: "rgba(255,255,255,0.75)", weight: 1, fillOpacity: 0.001 });
+        restoreParcelStyle(layer);
       });
 
       group.addLayer(layer);
@@ -585,10 +612,10 @@ function consumePendingParcelFocus() {
   // Markera fastigheten så det syns vilken av dem man kom hit för.
   // Ligger kvar tills panelen stängs eller något annat klickas, till
   // skillnad från klickblinken som försvinner efter en sekund.
-  for (const l of hits) {
-    try { l.setStyle({ color: "#D99A3E", weight: 3, fillOpacity: 0.10, fillColor: "#D99A3E" }); } catch {}
-  }
   window._focusHighlight = hits;
+  for (const l of hits) {
+    try { l.setStyle(PARCEL_STYLE_FOCUS); } catch {}
+  }
 
   renderParcelPanel(hits[0].feature);
   if (bounds) flyToParcelBounds(bounds);
@@ -640,10 +667,11 @@ function flyToParcelBounds(bounds, attempt = 0) {
 // Släck markeringen när panelen stängs eller en annan fastighet väljs.
 function clearFocusHighlight() {
   if (!window._focusHighlight) return;
-  for (const l of window._focusHighlight) {
-    try { l.setStyle({ color: "rgba(255,255,255,0.75)", weight: 1, fillOpacity: 0.001, fillColor: "#ffffff" }); } catch {}
+  const old = window._focusHighlight;
+  window._focusHighlight = null;   // nollas FÖRE, annars ger isFocusedLayer fel svar
+  for (const l of old) {
+    try { l.setStyle(PARCEL_STYLE_BASE); } catch {}
   }
-  window._focusHighlight = null;
 }
 
 
@@ -2216,6 +2244,10 @@ function _renderParcelPanelInner(feature) {
       <div class="panel-eyebrow">${formLabel}</div>
       <div class="panel-name">${name}</div>
     `}
+    ${window._focusOrigin && FOCUS_ORIGIN_LABELS[window._focusOrigin] ? `
+      <button class="panel-back" onclick="goBackFromFocus()">
+        <i class="ti ti-arrow-left"></i> Tillbaka till ${FOCUS_ORIGIN_LABELS[window._focusOrigin]}
+      </button>` : ""}
     <div class="panel-mode">${isBrf ? "Gilla och intresse gäller hela föreningen." : isRental ? `Hyresfastighet${ownerName ? " — " + ownerName : ""}. Intresse gäller hela huset.` : isMulti ? "Flerbostadshus — intresse gäller hela huset." : "Spara intresse och följ objektet."}</div>
     ${(() => {
       const wp = (state.wishPrices || {})[pid];
@@ -3370,7 +3402,7 @@ function renderSaved() {
     // brödtext. Radas de upp likadant blir kortet gröt.
     const areaTxt = m.area ? `${Number(m.area).toLocaleString("sv-SE")} kvm` : null;
     return `
-      <button class="saved-card" onclick="openParcelById('${String(pid).replace(/'/g,"\\'")}','${String(nm).replace(/'/g,"\\'")}')">
+      <button class="saved-card" onclick="openParcelById('${String(pid).replace(/'/g,"\\'")}','${String(nm).replace(/'/g,"\\'")}','saved')">
         <div class="saved-thumb ${photo ? '' : 'saved-thumb-empty'}">
           ${photo ? `<img src="${photo}" alt="" />` : `<i class="ti ti-map-pin"></i>`}
           ${photo ? `<span class="saved-thumb-tag">Din bild</span>` : ''}
@@ -3445,9 +3477,28 @@ function renderSaved() {
 }
 
 // Öppna kartan och zooma till en fastighet från en lista
-function openParcelById(pid, name) {
+function openParcelById(pid, name, origin) {
+  // Varifrån man kom, så att panelen kan erbjuda en väg tillbaka. Utan det
+  // är enda vägen ur kartan bottenmenyn eller att gissa sig fram.
+  window._focusOrigin = origin || currentView || null;
   currentView = "map";
   window._pendingParcelFocus = { pid, name };
+  render();
+}
+
+// Etiketter för vyerna man kan komma FRÅN till en fastighet.
+const FOCUS_ORIGIN_LABELS = {
+  saved:     "Sparade objekt",
+  dashboard: "Min sida",
+  feed:      "Utforska",
+};
+
+function goBackFromFocus() {
+  const origin = window._focusOrigin;
+  window._focusOrigin = null;
+  clearFocusHighlight();
+  closePanel();
+  currentView = origin && FOCUS_ORIGIN_LABELS[origin] ? origin : "dashboard";
   render();
 }
 

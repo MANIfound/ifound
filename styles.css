@@ -1603,6 +1603,29 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
   background: rgba(0,0,0,.4); padding: 2px 0;
 }
 .saved-info { flex: 1; min-width: 0; }
+/* Tillbaka-knapp i fastighetspanelen. Visas bara när man kommit hit från en
+   lista, så den tar ingen plats i det vanliga flödet. Ligger i panelen och
+   inte bland kartans toppkontroller — där trängs sök och lägesväljare redan
+   på smal skärm. */
+.panel-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 2px;
+  padding: 6px 12px 6px 9px;
+  background: var(--green-50, #F1F5EC);
+  color: var(--green-600);
+  border: 0.5px solid rgba(82,109,51,.22);
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  cursor: pointer;
+}
+.panel-back:hover { background: var(--green-100, #E4EBDA); border-color: var(--green-600); }
+.panel-back i { font-size: 14px; }
+
 .saved-meta-row { display: flex; align-items: baseline; gap: 8px; margin: 3px 0 2px; flex-wrap: wrap; }
 .saved-type { font-size: 12.5px; color: var(--ink-soft); }
 /* Areal är registerdata och sätts i mono, som fastighetsbeteckningen. */

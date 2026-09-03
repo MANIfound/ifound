@@ -148,7 +148,7 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.6; }
 .hero-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(8,8,8,.88) 0%, rgba(8,8,8,.28) 55%, transparent 100%); }
 .hero-content { position: relative; z-index: 2; padding: 24px 28px; display: flex; flex-direction: column; justify-content: flex-end; min-height: 280px; }
 .status-row { display: flex; gap: 6px; margin-bottom: 14px; }
-.status-pill { padding: 5px 13px; border-radius: 999px; font-size: 11px; font-weight: 500; font-family: var(--font-body); border: 1.5px solid rgba(255,255,255,.22); color: rgba(255,255,255,.55); background: transparent; cursor: pointer; transition: all .15s; letter-spacing: -.01em; }
+.status-pill { padding: 5px 13px; border-radius: 999px; font-size: 11px; font-weight: 500; font-family: var(--font-body); border: 1.5px solid rgba(255,255,255,.4); color: rgba(255,255,255,.82); background: rgba(255,255,255,.06); cursor: pointer; transition: all .15s; letter-spacing: -.01em; }
 .status-pill.active-passive { background: rgba(255,255,255,.14); border-color: rgba(255,255,255,.7); color: #fff; }
 .status-pill.active-rent { background: var(--accent); border-color: var(--accent); color: #fff; }
 .status-pill.active-sale { background: #16a34a; border-color: #16a34a; color: #fff; }

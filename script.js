@@ -677,6 +677,380 @@ function clearFocusHighlight() {
 
 
 // =========================
+// UTHYRNING — tillgänglighet och bokningsförfrågan
+//
+// TVÅ LÄGEN, med avsikt:
+//   korttid  — fritidshus, veckor och helger. Ägaren klickar i enskilda dagar.
+//   langtid  — bostad med kontrakt. Där finns inga enskilda dagar, bara
+//              "ledig från och med", och en dagkalender vore fel verktyg.
+//
+// FÖRFRÅGAN, INTE BOKNING. Besökaren skickar önskade datum och ett
+// meddelande; ägaren svarar utanför tjänsten. ifound tar inte betalning,
+// bekräftar ingenting och håller inga avbokningsregler — så fort tjänsten
+// gör det blir den en bokningsplattform med allt vad det innebär i moms,
+// depositioner och konsumenträtt. Ordvalet i gränssnittet är därför
+// konsekvent "förfrågan" och aldrig "boka".
+//
+// OBS: allt ligger i localStorage tills Supabase etapp A är klar. Ägarens
+// kalender syns alltså BARA för ägaren själv än så länge, oavsett vad
+// synlighetsreglaget säger. Gränssnittet är byggt så att det fungerar
+// oförändrat när datan flyttar.
+// =========================
+
+const RENTAL_MODES = { KORTTID: "korttid", LANGTID: "langtid" };
+const WEEKDAY_LABELS = ["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"];
+const MONTH_NAMES = ["januari","februari","mars","april","maj","juni",
+                     "juli","augusti","september","oktober","november","december"];
+
+// Vilken månad kalendern visar just nu. Per fastighet, bara i minnet —
+// det är en vy-inställning och hör inte hemma i sparad state.
+const _rentalMonthView = {};
+
+function isoDate(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function todayIso() { return isoDate(new Date()); }
+
+function getRental(pid) {
+  if (!pid) return null;
+  return (loadState().rentalAvailability || {})[pid] || null;
+}
+
+function saveRental(pid, patch) {
+  if (!pid) return;
+  const st = loadState();
+  st.rentalAvailability = st.rentalAvailability || {};
+  const prev = st.rentalAvailability[pid] || { mode: RENTAL_MODES.KORTTID, days: {}, visible: false };
+  st.rentalAvailability[pid] = { ...prev, ...patch, updatedAt: new Date().toISOString() };
+  saveState(st);
+}
+
+// Är fastigheten ledig ett givet datum? Svaret beror på läget.
+function isRentalDayAvailable(rental, iso) {
+  if (!rental) return false;
+  if (rental.mode === RENTAL_MODES.LANGTID) {
+    if (!rental.from) return false;
+    if (iso < rental.from) return false;
+    if (rental.to && iso > rental.to) return false;
+    return true;
+  }
+  return !!rental.days?.[iso];
+}
+
+// Alla datum i ett spann, inklusive båda ändarna.
+function datesInRange(fromIso, toIso) {
+  const out = [];
+  const d = new Date(fromIso + "T12:00:00");
+  const end = new Date(toIso + "T12:00:00");
+  if (isNaN(d) || isNaN(end) || end < d) return out;
+  while (d <= end) { out.push(isoDate(d)); d.setDate(d.getDate() + 1); }
+  return out;
+}
+
+// =========================
+// KALENDER
+// Måndagsstart, som är svensk standard och som Leaflet inte hjälper till med.
+// =========================
+function renderRentalCalendar(pid, opts = {}) {
+  const editable = !!opts.editable;
+  const rental = getRental(pid) || { mode: RENTAL_MODES.KORTTID, days: {} };
+  const key = String(pid);
+  const now = new Date();
+  const view = _rentalMonthView[key] || { y: now.getFullYear(), m: now.getMonth() };
+  const first = new Date(view.y, view.m, 1);
+  const daysInMonth = new Date(view.y, view.m + 1, 0).getDate();
+
+  // getDay() ger söndag = 0. Skifta så måndag blir 0.
+  const lead = (first.getDay() + 6) % 7;
+  const today = todayIso();
+
+  let cells = "";
+  for (let i = 0; i < lead; i++) cells += `<div class="cal-cell cal-blank"></div>`;
+  for (let d = 1; d <= daysInMonth; d++) {
+    const iso = isoDate(new Date(view.y, view.m, d));
+    const avail = isRentalDayAvailable(rental, iso);
+    const past = iso < today;
+    const cls = [
+      "cal-cell",
+      avail ? "cal-avail" : "",
+      past ? "cal-past" : "",
+      iso === today ? "cal-today" : "",
+      editable && !past ? "cal-editable" : "",
+    ].filter(Boolean).join(" ");
+    // Långtidsläget räknas fram ur från/till och går inte att klicka i.
+    const clickable = editable && !past && rental.mode === RENTAL_MODES.KORTTID;
+    cells += clickable
+      ? `<button type="button" class="${cls}" onclick="toggleRentalDay('${key}','${iso}')">${d}</button>`
+      : `<div class="${cls}">${d}</div>`;
+  }
+
+  return `
+    <div class="cal-wrap">
+      <div class="cal-head">
+        <button type="button" class="cal-nav" onclick="shiftRentalMonth('${key}',-1)" aria-label="Föregående månad"><i class="ti ti-chevron-left"></i></button>
+        <div class="cal-title">${MONTH_NAMES[view.m]} ${view.y}</div>
+        <button type="button" class="cal-nav" onclick="shiftRentalMonth('${key}',1)" aria-label="Nästa månad"><i class="ti ti-chevron-right"></i></button>
+      </div>
+      <div class="cal-grid cal-weekdays">${WEEKDAY_LABELS.map(w => `<div class="cal-wd">${w}</div>`).join("")}</div>
+      <div class="cal-grid">${cells}</div>
+    </div>`;
+}
+
+function shiftRentalMonth(pid, delta) {
+  const key = String(pid);
+  const now = new Date();
+  const v = _rentalMonthView[key] || { y: now.getFullYear(), m: now.getMonth() };
+  const d = new Date(v.y, v.m + delta, 1);
+  _rentalMonthView[key] = { y: d.getFullYear(), m: d.getMonth() };
+  refreshRentalViews(pid);
+}
+
+function toggleRentalDay(pid, iso) {
+  const rental = getRental(pid) || { mode: RENTAL_MODES.KORTTID, days: {}, visible: false };
+  const days = { ...(rental.days || {}) };
+  // Bara lediga dagar sparas. Att lagra varje upptagen dag också skulle
+  // fylla localStorage med nollor för alla dagar som aldrig valts.
+  if (days[iso]) delete days[iso]; else days[iso] = true;
+  saveRental(pid, { days, mode: RENTAL_MODES.KORTTID });
+  refreshRentalViews(pid);
+}
+
+// Rita om det som visar kalendern, utan att rendera hela vyn på nytt —
+// annars tappar man scrollposition varje gång man klickar i en dag.
+function refreshRentalViews(pid) {
+  const own = document.getElementById("rentalOwnerCalendar");
+  if (own) own.innerHTML = renderRentalCalendar(pid, { editable: true });
+  const vis = document.getElementById("rentalVisitorCalendar");
+  if (vis) vis.innerHTML = renderRentalCalendar(pid, { editable: false });
+  const sum = document.getElementById("rentalSummary");
+  if (sum) sum.textContent = rentalSummaryText(pid);
+}
+
+function rentalSummaryText(pid) {
+  const r = getRental(pid);
+  if (!r) return "Ingen tillgänglighet angiven.";
+  const kr = (v) => Number(v).toLocaleString("sv-SE") + " kr";
+  const delar = [];
+
+  if (r.mode === RENTAL_MODES.LANGTID) {
+    delar.push(r.from ? `Ledig från ${r.from}` : "Inget startdatum angivet");
+    if (r.price) delar.push(`${kr(r.price)}/mån`);
+  } else {
+    const n = Object.keys(r.days || {}).filter(d => d >= todayIso()).length;
+    delar.push(n ? `${n} lediga ${n === 1 ? "dag" : "dagar"} framåt` : "Inga lediga dagar valda framåt");
+    if (r.price) delar.push(`${kr(r.price)}/natt`);
+    if (r.minNights) delar.push(`minst ${r.minNights} ${r.minNights === 1 ? "natt" : "nätter"}`);
+  }
+  if (r.rooms) delar.push(`${r.rooms} rum`);
+  return delar.join(" · ") + ".";
+}
+
+// =========================
+// ÄGARENS VY
+// =========================
+function renderRentalOwnerCard(pid) {
+  if (!pid) return "";
+  const r = getRental(pid) || { mode: RENTAL_MODES.KORTTID, days: {}, visible: false };
+  const isKort = r.mode !== RENTAL_MODES.LANGTID;
+  const reqs = (loadState().rentalRequests || {})[pid] || [];
+  const nya = reqs.filter(x => x.status === "ny").length;
+
+  return `
+    <div class="card rental-card" style="margin-bottom:12px;">
+      <div class="card-title">Uthyrning</div>
+      <div class="wish-intro">
+        Visa när fastigheten är ledig. Den som är intresserad kan skicka en förfrågan med datum — ni gör upp direkt med varandra, ifound hanterar varken bokning eller betalning.
+      </div>
+
+      ${isKort ? `
+        <div class="rental-hint">Klicka i de dagar fastigheten är ledig. Klicka igen för att ta bort.</div>
+        <div id="rentalOwnerCalendar">${renderRentalCalendar(pid, { editable: true })}</div>
+      ` : `
+        <div class="rental-hint" style="margin-top:10px;">
+          Startdatum och hyra anges under Uthyrningsdetaljer i bostadsprofilen.
+          Byt kontraktstyp till Korttid där om du vill välja enskilda dagar i stället.
+        </div>
+      `}
+
+      <div class="rental-summary" id="rentalSummary">${rentalSummaryText(pid)}</div>
+
+      <div class="field-group" style="margin-top:10px;">
+        <label class="label">Villkor eller upplysning <span style="font-weight:400;">(valfritt)</span></label>
+        <input class="input" id="rentalNote" maxlength="120" placeholder="t.ex. minst tre nätter, husdjur går bra" value="${(r.note || "").replace(/"/g, "&quot;")}" />
+      </div>
+
+      <label class="wish-toggle">
+        <input type="checkbox" id="rentalVisible" ${r.visible ? "checked" : ""} />
+        <span>
+          <strong>Visa tillgängligheten för besökare</strong>
+          <em>${r.visible
+            ? "Besökare ser kalendern och kan skicka en förfrågan."
+            : "Kalendern är privat. Du ser den själv, men ingen annan."}</em>
+        </span>
+      </label>
+
+      <button class="save-btn" id="saveRentalBtn">Spara uthyrning</button>
+
+      ${reqs.length ? `
+        <div class="rental-reqs">
+          <div class="rental-reqs-title">Förfrågningar ${nya ? `<span class="rental-badge">${nya} ny${nya === 1 ? "" : "a"}</span>` : ""}</div>
+          ${reqs.slice().reverse().map(rq => `
+            <div class="rental-req ${rq.status === "ny" ? "is-new" : ""}">
+              <div class="rental-req-dates">${rq.from} – ${rq.to}</div>
+              ${rq.message ? `<div class="rental-req-msg">${escapeHtmlBasic(rq.message)}</div>` : ""}
+              <div class="rental-req-meta">${new Date(rq.createdAt).toLocaleDateString("sv-SE")}${rq.byEmail ? ` · ${escapeHtmlBasic(rq.byEmail)}` : " · anonym"}</div>
+            </div>`).join("")}
+        </div>` : ""}
+
+      ${r.updatedAt ? `<div class="wish-meta">Senast ändrat ${new Date(r.updatedAt).toLocaleDateString("sv-SE")}</div>` : ""}
+    </div>`;
+}
+
+function setRentalMode(pid, mode) {
+  saveRental(pid, { mode });
+  render();
+}
+
+// Kontraktstypen ÄR lägesväljaren. Att ha en separat knappgrupp för
+// korttid/långtid vid sidan av en kontraktstyp som redan har alternativet
+// Korttid gav två reglage för samma sak, som kunde säga emot varandra.
+function setRentalContract(pid, value) {
+  saveRental(pid, {
+    contractType: value,
+    mode: value === "Korttid" ? RENTAL_MODES.KORTTID : RENTAL_MODES.LANGTID,
+  });
+  render();
+}
+
+// Enkel escaping för text som användare skrivit. Meddelanden går rakt in i
+// innerHTML annars, och det är en självmålsvektor även i en prototyp.
+function escapeHtmlBasic(str) {
+  return String(str)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+// =========================
+// BESÖKARENS VY
+// =========================
+function renderRentalVisitorBlock(pid, name) {
+  const r = getRental(pid);
+  if (!r || !r.visible) return "";
+  const hasAny = r.mode === RENTAL_MODES.LANGTID ? !!r.from : Object.keys(r.days || {}).some(d => d >= todayIso());
+  if (!hasAny) return "";
+
+  return `
+    <div class="rental-visitor">
+      <div class="rental-visitor-head">
+        <i class="ti ti-calendar-event"></i>
+        <span>${r.mode === RENTAL_MODES.LANGTID ? "Ledig för uthyrning" : "Lediga dagar"}</span>
+      </div>
+      <div id="rentalVisitorCalendar">${renderRentalCalendar(pid, { editable: false })}</div>
+      <div class="rental-summary" id="rentalSummary">${rentalSummaryText(pid)}</div>
+      ${r.note ? `<div class="rental-note">${escapeHtmlBasic(r.note)}</div>` : ""}
+      <button class="panel-btn" onclick="openRentalRequestModal('${String(pid).replace(/'/g, "\\'")}','${String(name || "").replace(/'/g, "\\'")}')">
+        <i class="ti ti-send"></i> Skicka förfrågan
+      </button>
+    </div>`;
+}
+
+// =========================
+// FÖRFRÅGAN
+// =========================
+function openRentalRequestModal(pid, name) {
+  const session = loadSession();
+  if (!session?.email) {
+    // Samma regel som för intressemeddelanden: en förfrågan utan svarsväg
+    // är värdelös för ägaren.
+    toast("Skapa konto för att skicka en förfrågan — ägaren behöver kunna svara.");
+    return;
+  }
+  document.getElementById("rental-modal-overlay")?.remove();
+
+  const r = getRental(pid) || {};
+  const overlay = document.createElement("div");
+  overlay.id = "rental-modal-overlay";
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;";
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:20px;padding:28px;width:100%;max-width:420px;box-shadow:0 24px 64px rgba(0,0,0,.2);font-family:var(--font-body);">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:18px;">
+        <div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:4px;">Förfrågan om uthyrning</div>
+          <div style="font-size:18px;font-weight:700;letter-spacing:-.03em;color:var(--ink);">${escapeHtmlBasic(name)}</div>
+        </div>
+        <button onclick="document.getElementById('rental-modal-overlay').remove()" style="width:32px;height:32px;border-radius:50%;border:none;background:var(--surface-2);cursor:pointer;font-size:16px;color:var(--ink-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0;">✕</button>
+      </div>
+
+      <div style="background:var(--page-bg);border-radius:12px;padding:14px 16px;margin-bottom:18px;font-size:13px;color:var(--ink-soft);line-height:1.6;">
+        Det här är en förfrågan, inte en bokning. Ägaren svarar direkt till dig, och ni kommer överens utanför ifound.
+      </div>
+
+      <div class="two-fields">
+        <div class="field-group"><label class="label">Från</label><input class="input" type="date" id="reqFrom" min="${todayIso()}" value="${r.from && r.mode === RENTAL_MODES.LANGTID ? r.from : ""}" /></div>
+        <div class="field-group"><label class="label">Till</label><input class="input" type="date" id="reqTo" min="${todayIso()}" /></div>
+      </div>
+
+      <div class="field-group" style="margin-top:12px;">
+        <label class="label">Meddelande <span style="font-weight:400;">(valfritt)</span></label>
+        <textarea id="reqMessage" style="width:100%;border:0.5px solid rgba(17,24,39,.12);border-radius:9px;padding:11px 13px;font-size:13px;font-family:var(--font-body);color:var(--ink);outline:none;min-height:90px;resize:vertical;line-height:1.6;background:#fff;" placeholder="Berätta kort vilka ni är och varför ni vill hyra."></textarea>
+      </div>
+
+      <div id="reqError" style="display:none;color:var(--clay,#B5573C);font-size:12.5px;margin-top:10px;line-height:1.5;"></div>
+
+      <button class="btn-primary" style="width:100%;margin-top:16px;" onclick="submitRentalRequest('${String(pid).replace(/'/g, "\\'")}')">Skicka förfrågan</button>
+    </div>`;
+  overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+}
+
+function submitRentalRequest(pid) {
+  const from = document.getElementById("reqFrom")?.value;
+  const to = document.getElementById("reqTo")?.value;
+  const message = document.getElementById("reqMessage")?.value?.trim() || "";
+  const err = document.getElementById("reqError");
+  const fail = (msg) => { if (err) { err.textContent = msg; err.style.display = "block"; } };
+
+  if (!from || !to) return fail("Fyll i både från- och tilldatum.");
+  if (to < from) return fail("Slutdatumet ligger före startdatumet.");
+  if (from < todayIso()) return fail("Startdatumet har redan passerat.");
+
+  // Kontrollera mot ägarens tillgänglighet. En förfrågan på dagar ägaren
+  // markerat som upptagna är bara brus för båda parter.
+  const rental = getRental(pid);
+  const range = datesInRange(from, to);
+
+  if (rental?.minNights && range.length < rental.minNights) {
+    return fail(`Ägaren hyr ut minst ${rental.minNights} nätter. Du har valt ${range.length}.`);
+  }
+
+  const upptagna = range.filter(d => !isRentalDayAvailable(rental, d));
+  if (upptagna.length) {
+    return fail(upptagna.length === range.length
+      ? "Ingen av dagarna är markerad som ledig."
+      : `${upptagna.length} av ${range.length} dagar är inte lediga. Första upptagna: ${upptagna[0]}.`);
+  }
+
+  const st = loadState();
+  st.rentalRequests = st.rentalRequests || {};
+  st.rentalRequests[pid] = st.rentalRequests[pid] || [];
+  st.rentalRequests[pid].push({
+    id: `req_${Date.now()}`,
+    from, to, message,
+    byEmail: loadSession()?.email || null,
+    status: "ny",
+    createdAt: new Date().toISOString(),
+  });
+  saveState(st);
+
+  document.getElementById("rental-modal-overlay")?.remove();
+  toast(`Förfrågan skickad för ${from} till ${to}.`);
+}
+
+// =========================
 // INTRESSE-MODAL
 // =========================
 function openInterestModal(feature, pid, name) {
@@ -2249,6 +2623,7 @@ function _renderParcelPanelInner(feature) {
         <i class="ti ti-arrow-left"></i> Tillbaka till ${FOCUS_ORIGIN_LABELS[window._focusOrigin]}
       </button>` : ""}
     <div class="panel-mode">${isBrf ? "Gilla och intresse gäller hela föreningen." : isRental ? `Hyresfastighet${ownerName ? " — " + ownerName : ""}. Intresse gäller hela huset.` : isMulti ? "Flerbostadshus — intresse gäller hela huset." : "Spara intresse och följ objektet."}</div>
+    ${!isOwner ? renderRentalVisitorBlock(pid, name) : ""}
     ${(() => {
       const wp = (state.wishPrices || {})[pid];
       if (!wp?.amount) return "";
@@ -3957,12 +4332,43 @@ function renderDashboard() {
               </div>
               <div class="extra-form" id="rent-extra">
                 <div class="card-title" style="font-size:13px;margin-bottom:10px;">Uthyrningsdetaljer</div>
+                ${(() => {
+                  // Fälten var attrapper — utan id, och sparknappen plockade
+                  // bara upp titel och beskrivning. Nu skriver de till samma
+                  // uthyrningsobjekt som kalendern läser, så tillgängligheten
+                  // står på ETT ställe. Kontraktstypen avgör läget: korttid
+                  // ger dagkalender, förstahand och andrahand ger ett datum.
+                  const rr = getRental(ownerId) || {};
+                  const kort = rr.mode === RENTAL_MODES.KORTTID;
+                  const kt = rr.contractType || (kort ? "Korttid" : "Förstahand");
+                  return `
                 <div class="two-fields">
-                  <div class="field-group"><label class="label">Hyra/månad</label><input class="input" placeholder="12 000 kr" /></div>
-                  <div class="field-group"><label class="label">Tillgänglig från</label><input class="input" type="date" /></div>
-                  <div class="field-group"><label class="label">Antal rum</label><input class="input" placeholder="5 rum" /></div>
-                  <div class="field-group"><label class="label">Kontraktstyp</label><select class="input"><option>Förstahand</option><option>Andrahand</option><option>Korttid</option></select></div>
+                  <div class="field-group">
+                    <label class="label">${kort ? "Pris/natt" : "Hyra/månad"}</label>
+                    <input class="input" id="rentalPrice" inputmode="numeric" placeholder="${kort ? "1 400 kr" : "12 000 kr"}" value="${rr.price || ""}" />
+                  </div>
+                  <div class="field-group">
+                    <label class="label">Kontraktstyp</label>
+                    <select class="input" id="rentalContract" onchange="setRentalContract('${ownerId}', this.value)">
+                      ${["Förstahand","Andrahand","Korttid"].map(o => `<option ${o === kt ? "selected" : ""}>${o}</option>`).join("")}
+                    </select>
+                  </div>
+                  <div class="field-group">
+                    <label class="label">Antal rum</label>
+                    <input class="input" id="rentalRooms" inputmode="numeric" placeholder="5 rum" value="${rr.rooms || ""}" />
+                  </div>
+                  ${kort ? `
+                  <div class="field-group">
+                    <label class="label">Minsta antal nätter</label>
+                    <input class="input" id="rentalMinNights" inputmode="numeric" placeholder="2" value="${rr.minNights || ""}" />
+                  </div>` : `
+                  <div class="field-group">
+                    <label class="label">Tillgänglig från</label>
+                    <input class="input" type="date" id="rentalFrom" value="${rr.from || ""}" />
+                  </div>`}
                 </div>
+                ${kort ? `<div class="rental-hint" style="margin-top:2px;">Vilka dagar som är lediga väljer du i kalendern under Uthyrning.</div>` : ""}`;
+                })()}
               </div>
               <div class="extra-form" id="sale-extra">
                 <div class="card-title" style="font-size:13px;margin-bottom:10px;">Försäljningsdetaljer</div>
@@ -4003,7 +4409,8 @@ function renderDashboard() {
               <button class="save-btn" id="saveWishPriceBtn">Spara önskepris</button>
 
               ${wp.updatedAt ? `<div class="wish-meta">Senast ändrat ${new Date(wp.updatedAt).toLocaleDateString("sv-SE")}</div>` : ""}
-            </div>`;
+            </div>
+            ${renderRentalOwnerCard(ownerId)}`;
             })() : ""}
             <div class="card" style="margin-bottom:12px;">
               <div class="card-title">Aktivitet</div>
@@ -4094,6 +4501,22 @@ function renderDashboard() {
     render();
   };
 
+  const rentalBtn = document.getElementById("saveRentalBtn");
+  if (rentalBtn) rentalBtn.onclick = () => {
+    const st = loadState();
+    const pid = st.ownerParcelId;
+    if (!pid) return;
+    const visible = document.getElementById("rentalVisible")?.checked || false;
+    const note = document.getElementById("rentalNote")?.value?.trim() || "";
+    const patch = { visible, note };
+
+    // Datum och hyra bor i Uthyrningsdetaljer och sparas med profilknappen.
+    // Här sparas bara det som hör till tillgängligheten: synlighet och villkor.
+    saveRental(pid, patch);
+    toast(visible ? "Uthyrningen sparad och synlig för besökare." : "Uthyrningen sparad — bara du ser den.");
+    render();
+  };
+
   // Formatera med tusentalsavgränsare medan man skriver
   const wishInput = document.getElementById("wishPriceInput");
   if (wishInput) wishInput.addEventListener("input", () => {
@@ -4104,7 +4527,27 @@ function renderDashboard() {
   document.getElementById("saveHomeProfileBtn").onclick = () => {
     const u = getCurrentUser(); if (!u) return;
     u.homeProfile = { ...getHomeProfile(u), title: document.getElementById("homeTitleInput").value.trim(), description: document.getElementById("homeDescriptionInput").value.trim() };
-    saveCurrentUser(u); toast("Bostadsprofil sparad."); render();
+    saveCurrentUser(u);
+
+    // Uthyrningsfälten hör till fastigheten, inte till användarprofilen, och
+    // sparas därför i uthyrningsobjektet. Tidigare kastades de bara bort.
+    const pid = loadState().ownerParcelId;
+    if (pid) {
+      const num = (id) => {
+        const v = document.getElementById(id)?.value;
+        if (v == null || v === "") return null;
+        const d = String(v).replace(/\D/g, "");
+        return d ? parseInt(d, 10) : null;
+      };
+      const patch = { price: num("rentalPrice"), rooms: num("rentalRooms") };
+      const fromEl = document.getElementById("rentalFrom");
+      if (fromEl) patch.from = fromEl.value || null;
+      const minN = document.getElementById("rentalMinNights");
+      if (minN) patch.minNights = num("rentalMinNights");
+      saveRental(pid, patch);
+    }
+
+    toast("Bostadsprofil sparad."); render();
   };
 
   document.getElementById("homeImageInput").addEventListener("change", async (e) => {

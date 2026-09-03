@@ -223,6 +223,35 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.6; }
 .map-page { position: relative; width: 100%; height: 100vh; overflow: hidden; }
 .map-wrap { position: absolute; inset: 0; }
 #map { width: 100%; height: 100%; }
+/* Zoomhjälp: syns när kartan är för utzoomad för att visa fastighetsgränser.
+   Placerad nedtill i mitten så den inte krockar med sök eller kartkontroller,
+   och utan pointer-events så den aldrig blockerar ett klick på kartan. */
+.zoom-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 1000;
+  pointer-events: none;
+  background: var(--green-900);
+  color: rgba(255,255,255,.92);
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -.01em;
+  padding: 8px 16px;
+  border-radius: 999px;
+  box-shadow: 0 2px 12px rgba(0,0,0,.22);
+  white-space: nowrap;
+  max-width: calc(100vw - 32px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+@media (max-width: 640px) {
+  /* Ovanför bottenmenyn på mobil, annars hamnar den under. */
+  .zoom-hint { bottom: 76px; font-size: 11.5px; padding: 7px 14px; }
+}
+
 .map-overlay { position: absolute; z-index: 1000; pointer-events: none; }
 .map-overlay > * { pointer-events: auto; }
 .map-tl { top: 14px; left: 60px; }

@@ -304,6 +304,10 @@ function ensureMapMounted() {
     _prefetchDebounce = setTimeout(prefetchBuildingTypesInView, 1200);
   });
 
+  // Zoomtrösklarna utvärderas vid varje zoomsteg och en gång vid start.
+  map.on("zoomend", applyZoomVisibility);
+  applyZoomVisibility();
+
   baseLayers.map = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" });
   baseLayers.satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Tiles &copy; Esri" });
   if (currentBase === "satellite") {
@@ -317,6 +321,60 @@ function clearLayer() {
   if (parcelsLayer) { parcelsLayer.remove(); parcelsLayer = null; }
   lastGeoJson = null;
 }
+
+// =========================
+// ZOOMTRÖSKLAR
+//
+// Utzoomad är fastighetsgränser meningslösa — de blir en gul soppa, och
+// markörerna klumpar ihop sig till en enda hög som inte säger något om VAR
+// något ligger. Lantmäteriets egen visningstjänst drar gränsen vid skala
+// 1:10 000 av samma skäl, vilket motsvarar ungefär zoom 15.
+//
+// Lagren byggs som vanligt men kopplas bort från kartan under tröskeln.
+// Att bygga om dem vid varje zoomsteg vore dyrt och onödigt.
+// =========================
+const PARCEL_MIN_ZOOM = 15;   // fastighetsgränser
+const MARKER_MIN_ZOOM = 12;   // markörer för anspråkade fastigheter
+
+function applyZoomVisibility() {
+  if (!map) return;
+  const z = map.getZoom();
+
+  if (parcelsLayer) {
+    const shouldShow = z >= PARCEL_MIN_ZOOM;
+    const isShown = map.hasLayer(parcelsLayer);
+    if (shouldShow && !isShown) parcelsLayer.addTo(map);
+    else if (!shouldShow && isShown) parcelsLayer.remove();
+  }
+
+  if (markerLayer) {
+    const shouldShow = z >= MARKER_MIN_ZOOM;
+    const isShown = map.hasLayer(markerLayer);
+    if (shouldShow && !isShown) markerLayer.addTo(map);
+    else if (!shouldShow && isShown) markerLayer.remove();
+  }
+
+  updateZoomHint(z);
+}
+
+// En tom karta utan förklaring ser trasig ut. Säg vad som krävs i stället.
+function updateZoomHint(z) {
+  let el = document.getElementById("zoomHint");
+  const needed = z < PARCEL_MIN_ZOOM;
+  if (!needed) { if (el) el.remove(); return; }
+  if (!el) {
+    const container = document.getElementById("map");
+    if (!container) return;
+    el = document.createElement("div");
+    el.id = "zoomHint";
+    el.className = "zoom-hint";
+    container.appendChild(el);
+  }
+  el.textContent = z < MARKER_MIN_ZOOM
+    ? "Zooma in för att se fastigheter"
+    : "Zooma in ytterligare för att se fastighetsgränser";
+}
+
 function redrawLayer() { if (lastGeoJson) addGeoJsonToMap(lastGeoJson, { keepView: true, silent: true }); }
 
 function addGeoJsonToMap(geojson, opts = {}) {
@@ -330,7 +388,9 @@ function addGeoJsonToMap(geojson, opts = {}) {
     map.getPane("parcelsPane").style.zIndex = 450;
   }
 
-  const group = L.layerGroup().addTo(map);
+  // Kopplas till kartan av applyZoomVisibility, inte här — annars blinkar
+  // lagret fram en kort stund innan tröskeln hinner stänga av det.
+  const group = L.layerGroup();
 
   for (const feature of (geojson.features || [])) {
     const geom = feature?.geometry;
@@ -383,6 +443,7 @@ function addGeoJsonToMap(geojson, opts = {}) {
   }
 
   parcelsLayer = group;
+  applyZoomVisibility();
 
   setTimeout(() => {
     const pane = map.getPane("parcelsPane");
@@ -4079,7 +4140,7 @@ function createMarkerIcon(status) {
 function addClaimedMarkers() {
   if (!map) return;
   if (markerLayer) { markerLayer.remove(); markerLayer = null; }
-  markerLayer = L.layerGroup().addTo(map);
+  markerLayer = L.layerGroup();   // kopplas av applyZoomVisibility
 
   const state = loadState();
   const ownerId = state.ownerParcelId;
@@ -4179,6 +4240,8 @@ function addClaimedMarkers() {
 
     markerLayer.addLayer(marker);
   });
+
+  applyZoomVisibility();
 }
 
 function autoLoadCentrum() {

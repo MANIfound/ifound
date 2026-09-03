@@ -471,6 +471,12 @@ function addGeoJsonToMap(geojson, opts = {}) {
         interactive: true,
       });
 
+      // Utan den här raden går det inte att hitta tillbaka till en fastighet
+      // i efterhand. feature fångades tidigare bara i klick-closuren, så allt
+      // som sökte via layer.feature — zoomToParcel och fokus från Sparade
+      // objekt — letade efter en egenskap som var undefined på varje lager.
+      layer.feature = feature;
+
       layer.on('add', function() {
         const el = this.getElement();
         if (el) el.style.pointerEvents = 'all';
@@ -481,6 +487,7 @@ function addGeoJsonToMap(geojson, opts = {}) {
         // rektangelns mus-släpp träffar annars tomten och skriver över bekräftelsepanelen.
         if (activeDrawFeature) return;
         if (window._lastDrawCreatedAt && Date.now() - window._lastDrawCreatedAt < 600) return;
+        if (typeof clearFocusHighlight === "function") clearFocusHighlight();
         layer.setStyle({ color: "#CC2936", weight: 2 });
         setTimeout(() => layer.setStyle({ color: "rgba(255,255,255,0.75)", weight: 1 }), 1000);
         renderParcelPanel(feature);
@@ -546,23 +553,56 @@ function consumePendingParcelFocus() {
   if (!pending || !parcelsLayer) return;
   window._pendingParcelFocus = null;
 
-  let found = null;
+  // En MultiPolygon blir flera lager. Samla alla som hör till fastigheten
+  // och slå ihop deras utsträckning, annars zoomar vi till en av delarna.
+  const hits = [];
   parcelsLayer.eachLayer((layer) => {
-    if (layer.feature && getParcelId(layer.feature) === pending.pid) found = layer;
+    if (layer.feature && getParcelId(layer.feature) === pending.pid) hits.push(layer);
   });
 
-  if (!found) {
-    // Sparad fastighet utanför det inlästa området. Säg det rakt ut i
-    // stället för att tyst lämna användaren på fel plats i kartan.
+  if (!hits.length) {
     toast(`${pending.name || "Fastigheten"} ligger utanför det inlästa området.`);
     return;
   }
 
-  try {
-    const b = found.getBounds?.();
-    if (b?.isValid()) map.fitBounds(b, { padding: [40, 40], maxZoom: 18 });
-  } catch {}
-  renderParcelPanel(found.feature);
+  let bounds = null;
+  for (const l of hits) {
+    try {
+      const b = l.getBounds?.();
+      if (!b?.isValid()) continue;
+      bounds = bounds ? bounds.extend(b) : L.latLngBounds(b.getSouthWest(), b.getNorthEast());
+    } catch {}
+  }
+
+  // Fastighetspanelen ligger till vänster på desktop och som bottenark på
+  // mobil. Utan motvikt hamnar fastigheten bakom den — tekniskt centrerad,
+  // men osynlig för användaren.
+  const narrow = window.matchMedia("(max-width: 640px)").matches;
+  const fitOpts = narrow
+    ? { paddingTopLeft: [20, 20], paddingBottomRight: [20, 320], maxZoom: 19 }
+    : { paddingTopLeft: [540, 40], paddingBottomRight: [40, 40], maxZoom: 19 };
+
+  if (bounds) {
+    try { map.fitBounds(bounds, fitOpts); } catch {}
+  }
+
+  // Markera fastigheten så det syns vilken av dem man kom hit för.
+  // Ligger kvar tills något annat klickas, till skillnad från klickblinken.
+  for (const l of hits) {
+    try { l.setStyle({ color: "#D99A3E", weight: 3, fillOpacity: 0.10, fillColor: "#D99A3E" }); } catch {}
+  }
+  window._focusHighlight = hits;
+
+  renderParcelPanel(hits[0].feature);
+}
+
+// Släck markeringen när panelen stängs eller en annan fastighet väljs.
+function clearFocusHighlight() {
+  if (!window._focusHighlight) return;
+  for (const l of window._focusHighlight) {
+    try { l.setStyle({ color: "rgba(255,255,255,0.75)", weight: 1, fillOpacity: 0.001, fillColor: "#ffffff" }); } catch {}
+  }
+  window._focusHighlight = null;
 }
 
 
@@ -1097,6 +1137,7 @@ function openPanel(html) {
 }
 
 function closePanel() {
+  if (typeof clearFocusHighlight === "function") clearFocusHighlight();
   const panel = document.getElementById("panel");
   if (!panel) return;
   panel.classList.add("hidden");

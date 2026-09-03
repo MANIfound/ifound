@@ -574,26 +574,57 @@ function consumePendingParcelFocus() {
     } catch {}
   }
 
-  // Fastighetspanelen ligger till vänster på desktop och som bottenark på
-  // mobil. Utan motvikt hamnar fastigheten bakom den — tekniskt centrerad,
-  // men osynlig för användaren.
-  const narrow = window.matchMedia("(max-width: 640px)").matches;
-  const fitOpts = narrow
-    ? { paddingTopLeft: [20, 20], paddingBottomRight: [20, 320], maxZoom: 19 }
-    : { paddingTopLeft: [540, 40], paddingBottomRight: [40, 40], maxZoom: 19 };
-
-  if (bounds) {
-    try { map.fitBounds(bounds, fitOpts); } catch {}
-  }
-
   // Markera fastigheten så det syns vilken av dem man kom hit för.
-  // Ligger kvar tills något annat klickas, till skillnad från klickblinken.
+  // Ligger kvar tills panelen stängs eller något annat klickas, till
+  // skillnad från klickblinken som försvinner efter en sekund.
   for (const l of hits) {
     try { l.setStyle({ color: "#D99A3E", weight: 3, fillOpacity: 0.10, fillColor: "#D99A3E" }); } catch {}
   }
   window._focusHighlight = hits;
 
   renderParcelPanel(hits[0].feature);
+  if (bounds) flyToParcelBounds(bounds);
+}
+
+// Placera fastigheten maximalt inzoomad och synlig bredvid panelen.
+//
+// fitBounds duger inte här av två skäl. Den zoomar bara så nära att hela
+// fastigheten ryms, vilket för en stor tomt blir långt ifrån maximalt. Och
+// den räknar mot kartbehållarens storlek, som inte är satt än när vyn precis
+// ritats — då blir en padding på 540 px större än behållaren Leaflet tror
+// sig ha, och resultatet blir minsta zoom i stället för största.
+//
+// Därför: vänta tills behållaren har mått, sätt zoom rakt av, och förskjut
+// centrum i pixlar så att fastigheten hamnar bredvid panelen i stället för
+// bakom den.
+function flyToParcelBounds(bounds, attempt = 0) {
+  if (!map) return;
+  const el = map.getContainer();
+
+  // Behållaren saknar storlek strax efter render. Vänta och försök igen.
+  if ((!el.clientWidth || !el.clientHeight) && attempt < 10) {
+    setTimeout(() => flyToParcelBounds(bounds, attempt + 1), 60);
+    return;
+  }
+  map.invalidateSize({ animate: false });
+
+  const z = Math.min(19, map.getMaxZoom() ?? 19);
+  const center = bounds.getCenter();
+  const narrow = window.matchMedia("(max-width: 640px)").matches;
+
+  // Panelen täcker vänsterkanten på desktop och nederkanten på mobil.
+  // Flytta kartans centrum så att fastigheten hamnar mitt i den yta som
+  // faktiskt syns. Halva panelmåttet, i pixlar vid den valda zoomnivån.
+  const panelW = narrow ? 0 : Math.min(540, Math.round(el.clientWidth * 0.42));
+  const panelH = narrow ? Math.min(340, Math.round(el.clientHeight * 0.45)) : 0;
+
+  try {
+    const pt = map.project(center, z);
+    const shifted = L.point(pt.x - panelW / 2, pt.y + panelH / 2);
+    map.setView(map.unproject(shifted, z), z, { animate: true, duration: 0.6 });
+  } catch {
+    map.setView(center, z);
+  }
 }
 
 // Släck markeringen när panelen stängs eller en annan fastighet väljs.

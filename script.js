@@ -509,7 +509,6 @@ function addGeoJsonToMap(geojson, opts = {}) {
 
   parcelsLayer = group;
   applyZoomVisibility();
-  consumePendingParcelFocus();
 
   setTimeout(() => {
     const pane = map.getPane("parcelsPane");
@@ -522,8 +521,17 @@ function addGeoJsonToMap(geojson, opts = {}) {
 
   try {
     const b = L.geoJSON(geojson).getBounds();
-    if (b?.isValid() && !opts.keepView) map.fitBounds(b, { padding: [20,20] });
+    // Ska en enskild fastighet fokuseras vinner den över inpassningen till
+    // hela lagret. Utan spärren zoomades kartan om till hela Helsingborg
+    // direkt efter att den flyttats till fastigheten — panel och markering
+    // överlevde, men vyn skrevs över, så det såg ut som att inget hände.
+    if (b?.isValid() && !opts.keepView && !window._pendingParcelFocus) {
+      map.fitBounds(b, { padding: [20,20] });
+    }
   } catch {}
+
+  // Efter inpassningen, aldrig före.
+  consumePendingParcelFocus();
 
   try { localStorage.setItem(LS_GEOJSON, JSON.stringify(geojson)); } catch {}
   if (!opts.silent) toast("Fastighetslager inläst — klicka på en fastighet.");
@@ -622,7 +630,9 @@ function flyToParcelBounds(bounds, attempt = 0) {
     const pt = map.project(center, z);
     const shifted = L.point(pt.x - panelW / 2, pt.y + panelH / 2);
     map.setView(map.unproject(shifted, z), z, { animate: true, duration: 0.6 });
-  } catch {
+    console.log(`[ifound] Fokus: zoom ${z}, behållare ${el.clientWidth}×${el.clientHeight}, panelmotvikt ${panelW || panelH} px.`);
+  } catch (err) {
+    console.warn("[ifound] Fokusförskjutning misslyckades, centrerar rakt av:", err.message);
     map.setView(center, z);
   }
 }

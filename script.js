@@ -502,6 +502,7 @@ function addGeoJsonToMap(geojson, opts = {}) {
 
   parcelsLayer = group;
   applyZoomVisibility();
+  consumePendingParcelFocus();
 
   setTimeout(() => {
     const pane = map.getPane("parcelsPane");
@@ -527,6 +528,40 @@ function zoomToParcel(parcelId) {
   parcelsLayer.eachLayer((layer) => { if (layer.feature && getParcelId(layer.feature) === parcelId) found = layer; });
   if (!found) { toast("Hittar inte fastigheten i nuvarande lager."); return; }
   try { const b = found.getBounds?.(); if (b?.isValid()) map.fitBounds(b, { padding: [30, 30] }); } catch {}
+  renderParcelPanel(found.feature);
+}
+
+// Fastigheten som Sparade objekt bad om att få öppnad.
+//
+// openParcelById satte tidigare _pendingParcelFocus utan att någon läste
+// den, så klicket landade på kartan i default-läge. Kroken sitter nu här
+// och anropas både när lagret laddats klart och när kartan öppnas med ett
+// lager som redan ligger inne.
+//
+// Fastighetslagret laddas asynkront, så vid ett kallt kartbyte finns
+// parcelsLayer ännu inte när vyn ritas. Därför ligger anropet i
+// addGeoJsonToMap också — den som kommer sist vinner, och flaggan nollas.
+function consumePendingParcelFocus() {
+  const pending = window._pendingParcelFocus;
+  if (!pending || !parcelsLayer) return;
+  window._pendingParcelFocus = null;
+
+  let found = null;
+  parcelsLayer.eachLayer((layer) => {
+    if (layer.feature && getParcelId(layer.feature) === pending.pid) found = layer;
+  });
+
+  if (!found) {
+    // Sparad fastighet utanför det inlästa området. Säg det rakt ut i
+    // stället för att tyst lämna användaren på fel plats i kartan.
+    toast(`${pending.name || "Fastigheten"} ligger utanför det inlästa området.`);
+    return;
+  }
+
+  try {
+    const b = found.getBounds?.();
+    if (b?.isValid()) map.fitBounds(b, { padding: [40, 40], maxZoom: 18 });
+  } catch {}
   renderParcelPanel(found.feature);
 }
 

@@ -227,6 +227,64 @@ function rememberParcelName(parcelId, name) {
   saveState(state);
 }
 
+// Areal och läge sparas när användaren är på fastigheten, inte när listan
+// visas. Sparade objekt-vyn har inget geojson-lager laddat — går man dit
+// direkt efter inloggning finns kartdatan helt enkelt inte, och då hade
+// korten stått tomma på allt utom beteckningen.
+function rememberParcelMeta(parcelId, meta) {
+  if (!parcelId || !meta) return;
+  const state = loadState();
+  state.parcelMeta = state.parcelMeta || {};
+  const prev = state.parcelMeta[parcelId] || {};
+  state.parcelMeta[parcelId] = {
+    area: meta.area ?? prev.area ?? null,
+    lat:  meta.lat  ?? prev.lat  ?? null,
+    lon:  meta.lon  ?? prev.lon  ?? null,
+  };
+  saveState(state);
+}
+
+// Adressuppslag mot Nominatim, ett i taget och sparat för gott.
+// Nominatims användarvillkor tillåter högst en förfrågan per sekund, så
+// kön är avsiktligt långsam. Adressen ändras aldrig, alltså räcker det att
+// hämta den en gång per fastighet.
+let _addrQueue = [], _addrBusy = false;
+
+function queueAddressLookup(parcelId, lat, lon, onDone) {
+  if (!parcelId || lat == null || lon == null) return;
+  const state = loadState();
+  if (state.parcelAddresses?.[parcelId] !== undefined) return;  // redan hämtad, även om den blev null
+  if (_addrQueue.some(q => q.parcelId === parcelId)) return;
+  _addrQueue.push({ parcelId, lat, lon, onDone });
+  drainAddressQueue();
+}
+
+async function drainAddressQueue() {
+  if (_addrBusy || !_addrQueue.length) return;
+  _addrBusy = true;
+  const job = _addrQueue.shift();
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${job.lat}&lon=${job.lon}&format=json&zoom=18&accept-language=sv`
+    );
+    const data = await res.json();
+    const a = data?.address || {};
+    const street = [a.road, a.house_number].filter(Boolean).join(" ");
+    const place = a.city || a.town || a.village || a.suburb || null;
+    const addr = [street || null, place].filter(Boolean).join(", ") || null;
+
+    const st = loadState();
+    st.parcelAddresses = st.parcelAddresses || {};
+    st.parcelAddresses[job.parcelId] = addr;
+    saveState(st);
+    job.onDone?.(job.parcelId, addr);
+  } catch (err) {
+    // Misslyckat uppslag sparas INTE — då kan det försökas igen nästa gång.
+    console.info("[ifound] Adressuppslag misslyckades:", err.message);
+  }
+  setTimeout(() => { _addrBusy = false; drainAddressQueue(); }, 1100);
+}
+
 // =========================
 // Reprojection
 // =========================
@@ -1866,6 +1924,12 @@ function _renderParcelPanelInner(feature) {
                   : "Besökarläge";
 
   rememberParcelName(pid, name);
+  const _c = parcelCentroid(feature);
+  rememberParcelMeta(pid, {
+    area: areaToNumber(meta?.area),
+    lat: _c ? _c[1] : null,
+    lon: _c ? _c[0] : null,
+  });
 
   const detectedType = getKnownType(pid);
   // Typraden ska ALDRIG vara tom. Vet vi inte säger vi det, och ber om hjälp.
@@ -3172,6 +3236,8 @@ function renderSaved() {
   const all = [...new Set([...likes, ...interests, ...follows])];
   const names = state.parcelNames || {};
   const photos = state.myPhotos || {};
+  const pmeta = state.parcelMeta || {};
+  const addrs = state.parcelAddresses || {};
   const types = {};
   all.forEach(pid => { types[pid] = getKnownType(pid); });
 
@@ -3181,6 +3247,11 @@ function renderSaved() {
     const liked = !!state.myLikes?.[pid];
     const interested = !!state.myInterests?.[pid];
     const wp = (state.wishPrices || {})[pid];
+    const m = pmeta[pid] || {};
+    const addr = addrs[pid];
+    // Areal och adress är olika sorters uppgift och sätts i mono respektive
+    // brödtext. Radas de upp likadant blir kortet gröt.
+    const areaTxt = m.area ? `${Number(m.area).toLocaleString("sv-SE")} kvm` : null;
     return `
       <button class="saved-card" onclick="openParcelById('${String(pid).replace(/'/g,"\\'")}','${String(nm).replace(/'/g,"\\'")}')">
         <div class="saved-thumb ${photo ? '' : 'saved-thumb-empty'}">
@@ -3189,7 +3260,11 @@ function renderSaved() {
         </div>
         <div class="saved-info">
           <div class="beteckning">${nm}</div>
-          ${types[pid] ? `<div class="saved-type">${types[pid]}</div>` : ''}
+          <div class="saved-meta-row">
+            ${types[pid] ? `<span class="saved-type">${types[pid]}</span>` : ''}
+            ${areaTxt ? `<span class="saved-area">${areaTxt}</span>` : ''}
+          </div>
+          <div class="saved-addr" data-addr="${pid}">${addr || ''}</div>
           <div class="saved-tags">
             ${liked ? `<span class="saved-pill saved-pill-like"><i class="ti ti-thumb-up"></i> Gillad</span>` : ''}
             ${interested ? `<span class="saved-pill saved-pill-int"><i class="ti ti-star"></i> Intresserad</span>` : ''}
@@ -3237,6 +3312,19 @@ function renderSaved() {
       <div style="height:80px;"></div>
     </div>
   `;
+
+  // Adresser fylls i efterhand, en per sekund. Korten renderas direkt utan
+  // dem — att vänta in fjorton nätverksanrop innan sidan visas vore värre
+  // än att adressen dyker upp en stund senare.
+  all.forEach(pid => {
+    const m = pmeta[pid];
+    if (!m?.lat || addrs[pid] !== undefined) return;
+    queueAddressLookup(pid, m.lat, m.lon, (id, addr) => {
+      if (!addr || currentView !== "saved") return;
+      const el = document.querySelector(`.saved-addr[data-addr="${CSS.escape(id)}"]`);
+      if (el) el.textContent = addr;
+    });
+  });
 }
 
 // Öppna kartan och zooma till en fastighet från en lista
@@ -5792,7 +5880,6 @@ function renderView() {
     if (currentView === "feed")   { renderFeed(); return; }
     if (currentView === "map")    { renderMapView(); return; }
     if (currentView === "buildNew") { renderBuildNew(); return; }
-  if (currentView === "saved") { renderSaved(); return; }
     if (currentView === "saved") { renderSaved(); return; }
     if (currentView.startsWith("property_")) { renderPropertyView(); return; }
     renderWelcome(); return;
@@ -5812,6 +5899,7 @@ function renderView() {
   if (currentView === "map") { renderMapView(); return; }
   if (currentView === "feed") { renderFeed(); return; }
   if (currentView === "buildNew") { renderBuildNew(); return; }
+  if (currentView === "saved") { renderSaved(); return; }
   if (currentView.startsWith("property_")) { renderPropertyView(); return; }
   renderDashboard();
 }

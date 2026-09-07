@@ -960,11 +960,18 @@ function escapeHtmlBasic(str) {
 // =========================
 // BESÖKARENS VY
 // =========================
-function renderRentalVisitorBlock(pid, name) {
+function renderRentalVisitorBlock(pid, name, opts = {}) {
   const r = getRental(pid);
   if (!r || !r.visible) return "";
   const hasAny = r.mode === RENTAL_MODES.LANGTID ? !!r.from : Object.keys(r.days || {}).some(d => d >= todayIso());
   if (!hasAny) return "";
+
+  // Ägaren ska se exakt samma kort som besökare gör — annars går det inte
+  // att kolla att kalendern och lediga dagar faktiskt syns rätt för sin
+  // egen fastighet. Det som INTE ska visas för ägaren är knappen att
+  // skicka en förfrågan, eftersom man inte kan skicka en förfrågan till
+  // sig själv.
+  const isOwner = !!opts.isOwner;
 
   return `
     <div class="rental-visitor">
@@ -975,9 +982,11 @@ function renderRentalVisitorBlock(pid, name) {
       <div id="rentalVisitorCalendar">${renderRentalCalendar(pid, { editable: false })}</div>
       <div class="rental-summary" id="rentalSummary">${rentalSummaryText(pid)}</div>
       ${r.note ? `<div class="rental-note">${escapeHtmlBasic(r.note)}</div>` : ""}
-      <button class="panel-btn" onclick="openRentalRequestModal('${String(pid).replace(/'/g, "\\'")}','${String(name || "").replace(/'/g, "\\'")}')">
+      ${isOwner
+        ? `<div class="rental-hint">Så här ser besökare din uthyrning. Förfrågningar hanterar du i Min sida.</div>`
+        : `<button class="panel-btn" onclick="openRentalRequestModal('${String(pid).replace(/'/g, "\\'")}','${String(name || "").replace(/'/g, "\\'")}')">
         <i class="ti ti-send"></i> Skicka förfrågan
-      </button>
+      </button>`}
     </div>`;
 }
 
@@ -2646,7 +2655,7 @@ function _renderParcelPanelInner(feature) {
         <i class="ti ti-arrow-left"></i> Tillbaka till ${FOCUS_ORIGIN_LABELS[window._focusOrigin]}
       </button>` : ""}
     <div class="panel-mode">${isBrf ? "Gilla och intresse gäller hela föreningen." : isRental ? `Hyresfastighet${ownerName ? " — " + ownerName : ""}. Intresse gäller hela huset.` : isMulti ? "Flerbostadshus — intresse gäller hela huset." : "Spara intresse och följ objektet."}</div>
-    ${!isOwner ? renderRentalVisitorBlock(pid, name) : ""}
+    ${renderRentalVisitorBlock(pid, name, { isOwner })}
     ${(() => {
       const wp = (state.wishPrices || {})[pid];
       if (!wp?.amount) return "";

@@ -8,6 +8,16 @@ const LS_GEOJSON = "prop_geojson_helsingborg_v4";
 const LS_MAP_MODE= "prop_map_mode_v1";
 
 // =========================
+// API-konfiguration
+// =========================
+const API_BASE_URL = "http://localhost:8000";
+const API_KEY = "sb_publishable_yzCbkrIjzgBYo3smNXcABe_cJh27XCn";
+const API_ENDPOINT = "/rest/v1/rpc/fastigheter_bbox";
+
+// In-memory cache för bbox-svar — undvik att hämta samma område två gånger
+window._bboxCache = {};
+
+// =========================
 // Helpers
 // =========================
 function toast(msg) {
@@ -51,7 +61,60 @@ function createDefaultState() {
   return { ownerParcelId: null, likes: {}, interests: {}, myLikes: {}, myInterests: {}, parcelNames: {} };
 }
 
-function loadState()     { return safeJsonParse(localStorage.getItem(LS_STATE), createDefaultState()) || createDefaultState(); }
+// Tre RIKTIGA fastigheter (finns i helsingborg_centrum.geojson, inte
+// hittepå-koordinater) seedade som till salu / uthyrning / passiv-men-
+// claimad, så man kan se hur alla tre lägen ser ut för en besökare utan att
+// behöva flera konton eller en delad backend — bara ett konto kan äga något
+// i taget lokalt (state.ownerParcelId). Fyller bara i det som saknas, så
+// rör aldrig något du själv ändrar på dem senare. Byt ut mot riktiga claims
+// när Supabase-etappen är på plats.
+const DEMO_SHOWCASE = {
+  sale:    { pid: "ALMA 6",  name: "Alma 6",  price: "4 450 000" },
+  rent:    { pid: "BODIL 3", name: "Bodil 3", price: 11500, rooms: 4 },
+  passive: { pid: "TEGEN 6", name: "Tegen 6" },
+};
+
+function seedDemoShowcase(s) {
+  s.wishPrices = s.wishPrices || {};
+  s.rentalAvailability = s.rentalAvailability || {};
+  s.parcelNames = s.parcelNames || {};
+
+  const { sale, rent, passive } = DEMO_SHOWCASE;
+
+  if (!s.wishPrices[sale.pid]) {
+    s.wishPrices[sale.pid] = { amount: sale.price, visible: true };
+  }
+
+  if (!s.rentalAvailability[rent.pid]) {
+    const days = {};
+    const today = new Date();
+    for (let i = 3; i < 30; i += 2) {
+      const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i);
+      const iso = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+      days[iso] = true;
+    }
+    s.rentalAvailability[rent.pid] = {
+      mode: "korttid",
+      contractType: "Korttid",
+      days,
+      price: rent.price,
+      rooms: rent.rooms,
+      minNights: 2,
+      visible: true,
+      note: "Exempeldata — visar hur en uthyrning ser ut för en besökare.",
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  [sale, rent, passive].forEach(p => { if (!s.parcelNames[p.pid]) s.parcelNames[p.pid] = p.name; });
+
+  return s;
+}
+
+function loadState() {
+  const s = safeJsonParse(localStorage.getItem(LS_STATE), null) || createDefaultState();
+  return seedDemoShowcase(s);
+}
 function saveState(s)    { localStorage.setItem(LS_STATE, JSON.stringify(s)); }
 
 // =========================
@@ -188,7 +251,8 @@ function navigate(view) { currentView = view; render(); }
 // =========================
 function getParcelId(feature) {
   const p = feature?.properties || {};
-  const keys = ["fastighetsbeteckning","FASTIGHET","fastighet","beteckning","objektid","OBJECTID","id","ID","uuid","UUID"];
+  // fastighet_id kommer först — det är det nya id-systemet från PostGIS-API:et
+  const keys = ["fastighet_id","fastighetsbeteckning","FASTIGHET","fastighet","beteckning","objektid","OBJECTID","id","ID","uuid","UUID"];
   for (const k of keys) if (p[k]) return String(p[k]);
   try { return "anon-" + JSON.stringify(feature?.geometry?.coordinates).slice(0, 40); }
   catch { return "anon-" + Math.random().toString(16).slice(2); }
@@ -2548,25 +2612,18 @@ function _renderParcelPanelInner(feature) {
       ${statsHtml}
     `);
     document.getElementById("setMineBtn").onclick = () => {
-      const s = loadState();
-      s.ownerParcelId = pid;
-      s.parcelNames = s.parcelNames || {};
-      s.parcelNames[pid] = name;
-      // Store centroid for marker placement
-      try {
-        const coords = feature?.geometry?.coordinates?.[0] || [];
-        if (coords.length) {
-          const lons = coords.map(p => p[0]);
-          const lats = coords.map(p => p[1]);
-          s.ownerLon = lons.reduce((a,b)=>a+b,0)/lons.length;
-          s.ownerLat = lats.reduce((a,b)=>a+b,0)/lats.length;
-        }
-      } catch {}
-      saveState(s);
-      toast("Fastigheten kopplad till ditt konto.");
-      redrawLayer();
-      addClaimedMarkers();
-      renderParcelPanel(feature);
+      if (isOwner) return; // redan claimad — knappen är bara en statusmarkering
+      const session = loadSession();
+      if (!session?.email) {
+        openAuthModal('reg');
+        toast("Skapa ett konto för att claima en fastighet.");
+        return;
+      }
+      // Gick tidigare direkt till s.ownerParcelId = pid utan att fråga om
+      // namn/personnummer/synlighet — samma verifiering som ska gälla
+      // överallt man kan claima en fastighet ifrån.
+      const c = parcelCentroid(feature);
+      openClaimModal({ pid, name, lat: c ? c[1] : null, lon: c ? c[0] : null });
     };
     document.getElementById("closePanelBtn").onclick = closePanel;
     return;
@@ -2713,9 +2770,11 @@ function _renderParcelPanelInner(feature) {
         toast("Skapa ett konto för att claima din fastighet.");
         return;
       }
-      const sel = document.getElementById("modeSelect");
-      if (sel) { sel.value = "owner"; saveMapMode("owner"); }
-      renderParcelPanel(feature);
+      // Gick tidigare bara till Ägarläge, som gjorde en till ägare med ett
+      // klick utan namn/personnummer/synlighet. Samma verifieringsmodal som
+      // Min sida använder, förifylld med fastigheten man redan står på.
+      const c = parcelCentroid(feature);
+      openClaimModal({ pid, name, lat: c ? c[1] : null, lon: c ? c[0] : null });
     };
   }
 
@@ -4814,7 +4873,17 @@ function renderMapView() {
 // =========================
 
 // Mock claimed properties for demo — in production these come from database
+//
+// De tre första pekar på RIKTIGA fastigheter i helsingborg_centrum.geojson
+// (Alma 6 / Bodil 3 / Tegen 6, se DEMO_SHOWCASE/seedDemoShowcase ovan i
+// filen) — klicka på själva huset på kartan, inte bara nålen, för att se
+// den fullständiga panelen med den seedade uthyrnings-/prisdatan. Övriga
+// rader nedanför är rena skyltfönster-nålar utan någon riktig fastighet
+// bakom — id:t matchar då aldrig en klickbar tomt på kartan.
 const CLAIMED_PROPS = [
+  { id: "ALMA 6",  lat: 56.03846, lon: 12.71632, status: "sale",    name: "Alma 6",  likes: 12, interested: 4, price: "4 450 000 kr",  area: "Villa · 548 kvm" },
+  { id: "BODIL 3", lat: 56.04676, lon: 12.72707, status: "rent",    name: "Bodil 3", likes: 9,  interested: 2, price: "11 500 kr/mån", area: "Villa · 337 kvm" },
+  { id: "TEGEN 6", lat: 56.02852, lon: 12.73742, status: "passive", name: "Tegen 6", likes: 6,  interested: 1, area: "Villa · 804 kvm" },
   { id: "RÅDHUSET 3>1",      lat: 56.04661, lon: 12.69311, status: "passive", name: "Rådhuset 3:1",      likes: 18, interested: 4,  area: "Villa · Centrum",       img: "https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=400&q=60" },
   { id: "PÅLSJÖ 1>27",       lat: 56.07200, lon: 12.70200, status: "sale",    name: "Pålsjö 1:27",       likes: 31, interested: 11, price: "4 200 000 kr", area: "Villa · Pålsjö",         img: "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400&q=60" },
   { id: "SÖDER 1>102",       lat: 56.03324, lon: 12.71180, status: "rent",    name: "Söder 1:102",       likes: 14, interested: 5,  price: "9 800 kr/mån",  area: "Lägenhet · Söder",       img: "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=400&q=60" },
@@ -4981,51 +5050,80 @@ function addClaimedMarkers() {
   applyZoomVisibility();
 }
 
-function autoLoadCentrum() {
+// =========================================
+// API-funktioner för bbox-baserad hämtning
+// =========================================
+
+function getCacheKey(bbox) {
+  const round = (n) => Math.round(n * 100) / 100;
+  return `${round(bbox.minLon)},${round(bbox.minLat)},${round(bbox.maxLon)},${round(bbox.maxLat)}`;
+}
+
+async function fetchPropertiesByBbox(bbox) {
+  const key = getCacheKey(bbox);
+  if (window._bboxCache[key]) return window._bboxCache[key];
+
   const statusEl = document.getElementById("mapStatus");
   if (statusEl) statusEl.textContent = "Hämtar fastighetsdata...";
 
-  // Hämtas från den egna sajten, inte från raw.githubusercontent.com.
-  // GitHubs råfilstjänst är byggd för enstaka nedladdningar och strypar med
-  // HTTP 429 per IP — vid skarp trafik hade kartan slutat fungera för alla
-  // samtidigt. Filen deployas ändå med projektet, så omvägen fyllde ingen
-  // funktion. GitHub finns kvar som reserv om filen skulle saknas lokalt.
-  const LOCAL_URL = "helsingborg_centrum.geojson";
-  const FALLBACK_URL = "https://raw.githubusercontent.com/MANIfound/ifound/main/helsingborg_centrum.geojson";
+  try {
+    const response = await fetch(`${API_BASE_URL}${API_ENDPOINT}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": API_KEY
+      },
+      body: JSON.stringify({
+        minlon: bbox.minLon,
+        minlat: bbox.minLat,
+        maxlon: bbox.maxLon,
+        maxlat: bbox.maxLat,
+        maxrows: 3000
+      })
+    });
 
-  const load = (url, isFallback) => fetch(url)
-    .then(r => {
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      return r.json();
-    })
-    .then(geojson => {
-      if (isFallback) console.warn("[ifound] Lokal geojson saknas — hämtade från GitHub. Lägg filen i projektroten.");
-      geojson = reprojectGeoJsonIfNeeded(geojson);
-      addGeoJsonToMap(geojson, { keepView: false });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const geojson = await response.json();
+    window._bboxCache[key] = geojson;
+    console.log(`[ifound] Hämtade ${geojson.features?.length || 0} fastigheter`);
+    return geojson;
+  } catch (err) {
+    console.error("[ifound] API-fel:", err.message);
+    if (statusEl) statusEl.textContent = "Kunde inte hämta fastighetsdata";
+    toast("Kunde inte hämta fastighetsdata — försök igen.");
+    return null;
+  }
+}
+
+function setupBboxListener() {
+  if (!map) return;
+  const loadViewportData = async () => {
+    const zoom = map.getZoom();
+    if (zoom < 15) {
+      if (parcelsLayer) { parcelsLayer.remove(); parcelsLayer = null; }
+      return;
+    }
+    const bounds = map.getBounds();
+    const bbox = {
+      minLon: bounds.getWest(),
+      minLat: bounds.getSouth(),
+      maxLon: bounds.getEast(),
+      maxLat: bounds.getNorth()
+    };
+    const geojson = await fetchPropertiesByBbox(bbox);
+    if (geojson) {
+      addGeoJsonToMap(geojson, { keepView: true, silent: true });
       updateMapStatus(geojson.features?.length || 0);
-      try { localStorage.setItem(LS_GEOJSON, JSON.stringify(geojson)); } catch {}
       addClaimedMarkers();
-    });
+    }
+  };
+  map.on("moveend", loadViewportData);
+  loadViewportData();
+}
 
-  load(LOCAL_URL, false)
-    .catch(() => load(FALLBACK_URL, true))
-    .catch(err => {
-      console.error("[ifound] Kunde inte ladda fastighetsdata:", err.message);
-      if (statusEl) statusEl.textContent = "Kunde inte ladda fastighetsdata";
-      // Sista utvägen: tidigare hämtad data ur webbläsarens lagring
-      try {
-        const cached = localStorage.getItem(LS_GEOJSON);
-        if (cached) {
-          const gj = JSON.parse(cached);
-          addGeoJsonToMap(gj, { keepView: false });
-          updateMapStatus(gj.features?.length || 0);
-          addClaimedMarkers();
-          toast("Visar senast hämtade fastighetsdata.");
-          return;
-        }
-      } catch {}
-      toast("Kunde inte hämta fastighetsdata — försök igen om en stund.");
-    });
+function autoLoadCentrum() {
+  // Initialisera bbox-lyssnaren när kartan är redo
+  setupBboxListener();
 }
 
 function updateMapStatus(count) {
@@ -5293,7 +5391,15 @@ function closeMapAreaCard() {
 }
 
 
-function openClaimModal() {
+// Sätts av openClaimModal när den öppnas från en fastighet vi redan känner
+// pid för (kartan/tomtpanelen). Håller reda på VILKEN fastighet det gäller
+// separat från textfältet, så submitClaim() alltid sparar det riktiga pid:et
+// — inte vad som råkar stå skrivet — annars matchar inte state.ownerParcelId
+// mot getParcelId(feature) nästa gång samma tomt klickas.
+let _claimPrefill = null;
+
+function openClaimModal(prefill) {
+  _claimPrefill = prefill || null;
   const existing = document.getElementById('claim-modal-overlay');
   if (existing) existing.remove();
 
@@ -5311,13 +5417,21 @@ function openClaimModal() {
         <button onclick="closeClaimModal()" style="width:32px;height:32px;border-radius:50%;border:none;background:var(--surface-2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--ink-soft);">✕</button>
       </div>
 
+      ${_claimPrefill ? `
+      <div style="background:var(--green-50, #F1F5EC);border-radius:12px;padding:14px 16px;margin-bottom:20px;display:flex;align-items:center;gap:12px;">
+        <i class="ti ti-home-check" style="font-size:20px;color:var(--green-600, var(--accent));" aria-hidden="true"></i>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--ink);">Fastighet vald via kartan</div>
+          <div style="font-size:11px;color:var(--ink-muted);">${escapeHtmlBasic(_claimPrefill.name)}</div>
+        </div>
+      </div>` : `
       <div style="background:var(--page-bg);border-radius:12px;padding:14px 16px;margin-bottom:20px;display:flex;align-items:center;gap:12px;">
         <i class="ti ti-home" style="font-size:20px;color:var(--accent);" aria-hidden="true"></i>
         <div>
           <div style="font-size:13px;font-weight:600;color:var(--ink);">Ingen fastighet vald</div>
           <div style="font-size:11px;color:var(--ink-muted);">Välj fastighet via kartan för att koppla den till din profil</div>
         </div>
-      </div>
+      </div>`}
 
       <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:20px;">
         <div>
@@ -5331,7 +5445,7 @@ function openClaimModal() {
         </div>
         <div>
           <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:6px;">Fastighetsbeteckning</label>
-          <input id="claim-prop" class="input" placeholder="Ex. Pålsjö 4:7" style="width:100%;" />
+          <input id="claim-prop" class="input" placeholder="Ex. Pålsjö 4:7" style="width:100%;" value="${_claimPrefill ? escapeHtmlBasic(_claimPrefill.name) : ''}" ${_claimPrefill ? 'readonly' : ''} />
         </div>
       </div>
 
@@ -5376,6 +5490,7 @@ function openClaimModal() {
 function closeClaimModal() {
   const overlay = document.getElementById('claim-modal-overlay');
   if (overlay) overlay.remove();
+  _claimPrefill = null;
 }
 
 let selectedClaimVis = 'private';
@@ -5405,7 +5520,13 @@ function selectClaimVis(val) {
 function submitClaim() {
   const name = document.getElementById('claim-name')?.value.trim();
   const pnr  = document.getElementById('claim-pnr')?.value.trim();
-  const prop = document.getElementById('claim-prop')?.value.trim();
+  // Kom claimen från kartan (vi känner redan pid:et) är fältet skrivskyddat
+  // och håller redan rätt värde — men vi litar på det RIKTIGA pid:et från
+  // _claimPrefill, inte på texten, så det matchar exakt vad getParcelId()
+  // ger nästa gång samma tomt klickas. Skrevs claimen in manuellt (Min sida,
+  // ingen fastighet vald via kartan) är fältets text det enda vi har.
+  const prop = _claimPrefill ? _claimPrefill.pid : document.getElementById('claim-prop')?.value.trim();
+  const propLabel = _claimPrefill ? _claimPrefill.name : prop;
 
   if (!name || !pnr || !prop) {
     toast('Fyll i alla fält för att fortsätta.');
@@ -5419,17 +5540,21 @@ function submitClaim() {
 
   const s = loadState();
   s.claimStatus = 'pending';
-  s.claimData = { name, pnr: pnr.slice(0,8) + '-****', prop, visibility: selectedClaimVis, submittedAt: new Date().toISOString() };
+  s.claimData = { name, pnr: pnr.slice(0,8) + '-****', prop: propLabel, visibility: selectedClaimVis, submittedAt: new Date().toISOString() };
   s.ownerParcelId = prop;
   s.parcelNames = s.parcelNames || {};
-  s.parcelNames[prop] = prop;
+  s.parcelNames[prop] = propLabel;
+  if (_claimPrefill?.lat && _claimPrefill?.lon) {
+    s.ownerLat = _claimPrefill.lat;
+    s.ownerLon = _claimPrefill.lon;
+  }
   saveState(s);
 
   // Save pending claim for admin
   const users = loadUsers();
   const session = loadSession();
   if (session?.email && users[session.email]) {
-    users[session.email].pendingClaim = { name, pnr: pnr.slice(0,8) + '-****', prop, visibility: selectedClaimVis, submittedAt: new Date().toISOString(), status: 'pending' };
+    users[session.email].pendingClaim = { name, pnr: pnr.slice(0,8) + '-****', prop: propLabel, visibility: selectedClaimVis, submittedAt: new Date().toISOString(), status: 'pending' };
     saveUsers(users);
   }
 

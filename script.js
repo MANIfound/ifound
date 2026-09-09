@@ -5134,43 +5134,52 @@ function setupBboxListener() {
 // =========================================
 
 async function tryLoadLegacyHelsingborg() {
+  console.log("[ifound] Försöker ladda gamla Helsingborg-GeoJSON...");
   const statusEl = document.getElementById("mapStatus");
   const LOCAL_URL = "helsingborg_centrum.geojson";
   const FALLBACK_URL = "https://raw.githubusercontent.com/MANIfound/ifound/main/helsingborg_centrum.geojson";
 
   const load = async (url, isFallback) => {
+    console.log(`[ifound] Försöker ${isFallback ? "GitHub" : "lokal"}: ${url}`);
     const r = await fetch(url);
     if (!r.ok) throw new Error("HTTP " + r.status);
     const geojson = await r.json();
     if (isFallback) console.warn("[ifound] Lokal Helsingborg-GeoJSON saknas — hämtade från GitHub.");
-    geojson = reprojectGeoJsonIfNeeded(geojson);
-    addGeoJsonToMap(geojson, { keepView: false });
-    updateMapStatus(geojson.features?.length || 0);
-    try { localStorage.setItem(LS_GEOJSON, JSON.stringify(geojson)); } catch {}
+    console.log("[ifound] GeoJSON hämtad, kör reprojectGeoJsonIfNeeded...");
+    const reprojected = reprojectGeoJsonIfNeeded(geojson);
+    console.log("[ifound] Kör addGeoJsonToMap...");
+    addGeoJsonToMap(reprojected, { keepView: false });
+    updateMapStatus(reprojected.features?.length || 0);
+    try { localStorage.setItem(LS_GEOJSON, JSON.stringify(reprojected)); } catch {}
     addClaimedMarkers();
-    console.log("[ifound] ✓ Använder gamla Helsingborg-stad-data (7926 fastigheter)");
-    return geojson;
+    console.log("[ifound] ✓ Använder gamla Helsingborg-stad-data (" + (reprojected.features?.length || 0) + " fastigheter)");
+    return reprojected;
   };
 
   try {
     // Försök lokal först, sedan GitHub
     try {
       return await load(LOCAL_URL, false);
-    } catch {
+    } catch (err) {
+      console.log("[ifound] Lokal laddning misslyckades: " + err.message);
       return await load(FALLBACK_URL, true);
     }
   } catch (err) {
-    console.log("[ifound] Helsingborg-GeoJSON inte tillgänglig, använder bbox-API för hela Skåne");
+    console.log("[ifound] Helsingborg-GeoJSON inte tillgänglig: " + err.message);
     throw err;
   }
 }
 
 function autoLoadCentrum() {
+  console.log("[ifound] autoLoadCentrum() startar");
   // Försök först med gamla Helsingborg-data för referens
   tryLoadLegacyHelsingborg()
-    .catch(() => {
+    .then(() => {
+      console.log("[ifound] Helsingborg-laddning klar");
+    })
+    .catch((err) => {
       // Fallback: använd nya bbox-baserade API:et för hela Skåne
-      console.log("[ifound] Fallback till bbox-API för dynamisk kartladdning");
+      console.log("[ifound] Fallback till bbox-API för dynamisk kartladdning: " + err.message);
       setupBboxListener();
     });
 }

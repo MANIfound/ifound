@@ -1826,15 +1826,7 @@ const STATIC_TYPES_READY = (async () => {
     // Ingen force-cache. Filen uppdateras när klassificeringen körs om, och
     // force-cache gjorde att gamla data satt kvar i webbläsaren efter varje
     // uppdatering. no-cache låter webbläsaren fråga servern om filen ändrats.
-    // Försök lokal först, sedan GitHub som fallback.
-    const localUrl = "types.json";
-    const githubUrl = "https://raw.githubusercontent.com/MANIfound/ifound/main/types.json";
-    
-    let res = await fetch(localUrl, { cache: "no-cache" }).catch(() => null);
-    if (!res?.ok) {
-      console.log("[ifound] types.json saknas lokalt, försöker GitHub...");
-      res = await fetch(githubUrl, { cache: "no-cache" });
-    }
+    const res = await fetch("types.json", { cache: "no-cache" });
     if (!res.ok) throw new Error("HTTP " + res.status);
     const data = await res.json();
     if (!data.types || typeof data.types !== "object") throw new Error("oväntat format");
@@ -1846,10 +1838,10 @@ const STATIC_TYPES_READY = (async () => {
     STATIC_TYPES.normSrc = {};
     for (const [k, v] of Object.entries(STATIC_TYPES.sources)) STATIC_TYPES.normSrc[normParcel(k)] = v;
 
-    console.log(`[ifound] ✓ Förklassad typdata laddad: ${STATIC_TYPES.count} fastigheter (genererad ${data.generated?.slice(0, 10)}). Endast dessa område är klassificerade för nu.`);
+    console.log(`[ifound] ✓ Förklassad typdata laddad: ${STATIC_TYPES.count} fastigheter (genererad ${data.generated?.slice(0, 10)}). Overpass behövs inte.`);
     if (typeof redrawLayer === "function") redrawLayer();
   } catch (err) {
-    console.warn(`[ifound] ✗ types.json kunde inte laddas (${err.message}). Fastighetstyper blir "Okänd" utanför klassificerade områden. Det är OK tills Byggnad-datat är importerat.`);
+    console.warn(`[ifound] ✗ types.json kunde inte laddas (${err.message}). Ligger filen bredvid index.html?`);
   }
   return STATIC_TYPES;
 })();
@@ -5129,59 +5121,9 @@ function setupBboxListener() {
   loadViewportData();
 }
 
-// =========================================
-// Legacy Helsingborg-laddning (parallell fallback)
-// =========================================
-
-async function tryLoadLegacyHelsingborg() {
-  console.log("[ifound] Försöker ladda gamla Helsingborg-GeoJSON...");
-  const statusEl = document.getElementById("mapStatus");
-  const LOCAL_URL = "helsingborg_centrum.geojson";
-  const FALLBACK_URL = "https://raw.githubusercontent.com/MANIfound/ifound/main/helsingborg_centrum.geojson";
-
-  const load = async (url, isFallback) => {
-    console.log(`[ifound] Försöker ${isFallback ? "GitHub" : "lokal"}: ${url}`);
-    const r = await fetch(url);
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    const geojson = await r.json();
-    if (isFallback) console.warn("[ifound] Lokal Helsingborg-GeoJSON saknas — hämtade från GitHub.");
-    console.log("[ifound] GeoJSON hämtad, kör reprojectGeoJsonIfNeeded...");
-    const reprojected = reprojectGeoJsonIfNeeded(geojson);
-    console.log("[ifound] Kör addGeoJsonToMap...");
-    addGeoJsonToMap(reprojected, { keepView: false });
-    updateMapStatus(reprojected.features?.length || 0);
-    try { localStorage.setItem(LS_GEOJSON, JSON.stringify(reprojected)); } catch {}
-    addClaimedMarkers();
-    console.log("[ifound] ✓ Använder gamla Helsingborg-stad-data (" + (reprojected.features?.length || 0) + " fastigheter)");
-    return reprojected;
-  };
-
-  try {
-    // Försök lokal först, sedan GitHub
-    try {
-      return await load(LOCAL_URL, false);
-    } catch (err) {
-      console.log("[ifound] Lokal laddning misslyckades: " + err.message);
-      return await load(FALLBACK_URL, true);
-    }
-  } catch (err) {
-    console.log("[ifound] Helsingborg-GeoJSON inte tillgänglig: " + err.message);
-    throw err;
-  }
-}
-
 function autoLoadCentrum() {
-  console.log("[ifound] autoLoadCentrum() startar");
-  // Försök först med gamla Helsingborg-data för referens
-  tryLoadLegacyHelsingborg()
-    .then(() => {
-      console.log("[ifound] Helsingborg-laddning klar");
-    })
-    .catch((err) => {
-      // Fallback: använd nya bbox-baserade API:et för hela Skåne
-      console.log("[ifound] Fallback till bbox-API för dynamisk kartladdning: " + err.message);
-      setupBboxListener();
-    });
+  // Initialisera bbox-lyssnaren när kartan är redo
+  setupBboxListener();
 }
 
 function updateMapStatus(count) {

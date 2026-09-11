@@ -188,10 +188,58 @@ function navigate(view) { currentView = view; render(); }
 // =========================
 function getParcelId(feature) {
   const p = feature?.properties || {};
+  // Fastighetens identitet är fastighet_id (Lantmäteriets registerenhets-
+  // referens). Beteckningen duger inte: den ändras vid avstyckning. Polygonens
+  // egen objektidentitet duger inte heller: den ändras när gränsen ritas om.
+  // Gillanden, intressen och önskepriser ska överleva båda.
+  //
+  // Gamla helsingborg_centrum.geojson saknar fältet helt och faller igenom
+  // till nyckellistan nedan, precis som förut.
+  if (p.fastighet_id) {
+    const pid = String(p.fastighet_id);
+    rememberParcelLabel(pid, p.beteckning || p.fastighetsbeteckning);
+    return pid;
+  }
   const keys = ["fastighetsbeteckning","FASTIGHET","fastighet","beteckning","objektid","OBJECTID","id","ID","uuid","UUID"];
   for (const k of keys) if (p[k]) return String(p[k]);
   try { return "anon-" + JSON.stringify(feature?.geometry?.coordinates).slice(0, 40); }
   catch { return "anon-" + Math.random().toString(16).slice(2); }
+}
+
+// =========================
+// ÖVERSÄTTNING fastighet_id → beteckning
+//
+// types.json och ownership.json är nycklade på beteckning ("MUSEET 1"), inte
+// på fastighetens id. Så länge id:t VAR beteckningen märktes det inte. Med
+// riktiga id:n från API:et ger varje uppslag "Okänd" utan den här bron.
+//
+// Registret fylls när features passerar getParcelId, och hydreras en gång per
+// session ur state.parcelNames så att uppslag efter omladdning fungerar.
+// =========================
+const PARCEL_LABELS = Object.create(null);
+let _labelsHydrated = false;
+
+function rememberParcelLabel(pid, label) {
+  if (!pid || !label) return;
+  PARCEL_LABELS[pid] = String(label);
+}
+
+// state.parcelNames läses EN gång, inte en gång per fastighet och rendering.
+// Med ett par tusen fastigheter i vyn blev det annars tusentals JSON.parse
+// per kartvy, eftersom loadState parsar hela localStorage-posten.
+function hydrateParcelLabels(st) {
+  if (_labelsHydrated) return;
+  _labelsHydrated = true;
+  try {
+    const names = (st || loadState()).parcelNames || {};
+    for (const [k, v] of Object.entries(names)) if (!PARCEL_LABELS[k]) PARCEL_LABELS[k] = v;
+  } catch {}
+}
+
+function parcelLabel(pid, st) {
+  if (!pid) return "";
+  if (!_labelsHydrated) hydrateParcelLabels(st);
+  return PARCEL_LABELS[pid] || pid;   // gamla data: pid ÄR beteckningen
 }
 
 function prettyName(feature) {
@@ -225,6 +273,7 @@ function rememberParcelName(parcelId, name) {
   state.parcelNames = state.parcelNames || {};
   state.parcelNames[parcelId] = name;
   saveState(state);
+  rememberParcelLabel(parcelId, name);   // registret får aldrig hamna efter state
 }
 
 // Areal och läge sparas när användaren är på fastigheten, inte när listan
@@ -1783,22 +1832,25 @@ const STATIC_TYPES_READY = (async () => {
 })();
 
 function getKnownType(pid) {
-  const n = normParcel(pid);
+  const st = loadState();
+  const label = parcelLabel(pid, st);
+  const n = normParcel(label);
   for (const [k, v] of Object.entries(KNOWN_TYPE_OVERRIDES)) {
     if (normParcel(k) === n) return v;
   }
-  // Användarrättelser vinner över automatisk klassning
-  const st = loadState();
+  // Användarrättelser vinner över automatisk klassning. De är nycklade på
+  // pid, inte beteckning — rättelsen följer alltså fastigheten även om
+  // beteckningen ändras.
   if (st.typeCorrections?.[pid]) return st.typeCorrections[pid];
   if (st.buildingTypes?.[pid]) return st.buildingTypes[pid];
-  return STATIC_TYPES.norm?.[n] || STATIC_TYPES.types?.[pid] || null;
+  return STATIC_TYPES.norm?.[n] || STATIC_TYPES.types?.[label] || STATIC_TYPES.types?.[pid] || null;
 }
 
 // Hur säker är typen? "manuell" och "byggnad" visas rakt av,
 // "indikation" och "område" visas med förbehåll.
 function getTypeSource(pid) {
   const st = loadState();
-  const n = normParcel(pid);
+  const n = normParcel(parcelLabel(pid, st));
   if (Object.keys(KNOWN_TYPE_OVERRIDES).some(k => normParcel(k) === n)) return TYPE_SOURCE.MANUAL;
   if (st.typeCorrections?.[pid]) return TYPE_SOURCE.MANUAL;
   return st.typeSources?.[pid] || STATIC_TYPES.normSrc?.[n] || null;
@@ -1858,7 +1910,7 @@ function closeTypePicker() {
 // vara en hyresfastighet, och att kalla en hyresvärds hus för
 // bostadsrättsförening är fel på ett sätt användaren märker direkt.
 function getOwnershipForm(pid) {
-  const n = normParcel(pid);
+  const n = normParcel(parcelLabel(pid));
   for (const [k, v] of Object.entries(KNOWN_OWNERSHIP)) {
     if (normParcel(k) === n) return v.form || null;
   }
@@ -1867,7 +1919,7 @@ function getOwnershipForm(pid) {
 }
 
 function getOwnerName(pid) {
-  const n = normParcel(pid);
+  const n = normParcel(parcelLabel(pid));
   for (const [k, v] of Object.entries(KNOWN_OWNERSHIP)) {
     if (normParcel(k) === n) return v.owner || null;
   }

@@ -187,6 +187,11 @@ function navigate(view) { currentView = view; render(); }
 // Geo helpers
 // =========================
 function getParcelId(feature) {
+  // Panelen byggs ibland om från en konstgjord feature som bara bär namn och
+  // pid (efter att ett intresse sparats). Utan den här raden fick den
+  // beteckningen som identitet — och visade då 0 intresserade direkt efter
+  // att man själv markerat intresse.
+  if (feature?._pid) return String(feature._pid);
   const p = feature?.properties || {};
   // Fastighetens identitet är fastighet_id (Lantmäteriets registerenhets-
   // referens). Beteckningen duger inte: den ändras vid avstyckning. Polygonens
@@ -1308,7 +1313,8 @@ function isParcelClaimed(pid) {
   const n = norm(pid);
   const st = loadState();
   if (st.ownerParcelId && norm(st.ownerParcelId) === n) return true;
-  return CLAIMED_PROPS.some(p => norm(p.id) === n || norm(p.name) === n);
+  const ln = norm(parcelLabel(pid, st));   // CLAIMED_PROPS är nycklade på beteckning
+  return CLAIMED_PROPS.some(p => norm(p.id) === ln || norm(p.name) === ln);
 }
 
 function getPostcardStatus(pid) {
@@ -2627,7 +2633,7 @@ function _renderParcelPanelInner(feature) {
   // Find image from CLAIMED_PROPS or PROP_DATA
   const claimedProp = CLAIMED_PROPS.find(p => {
     const pNorm = p.id.toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g,'');
-    const nNorm = pid.toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g,'');
+    const nNorm = parcelLabel(pid).toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g,'');
     return pNorm === nNorm || p.name.toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g,'') === nNorm;
   });
   const panelImg = claimedProp?.img || null;
@@ -4943,7 +4949,7 @@ function addClaimedMarkers() {
 
     // Check hardcoded coords first
     if (!lat || !lon) {
-      const ownerNorm = ownerId.toUpperCase().trim();
+      const ownerNorm = parcelLabel(ownerId).toUpperCase().trim();
       const hardcoded = OWNER_PARCEL_COORDS[ownerNorm];
       if (hardcoded) { lat = hardcoded.lat; lon = hardcoded.lon; }
     }

@@ -427,7 +427,20 @@ function ensureMapMounted() {
   map.attributionControl?.addAttribution("&copy; Lantmäteriet, Fastighetsindelning");
 
   baseLayers.map = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" });
-  baseLayers.satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Tiles &copy; Esri" });
+  // Flygfotot har inga namn. Ort- och gatunamn läggs i ett eget lager ovanpå
+  // fastighetsgränserna. Lagret släpper igenom klick, och det följer med
+  // flygfotot — Kartvy har redan namnen inbakade.
+  if (!map.getPane("labelsPane")) {
+    map.createPane("labelsPane");
+    const lp = map.getPane("labelsPane");
+    lp.style.zIndex = 460;                 // över fastighetsgränserna (450)
+    lp.style.pointerEvents = "none";
+    lp.style.filter = "brightness(2.2)";   // CARTO:s grå text blir vit, den mörka kanten består
+  }
+  baseLayers.satellite = L.layerGroup([
+    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Tiles &copy; Esri" }),
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/dark_only_labels/{z}/{x}/{y}{r}.png", { pane: "labelsPane", subdomains: "abcd", maxZoom: 20, attribution: "&copy; OpenStreetMap &copy; CARTO" }),
+  ]);
   if (currentBase === "satellite") {
     baseLayers.satellite.addTo(map);
   } else {
@@ -478,6 +491,18 @@ const MARKER_MIN_ZOOM = 12;   // markörer för anspråkade fastigheter
 function applyZoomVisibility() {
   if (!map) return;
   const z = map.getZoom();
+
+  // Kartan byggs om när vyn ritas om. Ett lager som byggts för den gamla
+  // kartan saknar sitt fönster (parcelsPane) på den nya — att lägga dit det
+  // gav felen appendChild/_removePath och tomma gränser. Rita om i stället.
+  if (parcelsLayer && parcelsLayer._builtForMap !== map) {
+    console.info("[ifound] Kartan byggdes om — ritar om fastighetslagret för den nya kartan.");
+    parcelsLayer = null;
+    // skipFocus: en väntande fastighet från Sparade objekt hanteras av
+    // autoLoadCentrum, som först flyttar kartan dit. Tas den här blir den
+    // förbrukad innan kartan hunnit flytta.
+    if (lastGeoJson) addGeoJsonToMap(lastGeoJson, { keepView: true, silent: true, skipFocus: true });
+  }
 
   if (parcelsLayer) {
     const shouldShow = z >= PARCEL_MIN_ZOOM;
@@ -611,6 +636,7 @@ function addGeoJsonToMap(geojson, opts = {}) {
   }
 
   parcelsLayer = group;
+  parcelsLayer._builtForMap = map;
   applyZoomVisibility();
 
   setTimeout(() => {
@@ -634,7 +660,7 @@ function addGeoJsonToMap(geojson, opts = {}) {
   } catch {}
 
   // Efter inpassningen, aldrig före.
-  consumePendingParcelFocus();
+  if (!opts.skipFocus) consumePendingParcelFocus();
 
   if (!opts.silent) toast("Fastighetslager inläst — klicka på en fastighet.");
 }
@@ -5247,9 +5273,11 @@ async function loadParcelsForView() {
 // inte längre helsingborg_centrum.geojson utan visar det som hämtats i
 // sessionen och hämtar det som saknas för vyn.
 function autoLoadCentrum() {
+  // Först: ligger en sparad fastighet utanför det hämtade, flytta dit och
+  // markera att hämtning väntar. Annars ger fokus upp när lagret visas nedan.
+  focusPendingParcelFromMeta();
   if (_parcelStore.size) showParcelStore();
   else { showZoomStatusIfEmpty(); addClaimedMarkers(); }
-  focusPendingParcelFromMeta();
   loadParcelsForView();
 }
 

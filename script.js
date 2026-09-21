@@ -544,10 +544,13 @@ function addGeoJsonToMap(geojson, opts = {}) {
     const polygons = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
 
     for (const poly of polygons) {
-      const latlngs = poly[0].map(p => [p[1], p[0]]);
-      if (latlngs.length < 3) continue;
+      // Ytterkant plus hål. Gatu- och parkmark ligger som ett nät runt
+      // kvarteren — utan hålen täckte den fastigheterna och tog deras klick.
+      const outer = poly[0].map(p => [p[1], p[0]]);
+      if (outer.length < 3) continue;
+      const holes = poly.slice(1).map(r => r.map(p => [p[1], p[0]])).filter(r => r.length >= 3);
 
-      const layer = L.polygon(latlngs, {
+      const layer = L.polygon(holes.length ? [outer, ...holes] : outer, {
         pane: "parcelsPane",
         color: "rgba(255,255,255,0.75)",
         weight: 1,

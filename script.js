@@ -420,12 +420,6 @@ function ensureMapMounted() {
   map.on("zoomend", applyZoomVisibility);
   applyZoomVisibility();
 
-  // Fastigheterna hämtas för den vy man tittar på, när kartan stannat.
-  map.on("moveend", scheduleParcelLoad);
-
-  // CC BY 4.0 kräver att källan syns i kartan.
-  map.attributionControl?.addAttribution("&copy; Lantmäteriet, Fastighetsindelning");
-
   baseLayers.map = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" });
   baseLayers.satellite = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Tiles &copy; Esri" });
   if (currentBase === "satellite") {
@@ -518,12 +512,6 @@ function redrawLayer() { if (lastGeoJson) addGeoJsonToMap(lastGeoJson, { keepVie
 
 function addGeoJsonToMap(geojson, opts = {}) {
   ensureMapMounted();
-  // Lagret byggs om varje gång nya fastigheter hämtats. Den gula
-  // fokusmarkeringen pekar på de gamla lagren och hade annars försvunnit
-  // vid första panorering — flytta den till de nya.
-  const focusedPids = Array.isArray(window._focusHighlight)
-    ? [...new Set(window._focusHighlight.map(l => l.feature && getParcelId(l.feature)).filter(Boolean))]
-    : [];
   if (parcelsLayer) { parcelsLayer.remove(); parcelsLayer = null; }
   lastGeoJson = geojson;
   setTimeout(prefetchBuildingTypesInView, 1000); // förklassa direkt när lagret laddats
@@ -544,13 +532,10 @@ function addGeoJsonToMap(geojson, opts = {}) {
     const polygons = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
 
     for (const poly of polygons) {
-      // Ytterkant plus hål. Gatu- och parkmark ligger som ett nät runt
-      // kvarteren — utan hålen täckte den fastigheterna och tog deras klick.
-      const outer = poly[0].map(p => [p[1], p[0]]);
-      if (outer.length < 3) continue;
-      const holes = poly.slice(1).map(r => r.map(p => [p[1], p[0]])).filter(r => r.length >= 3);
+      const latlngs = poly[0].map(p => [p[1], p[0]]);
+      if (latlngs.length < 3) continue;
 
-      const layer = L.polygon(holes.length ? [outer, ...holes] : outer, {
+      const layer = L.polygon(latlngs, {
         pane: "parcelsPane",
         color: "rgba(255,255,255,0.75)",
         weight: 1,
@@ -603,13 +588,6 @@ function addGeoJsonToMap(geojson, opts = {}) {
     }
   }
 
-  if (focusedPids.length) {
-    const again = [];
-    group.eachLayer(l => { if (l.feature && focusedPids.includes(getParcelId(l.feature))) again.push(l); });
-    window._focusHighlight = again;
-    for (const l of again) { try { l.setStyle(PARCEL_STYLE_FOCUS); } catch {} }
-  }
-
   parcelsLayer = group;
   applyZoomVisibility();
 
@@ -636,6 +614,7 @@ function addGeoJsonToMap(geojson, opts = {}) {
   // Efter inpassningen, aldrig före.
   consumePendingParcelFocus();
 
+  try { localStorage.setItem(LS_GEOJSON, JSON.stringify(geojson)); } catch {}
   if (!opts.silent) toast("Fastighetslager inläst — klicka på en fastighet.");
 }
 
@@ -671,8 +650,6 @@ function consumePendingParcelFocus() {
   });
 
   if (!hits.length) {
-    // Kartan har flyttats dit och hämtningen är på väg — vänta på den.
-    if (pending.awaitingFetch) { window._pendingParcelFocus = pending; return; }
     toast(`${pending.name || "Fastigheten"} ligger utanför det inlästa området.`);
     return;
   }
@@ -3086,11 +3063,11 @@ async function showAreaSearch(query) {
       }).addTo(areaMap);
     }
 
-    // Load parcels in area — det som hämtats hittills i sessionen
-    const cached = lastGeoJson;
-    if (cached?.features?.length) {
+    // Load parcels in area
+    const cached = localStorage.getItem('prop_geojson_helsingborg_v4');
+    if (cached) {
       try {
-        const geojson = cached;
+        const geojson = JSON.parse(cached);
         const minLat = parseFloat(bbox[0]), maxLat = parseFloat(bbox[1]);
         const minLon = parseFloat(bbox[2]), maxLon = parseFloat(bbox[3]);
 
@@ -4795,8 +4772,18 @@ function renderMapView() {
     baseLayers[currentBase].addTo(map);
   }
 
-  // Fastigheter hämtas per kartvy. Det som redan hämtats i sessionen visas direkt.
-  autoLoadCentrum();
+  // If we have cached GeoJSON use it, otherwise fetch fresh
+  const cached = localStorage.getItem(LS_GEOJSON);
+  if (cached) {
+    try {
+      const gj = JSON.parse(cached);
+      addGeoJsonToMap(gj, { keepView: true });
+      updateMapStatus(gj.features?.length || 0);
+      addClaimedMarkers();
+    } catch { autoLoadCentrum(); }
+  } else {
+    autoLoadCentrum();
+  }
 
   // Controls
   document.getElementById("toggleMapStyleBtn").onclick = () => {
@@ -5052,205 +5039,51 @@ function addClaimedMarkers() {
   applyZoomVisibility();
 }
 
-// =========================
-// FASTIGHETER PER KARTVY
-//
-// Ersätter den fasta helsingborg_centrum.geojson. Fastigheterna hämtas från
-// fastigheter_bbox för det område man tittar på, när kartan stannat och
-// zoom är minst PARCEL_MIN_ZOOM. Hämtade fastigheter läggs till de tidigare
-// — lagret ersätts aldrig, så det man nyss tittade på finns kvar.
-//
-// Cachen minns vilka OMRÅDEN som hämtats i sin helhet, inte avrundade nycklar.
-// En vy hämtas inte igen om de hämtade områdena tillsammans täcker den. Ett
-// avkortat svar (maxrows nått) räknas aldrig som täckt.
-//
-// Ingenting sparas i localStorage. Svaret tar en tiondels sekund, och
-// localStorage delas med användarens gillanden och bilder — fylls den av
-// kartdata är det de som inte går att spara.
-// =========================
-const API_BASE_URL = "https://db.ifound.se";
-// Publishable-nyckeln är byggd för att ligga i klientkod. Secret-nyckeln
-// går förbi all radnivåsäkerhet och får aldrig hamna här.
-const API_KEY = "sb_publishable_yzCbkrIjzgBYo3smNXcABe_cJh27XCn";
-const BBOX_MAX_ROWS = 3000;
-const BBOX_PAD = 0.2;               // hämta 20 % utanför vyn åt varje håll
-const BBOX_MAX_SPLIT_DEPTH = 2;     // avkortat svar delas i fyra, högst två gånger
-const BBOX_TIMEOUT_MS = 20000;
-
-const _parcelStore = new Map();     // `${fastighet_id}#${omrade}` → feature
-const _parcelIds = new Set();
-const _loadedAreas = [];            // [minlon, minlat, maxlon, maxlat]
-let _parcelLoadBusy = false, _parcelLoadAgain = false, _parcelLoadDebounce = null;
-let _parcelLoadErrorAt = 0, _parcelLoadToastShown = false;
-
-// Den gamla filen låg sparad här, 2,9 MB. Den läses inte längre.
-try { localStorage.removeItem(LS_GEOJSON); } catch {}
-
-// En fastighet kan ha flera skiften — ett objekt per område, samma fastighet_id.
-function parcelFeatureKey(f) {
-  const p = f.properties || {};
-  return `${p.fastighet_id}#${p.omrade ?? f.id ?? ""}`;
-}
-
-function areaContains(a, b) {
-  return a[0] <= b[0] && a[1] <= b[1] && a[2] >= b[2] && a[3] >= b[3];
-}
-
-// Täcks vyn av de hämtade områdena tillsammans? Vyn delas längs alla
-// områdeskanter som skär den. Varje delruta ligger då helt innanför eller
-// helt utanför varje område, så dess mittpunkt avgör.
-function isAreaCovered(v) {
-  const hits = _loadedAreas.filter(a => a[0] < v[2] && a[2] > v[0] && a[1] < v[3] && a[3] > v[1]);
-  if (!hits.length) return false;
-  if (hits.some(a => areaContains(a, v))) return true;
-  const cuts = (lo, hi, i, j) => [...new Set([lo, hi, ...hits.flatMap(a => [a[i], a[j]]).filter(x => x > lo && x < hi)])].sort((p, q) => p - q);
-  const xs = cuts(v[0], v[2], 0, 2), ys = cuts(v[1], v[3], 1, 3);
-  for (let i = 0; i < xs.length - 1; i++) {
-    for (let j = 0; j < ys.length - 1; j++) {
-      const cx = (xs[i] + xs[i + 1]) / 2, cy = (ys[j] + ys[j + 1]) / 2;
-      if (!hits.some(a => a[0] <= cx && cx <= a[2] && a[1] <= cy && cy <= a[3])) return false;
-    }
-  }
-  return true;
-}
-
-async function fetchParcelsBbox(a) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), BBOX_TIMEOUT_MS);
-  try {
-    const res = await fetch(`${API_BASE_URL}/rest/v1/rpc/fastigheter_bbox`, {
-      method: "POST",
-      headers: { "apikey": API_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ minlon: a[0], minlat: a[1], maxlon: a[2], maxlat: a[3], maxrows: BBOX_MAX_ROWS }),
-      signal: ctrl.signal,
-    });
-    if (!res.ok) throw new Error("HTTP " + res.status);
-    const gj = await res.json();
-    if (!Array.isArray(gj?.features)) throw new Error("oväntat svar");
-    return gj.features;
-  } finally { clearTimeout(timer); }
-}
-
-// Nås maxrows är svaret avkortat. Då delas området i fyra och hämtas om,
-// annars hade det blivit hål i kartan i de tätaste kvarteren.
-async function loadParcelArea(a, depth, out) {
-  const feats = await fetchParcelsBbox(a);
-  if (feats.length >= BBOX_MAX_ROWS && depth < BBOX_MAX_SPLIT_DEPTH) {
-    const mx = (a[0] + a[2]) / 2, my = (a[1] + a[3]) / 2;
-    await Promise.all([
-      [a[0], a[1], mx, my], [mx, a[1], a[2], my],
-      [a[0], my, mx, a[3]], [mx, my, a[2], a[3]],
-    ].map(q => loadParcelArea(q, depth + 1, out)));
-    return;
-  }
-  out.features.push(...feats);
-  if (feats.length < BBOX_MAX_ROWS) out.areas.push(a);
-  else out.truncated = true;
-}
-
-function mergeParcelFeatures(features) {
-  let added = 0;
-  for (const f of features) {
-    if (!f?.properties?.fastighet_id || !f.geometry) continue;
-    const k = parcelFeatureKey(f);
-    if (_parcelStore.has(k)) continue;
-    _parcelStore.set(k, f);
-    _parcelIds.add(String(f.properties.fastighet_id));
-    added++;
-  }
-  return added;
-}
-
-function showParcelStore() {
-  addGeoJsonToMap({ type: "FeatureCollection", features: [..._parcelStore.values()] },
-                  { keepView: true, silent: _parcelLoadToastShown });
-  _parcelLoadToastShown = true;
-  updateMapStatus(_parcelIds.size);
-  addClaimedMarkers();
-}
-
-function showZoomStatusIfEmpty() {
-  if (_parcelIds.size) { updateMapStatus(_parcelIds.size); return; }
-  const el = document.getElementById("mapStatus");
-  if (el) el.textContent = "Zooma in för att hämta fastigheter";
-}
-
-// Sparade objekt kan be om en fastighet som inte hämtats än. Då flyttas kartan
-// dit först; hämtningen läser in den och consumePendingParcelFocus tar vid.
-function focusPendingParcelFromMeta() {
-  const pending = window._pendingParcelFocus;
-  if (!pending || !map) return;
-  const loaded = [..._parcelStore.values()].some(f => String(f.properties.fastighet_id) === pending.pid);
-  if (loaded) return;
-  const m = loadState().parcelMeta?.[pending.pid];
-  if (m?.lat && m?.lon) {
-    pending.awaitingFetch = true;
-    map.setView([m.lat, m.lon], 17);
-  }
-}
-
-// Hämtningen är klar eller behövdes inte — nu får fokus ge besked.
-function settlePendingParcelFocus() {
-  const pending = window._pendingParcelFocus;
-  if (!pending?.awaitingFetch) return;
-  pending.awaitingFetch = false;
-  consumePendingParcelFocus();
-}
-
-function scheduleParcelLoad() {
-  clearTimeout(_parcelLoadDebounce);
-  _parcelLoadDebounce = setTimeout(loadParcelsForView, 250);
-}
-
-async function loadParcelsForView() {
-  if (!map || map.getZoom() < PARCEL_MIN_ZOOM) return;
-  if (_parcelLoadBusy) { _parcelLoadAgain = true; return; }
-
-  const b = map.getBounds();
-  if (isAreaCovered([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()])) {
-    settlePendingParcelFocus();
-    return;
-  }
-
-  const p = b.pad(BBOX_PAD);
-  const want = [p.getWest(), p.getSouth(), p.getEast(), p.getNorth()];
-  const out = { features: [], areas: [], truncated: false };
-  _parcelLoadBusy = true;
+function autoLoadCentrum() {
   const statusEl = document.getElementById("mapStatus");
   if (statusEl) statusEl.textContent = "Hämtar fastighetsdata...";
 
-  let failed = null;
-  try { await loadParcelArea(want, 0, out); }
-  catch (err) { failed = err; }
+  // Hämtas från den egna sajten, inte från raw.githubusercontent.com.
+  // GitHubs råfilstjänst är byggd för enstaka nedladdningar och strypar med
+  // HTTP 429 per IP — vid skarp trafik hade kartan slutat fungera för alla
+  // samtidigt. Filen deployas ändå med projektet, så omvägen fyllde ingen
+  // funktion. GitHub finns kvar som reserv om filen skulle saknas lokalt.
+  const LOCAL_URL = "helsingborg_centrum.geojson";
+  const FALLBACK_URL = "https://raw.githubusercontent.com/MANIfound/ifound/main/helsingborg_centrum.geojson";
 
-  // Även vid fel behålls det som hann komma fram.
-  _loadedAreas.push(...out.areas);
-  if (mergeParcelFeatures(out.features) > 0) showParcelStore();
-  else showZoomStatusIfEmpty();
-  if (out.truncated) console.warn("[ifound] Fastighetssvaret avkortat även efter delning — området hämtas om vid nästa förflyttning.");
-  if (failed) {
-    console.error("[ifound] Kunde inte hämta fastighetsdata:", failed.message);
-    if (Date.now() - _parcelLoadErrorAt > 30000) toast("Kunde inte hämta fastighetsdata — försök igen om en stund.");
-    _parcelLoadErrorAt = Date.now();
-    if (!_parcelIds.size) {
-      const el = document.getElementById("mapStatus");
-      if (el) el.textContent = "Kunde inte ladda fastighetsdata";
-    }
-  }
-  settlePendingParcelFocus();
+  const load = (url, isFallback) => fetch(url)
+    .then(r => {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    })
+    .then(geojson => {
+      if (isFallback) console.warn("[ifound] Lokal geojson saknas — hämtade från GitHub. Lägg filen i projektroten.");
+      geojson = reprojectGeoJsonIfNeeded(geojson);
+      addGeoJsonToMap(geojson, { keepView: false });
+      updateMapStatus(geojson.features?.length || 0);
+      try { localStorage.setItem(LS_GEOJSON, JSON.stringify(geojson)); } catch {}
+      addClaimedMarkers();
+    });
 
-  _parcelLoadBusy = false;
-  if (_parcelLoadAgain) { _parcelLoadAgain = false; scheduleParcelLoad(); }
-}
-
-// Namnet står kvar eftersom kartvyn och sökningen anropar det. Det laddar
-// inte längre helsingborg_centrum.geojson utan visar det som hämtats i
-// sessionen och hämtar det som saknas för vyn.
-function autoLoadCentrum() {
-  if (_parcelStore.size) showParcelStore();
-  else { showZoomStatusIfEmpty(); addClaimedMarkers(); }
-  focusPendingParcelFromMeta();
-  loadParcelsForView();
+  load(LOCAL_URL, false)
+    .catch(() => load(FALLBACK_URL, true))
+    .catch(err => {
+      console.error("[ifound] Kunde inte ladda fastighetsdata:", err.message);
+      if (statusEl) statusEl.textContent = "Kunde inte ladda fastighetsdata";
+      // Sista utvägen: tidigare hämtad data ur webbläsarens lagring
+      try {
+        const cached = localStorage.getItem(LS_GEOJSON);
+        if (cached) {
+          const gj = JSON.parse(cached);
+          addGeoJsonToMap(gj, { keepView: false });
+          updateMapStatus(gj.features?.length || 0);
+          addClaimedMarkers();
+          toast("Visar senast hämtade fastighetsdata.");
+          return;
+        }
+      } catch {}
+      toast("Kunde inte hämta fastighetsdata — försök igen om en stund.");
+    });
 }
 
 function updateMapStatus(count) {
@@ -5364,7 +5197,10 @@ function mapSelectLocation(name, lat, lon, bbox, geojson) {
       map.fitBounds(bounds, { padding: [40, 40] });
       // Reload parcels if layer missing after navigation
       if (!parcelsLayer) {
-        autoLoadCentrum();
+        const cached = localStorage.getItem(LS_GEOJSON);
+        if (cached) {
+          try { addGeoJsonToMap(JSON.parse(cached), { keepView: true, silent: true }); } catch {}
+        } else { autoLoadCentrum(); }
         setTimeout(addClaimedMarkers, 600);
       }
     }
@@ -5399,9 +5235,9 @@ function showMapAreaCard(areaName, bounds) {
   const maxLat = bounds[1][0], maxLon = bounds[1][1];
 
   try {
-    const cached = lastGeoJson;   // det som hämtats hittills i sessionen
-    if (cached?.features?.length) {
-      const gj = cached;
+    const cached = localStorage.getItem('prop_geojson_helsingborg_v4');
+    if (cached) {
+      const gj = JSON.parse(cached);
       count = (gj.features || []).filter(f => {
         const g = f.geometry;
         const coords = g?.type === 'Polygon' ? g.coordinates[0] : g?.type === 'MultiPolygon' ? g.coordinates[0][0] : null;

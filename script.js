@@ -552,7 +552,11 @@ function redrawLayer() { if (lastGeoJson) addGeoJsonToMap(lastGeoJson, { keepVie
 //   20+ hål          → gatunät (HÖÖR 52:1 66, GAMLA STADEN 1:1 30).
 //                      Gårdar med avstyckade hustomter har 3–15.
 //   kompakthet <0,02 → väg, dike eller smalt gatunät. Ingen åker är så smal.
-//   0,02–0,05        → blandat (smala skiften, järnväg) — lämnas klickbart,
+//   1+ hål och <0,05 → litet gatunät i by eller industriområde (MÖRARP 5:11:
+//                      1 hål, 0,041). Stickprov 2026-09-22: 8 av 8 var gator,
+//                      ibland med grönyta eller odlingsmark — ingen gård.
+//                      Gårdar med hål låg på 0,12 och uppåt.
+//   0,02–0,05 utan hål → blandat (smala skiften, järnväg) — lämnas klickbart,
 //                      hellre en klickbar väg än en gömd gård.
 // Kompakthet = 4π·yta/omkrets², 1 för en cirkel, nära 0 för ett nät.
 // Bedöms per område, inte per fastighet: ÖDÅKRA 4:4 har ett gatunät och en
@@ -560,6 +564,7 @@ function redrawLayer() { if (lastGeoJson) addGeoJsonToMap(lastGeoJson, { keepVie
 // =========================
 const PASS_THROUGH_MIN_HOLES = 20;
 const PASS_THROUGH_MAX_COMPACTNESS = 0.02;
+const PASS_THROUGH_WITH_HOLES_MAX_COMPACTNESS = 0.05;
 
 function isPassThroughArea(geom) {
   const polys = geom?.type === "Polygon" ? [geom.coordinates]
@@ -584,7 +589,10 @@ function isPassThroughArea(geom) {
     });
   }
   if (holes >= PASS_THROUGH_MIN_HOLES) return true;
-  return perim > 0 && (4 * Math.PI * area) / (perim * perim) < PASS_THROUGH_MAX_COMPACTNESS;
+  if (!(perim > 0)) return false;
+  const k = (4 * Math.PI * area) / (perim * perim);
+  if (k < PASS_THROUGH_MAX_COMPACTNESS) return true;
+  return holes >= 1 && k < PASS_THROUGH_WITH_HOLES_MAX_COMPACTNESS;
 }
 
 function addGeoJsonToMap(geojson, opts = {}) {

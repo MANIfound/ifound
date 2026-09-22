@@ -203,6 +203,7 @@ function getParcelId(feature) {
   if (p.fastighet_id) {
     const pid = String(p.fastighet_id);
     rememberParcelLabel(pid, p.beteckning || p.fastighetsbeteckning);
+    if (p.typ) PARCEL_TYPES[pid] = String(p.typ);
     return pid;
   }
   const keys = ["fastighetsbeteckning","FASTIGHET","fastighet","beteckning","objektid","OBJECTID","id","ID","uuid","UUID"];
@@ -223,6 +224,12 @@ function getParcelId(feature) {
 // =========================
 const PARCEL_LABELS = Object.create(null);
 let _labelsHydrated = false;
+
+// Fastighetstyp från API:et, härledd ur Lantmäteriets byggnadsdata. Ersätter
+// types.json, som bara täcker Helsingborgs centrum och dessutom är nycklad på
+// beteckning — och beteckningar är INTE unika i Skåne ("STAREN 7" finns i
+// sjutton kommuner). Registret nycklas på fastighet_id.
+const PARCEL_TYPES = Object.create(null);
 
 function rememberParcelLabel(pid, label) {
   if (!pid || !label) return;
@@ -1955,6 +1962,8 @@ function getKnownType(pid) {
   // pid, inte beteckning — rättelsen följer alltså fastigheten även om
   // beteckningen ändras.
   if (st.typeCorrections?.[pid]) return st.typeCorrections[pid];
+  // Lantmäteriets byggnadsdata före både gammal klassning och types.json.
+  if (PARCEL_TYPES[pid]) return PARCEL_TYPES[pid];
   if (st.buildingTypes?.[pid]) return st.buildingTypes[pid];
   return STATIC_TYPES.norm?.[n] || STATIC_TYPES.types?.[label] || STATIC_TYPES.types?.[pid] || null;
 }
@@ -1966,6 +1975,7 @@ function getTypeSource(pid) {
   const n = normParcel(parcelLabel(pid, st));
   if (Object.keys(KNOWN_TYPE_OVERRIDES).some(k => normParcel(k) === n)) return TYPE_SOURCE.MANUAL;
   if (st.typeCorrections?.[pid]) return TYPE_SOURCE.MANUAL;
+  if (PARCEL_TYPES[pid]) return TYPE_SOURCE.STRONG;   // Lantmäteriets byggnadsdata
   return st.typeSources?.[pid] || STATIC_TYPES.normSrc?.[n] || null;
 }
 
@@ -2078,6 +2088,12 @@ const PROPERTY_TYPES = {
   SAMHALLE: "Samhällsfastighet",
   KOMMERS:  "Kommersiell",
   OBEBYGGD: "Obebyggd tomt",
+  // Nya sedan typerna kommer ur Lantmäteriets byggnadsdata. Namnen måste vara
+  // exakt desamma som i lm.fastighet_typ, annars känns de inte igen.
+  GARD:     "Gård / Lantbruk",
+  MARK:     "Obebyggd mark",
+  AKER:     "Åker- eller skogsmark",
+  GARAGE:   "Garage eller förråd",
 };
 
 // Hur säker klassningen är — styr om vi visar den rakt av eller med förbehåll.

@@ -541,6 +541,52 @@ function updateZoomHint(z) {
 
 function redrawLayer() { if (lastGeoJson) addGeoJsonToMap(lastGeoJson, { keepView: true, silent: true }); }
 
+// =========================
+// GATU-, PARK- OCH VÄGMARK — ritas men går inte att klicka på
+//
+// Kommunens gatunät ligger som en fastighet runt kvarteren, och vägar och
+// diken är ofta samfälligheter (S:n). Ingen av dem är något man visar
+// intresse för, och de lyste upp så fort musen hamnade mellan två tomter.
+//
+// Gränserna är uppmätta mot hela Skåne 2026-09-22:
+//   20+ hål          → gatunät (HÖÖR 52:1 66, GAMLA STADEN 1:1 30).
+//                      Gårdar med avstyckade hustomter har 3–15.
+//   kompakthet <0,02 → väg, dike eller smalt gatunät. Ingen åker är så smal.
+//   0,02–0,05        → blandat (smala skiften, järnväg) — lämnas klickbart,
+//                      hellre en klickbar väg än en gömd gård.
+// Kompakthet = 4π·yta/omkrets², 1 för en cirkel, nära 0 för ett nät.
+// Bedöms per område, inte per fastighet: ÖDÅKRA 4:4 har ett gatunät och en
+// vanlig bit, och den vanliga biten ska gå att klicka på.
+// =========================
+const PASS_THROUGH_MIN_HOLES = 20;
+const PASS_THROUGH_MAX_COMPACTNESS = 0.02;
+
+function isPassThroughArea(geom) {
+  const polys = geom?.type === "Polygon" ? [geom.coordinates]
+              : geom?.type === "MultiPolygon" ? geom.coordinates : [];
+  const first = polys[0]?.[0]?.[0];
+  if (!first) return false;
+  // Plan approximation i meter kring områdets första punkt. Räcker gott för
+  // ett förhållandetal; felet är långt under skillnaden mellan klasserna.
+  const kx = 111320 * Math.cos(first[1] * Math.PI / 180), ky = 110540;
+  let holes = 0, area = 0, perim = 0;
+  for (const poly of polys) {
+    holes += Math.max(0, poly.length - 1);
+    poly.forEach((ring, idx) => {
+      let a = 0;
+      for (let i = 0; i < ring.length - 1; i++) {
+        const x1 = (ring[i][0] - first[0]) * kx,     y1 = (ring[i][1] - first[1]) * ky;
+        const x2 = (ring[i + 1][0] - first[0]) * kx, y2 = (ring[i + 1][1] - first[1]) * ky;
+        a += x1 * y2 - x2 * y1;
+        perim += Math.hypot(x2 - x1, y2 - y1);
+      }
+      area += (idx === 0 ? 1 : -1) * Math.abs(a) / 2;
+    });
+  }
+  if (holes >= PASS_THROUGH_MIN_HOLES) return true;
+  return perim > 0 && (4 * Math.PI * area) / (perim * perim) < PASS_THROUGH_MAX_COMPACTNESS;
+}
+
 function addGeoJsonToMap(geojson, opts = {}) {
   ensureMapMounted();
   // Lagret byggs om varje gång nya fastigheter hämtats. Den gula
@@ -567,6 +613,7 @@ function addGeoJsonToMap(geojson, opts = {}) {
     if (!geom || !['Polygon','MultiPolygon'].includes(geom.type)) continue;
 
     const polygons = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
+    const passThrough = isPassThroughArea(geom);
 
     for (const poly of polygons) {
       // Ytterkant plus hål. Gatu- och parkmark ligger som ett nät runt
@@ -583,7 +630,7 @@ function addGeoJsonToMap(geojson, opts = {}) {
         fillColor: "#ffffff",
         fillOpacity: 0.001,
         smoothFactor: 0,
-        interactive: true,
+        interactive: !passThrough,
       });
 
       // Utan den här raden går det inte att hitta tillbaka till en fastighet
@@ -591,6 +638,9 @@ function addGeoJsonToMap(geojson, opts = {}) {
       // som sökte via layer.feature — zoomToParcel och fokus från Sparade
       // objekt — letade efter en egenskap som var undefined på varje lager.
       layer.feature = feature;
+
+      // Gatu- och vägmark: bara linjen. Inga klick, ingen hovring.
+      if (passThrough) { group.addLayer(layer); continue; }
 
       layer.on('add', function() {
         const el = this.getElement();
@@ -642,7 +692,7 @@ function addGeoJsonToMap(geojson, opts = {}) {
   setTimeout(() => {
     const pane = map.getPane("parcelsPane");
     if (pane) {
-      pane.querySelectorAll("path").forEach(path => {
+      pane.querySelectorAll("path.leaflet-interactive").forEach(path => {
         path.style.pointerEvents = "all";
       });
     }

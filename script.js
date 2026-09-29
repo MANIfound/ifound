@@ -442,11 +442,14 @@ function ensureMapMounted() {
     const lp = map.getPane("labelsPane");
     lp.style.zIndex = 460;                 // över fastighetsgränserna (450)
     lp.style.pointerEvents = "none";
-    lp.style.filter = "brightness(2.2)";   // CARTO:s grå text blir vit, den mörka kanten består
   }
   baseLayers.satellite = L.layerGroup([
     L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Tiles &copy; Esri" }),
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/dark_only_labels/{z}/{x}/{y}{r}.png", { pane: "labelsPane", subdomains: "abcd", maxZoom: 20, attribution: "&copy; OpenStreetMap &copy; CARTO" }),
+    // CARTO stängde sin öppna nivå 29 september och lade en vattenstämpel
+    // "API KEY REQUIRED" över kartan. Esris namnlager kräver ingen nyckel.
+    // Det har ortnamn men inga gatunamn — de kommer när Lantmäteriets
+    // ortnamn och belägenhetsadresser serveras från egen server.
+    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", { pane: "labelsPane", maxZoom: 19, attribution: "Etiketter &copy; Esri" }),
   ]);
   if (currentBase === "satellite") {
     baseLayers.satellite.addTo(map);

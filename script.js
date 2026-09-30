@@ -483,7 +483,10 @@ function ensureMapMounted() {
     lp.style.pointerEvents = "none";
   }
   baseLayers.satellite = L.layerGroup([
-    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Tiles &copy; Esri" }),
+    // maxNativeZoom: Esri saknar bilder på nivå 19 utanför tätort, och Leaflet
+    // visar då sin gråa platshållare "Map data not yet available". Med detta
+    // hämtas nivå 18 och skalas upp i stället — något mjukare, aldrig grått.
+    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, maxNativeZoom: 18, attribution: "Tiles &copy; Esri" }),
     // CARTO stängde sin öppna nivå 29 september och lade en vattenstämpel
     // "API KEY REQUIRED" över kartan. Esris namnlager kräver ingen nyckel.
     // Det har ortnamn men inga gatunamn — de kommer när Lantmäteriets

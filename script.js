@@ -429,6 +429,7 @@ function ensureMapMounted() {
 
   // Fastigheterna hämtas för den vy man tittar på, när kartan stannat.
   map.on("moveend", scheduleParcelLoad);
+  map.on("moveend", scheduleLabelLoad);
 
   // CC BY 4.0 kräver att källan syns i kartan.
   map.attributionControl?.addAttribution("&copy; Lantmäteriet, Fastighetsindelning");
@@ -5346,6 +5347,88 @@ async function loadParcelsForView() {
   if (_parcelLoadAgain) { _parcelLoadAgain = false; scheduleParcelLoad(); }
 }
 
+// =========================
+// GATUNAMN PÅ KARTAN
+//
+// Ritas av oss själva ur Lantmäteriets adressdata i stället för att komma
+// som färdiga bilder från en kartleverantör. Därmed styr vi typsnitt,
+// täthet och zoomnivå — och slipper både API-nycklar och vattenstämplar.
+//
+// Namnen ligger i labelsPane, som släpper igenom klick, så de aldrig
+// kommer i vägen för en fastighet.
+// =========================
+const LABEL_MIN_ZOOM = 16;
+const LABEL_MAX_PER_ZOOM = { 16: 22, 17: 34, 18: 48, 19: 60, 20: 60 };
+
+let labelLayer = null;
+let _labelDebounce = null, _labelBusy = false;
+
+function scheduleLabelLoad() {
+  clearTimeout(_labelDebounce);
+  _labelDebounce = setTimeout(loadLabelsForView, 300);
+}
+
+function clearLabels() {
+  if (labelLayer) { try { labelLayer.remove(); } catch {} labelLayer = null; }
+}
+
+async function loadLabelsForView() {
+  if (!map) return;
+  const z = map.getZoom();
+  if (z < LABEL_MIN_ZOOM) { clearLabels(); return; }
+  if (_labelBusy) return;
+  _labelBusy = true;
+  try {
+    const b = map.getBounds();
+    const res = await fetch(`${API_BASE_URL}/rest/v1/rpc/etiketter_bbox`, {
+      method: "POST",
+      headers: { "apikey": API_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        minlon: b.getWest(), minlat: b.getSouth(), maxlon: b.getEast(), maxlat: b.getNorth(),
+        maxrows: LABEL_MAX_PER_ZOOM[z] || 60,
+      }),
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const rows = await res.json();
+    if (Array.isArray(rows)) drawLabels(rows);
+  } catch (err) {
+    console.warn("[ifound] Kunde inte hämta gatunamn:", err.message);
+  } finally {
+    _labelBusy = false;
+  }
+}
+
+// Namn som skulle hamna ovanpå varandra hoppas över. Servern skickar de
+// gator som har flest adresser först, så det som faller bort är småvägar.
+function drawLabels(rows) {
+  if (!map) return;
+  clearLabels();
+  if (!map.getPane("labelsPane")) return;
+  labelLayer = L.layerGroup();
+  const placerade = [];
+  for (const r of rows) {
+    if (!r?.namn || r.lat == null || r.lon == null) continue;
+    const p = map.latLngToContainerPoint([r.lat, r.lon]);
+    const bredd = r.namn.length * 6.2, hojd = 15;
+    const ruta = { x1: p.x - bredd / 2, x2: p.x + bredd / 2, y1: p.y - hojd / 2, y2: p.y + hojd / 2 };
+    if (placerade.some(q => ruta.x1 < q.x2 && ruta.x2 > q.x1 && ruta.y1 < q.y2 && ruta.y2 > q.y1)) continue;
+    placerade.push(ruta);
+    labelLayer.addLayer(L.marker([r.lat, r.lon], {
+      pane: "labelsPane",
+      interactive: false,
+      keyboard: false,
+      icon: L.divIcon({
+        className: "",
+        iconSize: null,
+        html: `<span style="font-family:var(--font-body);font-size:11px;font-weight:500;color:#fff;`
+            + `text-shadow:0 1px 2px rgba(0,0,0,.95),0 0 4px rgba(0,0,0,.7);white-space:nowrap;`
+            + `transform:translate(-50%,-50%);display:inline-block;">${r.namn}</span>`,
+      }),
+    }));
+  }
+  labelLayer.addTo(map);
+}
+
 // Namnet står kvar eftersom kartvyn och sökningen anropar det. Det laddar
 // inte längre helsingborg_centrum.geojson utan visar det som hämtats i
 // sessionen och hämtar det som saknas för vyn.
@@ -5353,6 +5436,7 @@ function autoLoadCentrum() {
   // Först: ligger en sparad fastighet utanför det hämtade, flytta dit och
   // markera att hämtning väntar. Annars ger fokus upp när lagret visas nedan.
   focusPendingParcelFromMeta();
+  scheduleLabelLoad();
   if (_parcelStore.size) showParcelStore();
   else { showZoomStatusIfEmpty(); addClaimedMarkers(); }
   loadParcelsForView();

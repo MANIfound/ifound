@@ -5359,6 +5359,8 @@ async function loadParcelsForView() {
 // =========================
 const LABEL_MIN_ZOOM = 16;
 const LABEL_MAX_PER_ZOOM = { 16: 22, 17: 34, 18: 48, 19: 60, 20: 60 };
+const NUMMER_MIN_ZOOM = 18;                       // husnummer först riktigt nära
+const NUMMER_MAX_PER_ZOOM = { 18: 90, 19: 160, 20: 220 };
 
 let labelLayer = null;
 let _labelDebounce = null, _labelBusy = false;
@@ -5386,6 +5388,8 @@ async function loadLabelsForView() {
       body: JSON.stringify({
         minlon: b.getWest(), minlat: b.getSouth(), maxlon: b.getEast(), maxlat: b.getNorth(),
         maxrows: LABEL_MAX_PER_ZOOM[z] || 60,
+        med_nummer: z >= NUMMER_MIN_ZOOM,
+        maxnummer: NUMMER_MAX_PER_ZOOM[z] || 220,
       }),
     });
     if (!res.ok) throw new Error("HTTP " + res.status);
@@ -5398,21 +5402,40 @@ async function loadLabelsForView() {
   }
 }
 
-// Namn som skulle hamna ovanpå varandra hoppas över. Servern skickar de
-// gator som har flest adresser först, så det som faller bort är småvägar.
+// Texten ska läsas vänster till höger. Servern räknar gatans riktning, men
+// en gata som pekar åt sydväst ger en vinkel som vänder texten upp och ned.
+function labelVinkel(v) {
+  let a = Number(v) || 0;
+  while (a > 90) a -= 180;
+  while (a < -90) a += 180;
+  return a;
+}
+
+// Namn som skulle hamna ovanpå varandra hoppas över. Gatunamnen kommer först
+// i svaret och får därför platsen före husnumren, och servern sorterar
+// gatorna efter antal adresser så att det som faller bort är småvägar.
 function drawLabels(rows) {
   if (!map) return;
   clearLabels();
   if (!map.getPane("labelsPane")) return;
   labelLayer = L.layerGroup();
   const placerade = [];
+
   for (const r of rows) {
     if (!r?.namn || r.lat == null || r.lon == null) continue;
+    const arNummer = r.typ === "nummer";
     const p = map.latLngToContainerPoint([r.lat, r.lon]);
-    const bredd = r.namn.length * 6.2, hojd = 15;
+    const bredd = arNummer ? r.namn.length * 5.6 + 4 : r.namn.length * 6.2;
+    const hojd = arNummer ? 12 : 15;
     const ruta = { x1: p.x - bredd / 2, x2: p.x + bredd / 2, y1: p.y - hojd / 2, y2: p.y + hojd / 2 };
     if (placerade.some(q => ruta.x1 < q.x2 && ruta.x2 > q.x1 && ruta.y1 < q.y2 && ruta.y2 > q.y1)) continue;
     placerade.push(ruta);
+
+    const stil = arNummer
+      ? "font-size:10px;font-weight:400;color:rgba(255,255,255,.85);"
+      : "font-size:11px;font-weight:500;color:#fff;letter-spacing:.01em;";
+    const vridning = arNummer ? "" : ` rotate(${labelVinkel(r.vinkel)}deg)`;
+
     labelLayer.addLayer(L.marker([r.lat, r.lon], {
       pane: "labelsPane",
       interactive: false,
@@ -5420,9 +5443,9 @@ function drawLabels(rows) {
       icon: L.divIcon({
         className: "",
         iconSize: null,
-        html: `<span style="font-family:var(--font-body);font-size:11px;font-weight:500;color:#fff;`
+        html: `<span style="font-family:var(--font-body);${stil}`
             + `text-shadow:0 1px 2px rgba(0,0,0,.95),0 0 4px rgba(0,0,0,.7);white-space:nowrap;`
-            + `transform:translate(-50%,-50%);display:inline-block;">${r.namn}</span>`,
+            + `transform:translate(-50%,-50%)${vridning};display:inline-block;">${r.namn}</span>`,
       }),
     }));
   }

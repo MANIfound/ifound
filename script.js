@@ -311,10 +311,48 @@ function rememberParcelMeta(parcelId, meta) {
 // hämta den en gång per fastighet.
 let _addrQueue = [], _addrBusy = false;
 
-function queueAddressLookup(parcelId, lat, lon, onDone) {
-  if (!parcelId || lat == null || lon == null) return;
+// Lantmäteriets adress för en fastighet. Egen data slår Nominatim: rätt
+// officiell adress i stället för närmaste väg, och inget anrop till en
+// tjänst med en förfrågan per sekund som tak.
+async function hamtaAdressFranServern(pid) {
+  const res = await fetch(`${API_BASE_URL}/rest/v1/rpc/adress_for_fastighet`, {
+    method: "POST",
+    headers: { "apikey": API_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ fid: String(pid) }),
+  });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const rad = await res.json();
+  if (!rad?.adress) return null;
+  // Flera portar på samma fastighet: visa den första och antyd resten.
+  return rad.antal > 1 ? `${rad.adress} m.fl.` : rad.adress;
+}
+
+function sparaAdress(parcelId, adress, onDone) {
+  const st = loadState();
+  st.parcelAddresses = st.parcelAddresses || {};
+  st.parcelAddresses[parcelId] = adress;
+  saveState(st);
+  onDone?.(parcelId, adress);
+}
+
+async function queueAddressLookup(parcelId, lat, lon, onDone) {
+  if (!parcelId) return;
   const state = loadState();
   if (state.parcelAddresses?.[parcelId] !== undefined) return;  // redan hämtad, även om den blev null
+
+  // Fastigheter från API:et har ett UUID som id. För dem är vår egen data
+  // facit — saknas adress där är fastigheten obebyggd, och då ska Nominatim
+  // inte få gissa fram närmaste gata.
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(parcelId))) {
+    try {
+      sparaAdress(parcelId, await hamtaAdressFranServern(parcelId), onDone);
+      return;
+    } catch (err) {
+      console.info("[ifound] Adress från egen server misslyckades:", err.message);
+    }
+  }
+
+  if (lat == null || lon == null) return;
   if (_addrQueue.some(q => q.parcelId === parcelId)) return;
   _addrQueue.push({ parcelId, lat, lon, onDone });
   drainAddressQueue();
@@ -2667,6 +2705,17 @@ function _renderParcelPanelInner(feature) {
     lon: _c ? _c[0] : null,
   });
 
+  // Adressen hämtas en gång per fastighet och sparas. Är den inte hämtad än
+  // ritas panelen utan raden, och görs om när svaret kommit.
+  const panelAdress = (state.parcelAddresses || {})[pid] || null;
+  if (state.parcelAddresses?.[pid] === undefined) {
+    queueAddressLookup(pid, _c ? _c[1] : null, _c ? _c[0] : null, (id) => {
+      if (window._currentPanelPid === id && window._currentPanelFeature) {
+        renderParcelPanel(window._currentPanelFeature);
+      }
+    });
+  }
+
   const detectedType = getKnownType(pid);
   // Typraden ska ALDRIG vara tom. Vet vi inte säger vi det, och ber om hjälp.
   const rawTyp = detectedType || (meta.typ && meta.typ !== "-" ? meta.typ : null);
@@ -2686,6 +2735,7 @@ function _renderParcelPanelInner(feature) {
 
   const metaRows = `
     <div class="panel-meta-row"><span>Beteckning</span><strong>${formatValue(meta.beteckning)}</strong></div>
+    ${panelAdress ? `<div class="panel-meta-row"><span>Adress</span><strong style="font-family:var(--font-body);font-weight:500;letter-spacing:0;">${panelAdress}</strong></div>` : ''}
     <div class="panel-meta-row"><span>Typ</span>${typCell}</div>
     <div class="panel-meta-row"><span>Area</span><strong>${formatValue(meta.area)}</strong></div>
 

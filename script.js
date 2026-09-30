@@ -4967,7 +4967,7 @@ function renderMapView() {
   searchInput.addEventListener("keydown", e => {
     if (e.key === "Escape") { dropdown.style.display = "none"; }
     if (e.key === "Enter") {
-      const first = dropdown.querySelector("div[data-lat]");
+      const first = dropdown.querySelector("div[data-idx]");
       if (first) first.click();
     }
   });
@@ -5410,7 +5410,76 @@ async function feedSearch(query, dropdown, input) {
   }
 }
 
+// =========================
+// SÖK — egen server först, Nominatim som reserv
+//
+// sok() på servern letar i fastighetsbeteckningar, adresser, gatunamn och
+// orter i hela Skåne. Nominatim kan ingen av delarna: den känner varken till
+// fastighetsbeteckningar eller små byar. Den behålls för resten av landet,
+// där vi inte har data.
+// =========================
+const SOK_ETIKETT = { fastighet: "Fastighet", adress: "Adress", gata: "Gata", ort: "Ort" };
+
+async function sokIfound(q) {
+  const res = await fetch(`${API_BASE_URL}/rest/v1/rpc/sok`, {
+    method: "POST",
+    headers: { "apikey": API_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ q, maxrows: 8 }),
+  });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  const rows = await res.json();
+  return Array.isArray(rows) ? rows : [];
+}
+
+function valjSokTraff(h) {
+  const dropdown = document.getElementById("searchDropdown");
+  if (dropdown) dropdown.style.display = "none";
+  const input = document.getElementById("addressSearch");
+  if (input) input.value = h.namn;
+  if (!map) return;
+
+  // Fastigheten kanske inte är hämtad än. Samma väg som Sparade objekt:
+  // markera att fokus väntar, flytta kartan, låt hämtningen öppna panelen.
+  if (h.fastighet_id) {
+    window._pendingParcelFocus = { pid: String(h.fastighet_id), name: h.namn, awaitingFetch: true };
+  }
+  if (window._areaHighlight) { try { window._areaHighlight.remove(); } catch {} window._areaHighlight = null; }
+  const zoom = h.typ === "ort" ? 14 : h.typ === "gata" ? 16 : 18;
+  map.setView([h.lat, h.lon], zoom);
+}
+
 async function mapSearch(query, dropdown, input) {
+  dropdown.style.display = "block";
+  dropdown.innerHTML = '<div style="padding:12px 16px;font-size:12px;color:var(--ink-muted);">Söker...</div>';
+
+  let hits = [];
+  try { hits = await sokIfound(query); }
+  catch (err) { console.warn("[ifound] Sökningen mot egen server misslyckades:", err.message); }
+
+  // Utanför Skåne finns ingen egen data — då får Nominatim ta över.
+  if (!hits.length) return mapSearchNominatim(query, dropdown, input);
+
+  window._sokTraffar = hits;
+  dropdown.innerHTML = hits.map((h, idx) => `
+    <div data-idx="${idx}"
+      style="padding:10px 16px;font-size:13px;color:var(--ink);cursor:pointer;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;align-items:center;gap:10px;"
+      onmouseover="this.style.background='#F9F6F1'" onmouseout="this.style.background=''">
+      <i class="ti ${h.typ === "fastighet" ? "ti-home" : "ti-map-pin"}" style="font-size:14px;color:var(--accent);flex-shrink:0;" aria-hidden="true"></i>
+      <span style="min-width:0;">
+        <span style="display:block;${h.typ === "fastighet" ? "font-family:var(--font-data);letter-spacing:.04em;" : ""}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${h.namn}</span>
+        <span style="display:block;font-size:11px;color:var(--ink-muted);">${SOK_ETIKETT[h.typ] || ""}${h.plats ? " · " + h.plats : ""}</span>
+      </span>
+    </div>`).join("");
+
+  dropdown.querySelectorAll("[data-idx]").forEach(el => {
+    el.addEventListener("click", () => {
+      const h = window._sokTraffar[parseInt(el.dataset.idx)];
+      if (h) valjSokTraff(h);
+    });
+  });
+}
+
+async function mapSearchNominatim(query, dropdown, input) {
   dropdown.style.display = "block";
   dropdown.innerHTML = '<div style="padding:12px 16px;font-size:12px;color:var(--ink-muted);">Söker...</div>';
 

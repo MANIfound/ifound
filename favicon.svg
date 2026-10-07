@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="ifound">
+  <rect width="64" height="64" rx="14" fill="#1F2A16"/>
+  <g transform="translate(10.26 5.28) scale(0.68)">
+    <path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/>
+    <polygon points="16,32 32,18 48,32" fill="#ffffff"/>
+    <rect x="20" y="32" width="24" height="17" rx="1.5" fill="#ffffff"/>
+    <rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/>
+  </g>
+</svg>

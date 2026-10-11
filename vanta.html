@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8" />
+<title>ifound</title>
+<meta name="robots" content="noindex, nofollow" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="description" content="ifound är en karta över husen omkring dig, där du kan visa intresse för hus som inte är till salu. Sidan öppnar när kartan är klar." />
+<meta name="theme-color" content="#1F2A16" />
+<link rel="icon" href="favicon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Familjen+Grotesk:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --green-900:#1F2A16;
+    --green-800:#26331B;
+    --green-600:#526D33;
+    --honey:#D99A3E;
+    --paper:#EDF0E7;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--green-900);
+    color:var(--paper);
+    font-family:"Inter",system-ui,-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100svh;
+    display:flex;
+    flex-direction:column;
+  }
+  .wrap{
+    width:100%;
+    max-width:1080px;
+    margin:0 auto;
+    padding:28px 16px 56px;
+    flex:1;
+    display:flex;
+    flex-direction:column;
+  }
+
+  /* --- logotyp --- */
+  .mark{display:flex;align-items:center;gap:9px}
+  .mark svg{display:block}
+  .mark span{
+    font-family:"Familjen Grotesk",system-ui,sans-serif;
+    font-size:20px;font-weight:400;letter-spacing:-.005em;
+  }
+  .mark em{font-style:normal;font-weight:600}
+
+  /* --- komposition --- */
+  main{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    gap:34px;
+    margin-top:38px;
+  }
+  main,.copy,.art,.wrap{min-width:0}
+  .art{width:100%;max-width:min(300px,80%);align-self:center}
+  .art svg{display:block;width:100%;max-width:100%;height:auto}
+
+  h1{
+    font-family:"Familjen Grotesk",system-ui,sans-serif;
+    font-weight:600;
+    font-size:clamp(2.3rem,8.5vw,3.9rem);
+    line-height:1.03;
+    letter-spacing:-.012em;
+    margin:0 0 20px;
+    max-width:none;
+  }
+  .lede{
+    margin:0 0 18px;
+    font-size:17px;
+    line-height:1.62;
+    color:rgba(237,240,231,.74);
+    max-width:44ch;
+  }
+  .status{
+    margin:0;
+    font-size:15.5px;
+    font-weight:500;
+    line-height:1.55;
+    color:var(--honey);
+    max-width:48ch;
+  }
+
+  /* --- ritningen --- */
+  .parcel{fill:rgba(237,240,231,.035);stroke:var(--green-600);stroke-width:1.1;vector-effect:non-scaling-stroke}
+  .found-fill{fill:var(--honey);opacity:.17}
+  .found-line{fill:none;stroke:var(--honey);stroke-width:2.1;stroke-linejoin:round}
+  .archface{fill:#232F19}
+
+  @media (prefers-reduced-motion:no-preference){
+    .found-line{stroke-dasharray:330;stroke-dashoffset:330;animation:draw 1.4s cubic-bezier(.3,.7,.3,1) .45s forwards}
+    .found-fill{opacity:0;animation:glow .9s ease-out 1.5s forwards}
+    @keyframes draw{to{stroke-dashoffset:0}}
+    @keyframes glow{to{opacity:.17}}
+  }
+
+  @media (min-width:800px){
+    .wrap{padding:40px 40px 72px}
+    main{
+      display:grid;
+      grid-template-columns:1.08fr .78fr;
+      align-items:start;
+      gap:64px;
+      margin-top:min(13vh,120px);
+    }
+    .copy{order:1;padding-top:14px}
+    .art{order:2;max-width:360px;align-self:start;justify-self:end;margin-top:-72px}
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="mark" href="#" aria-label="ifound" style="text-decoration:none;color:inherit;pointer-events:none">
+      <svg width="17" height="21" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="#fff"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="#fff"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
+      <span>i<em>found</em></span>
+    </a>
+
+    <main>
+      <div class="art" aria-hidden="true">
+        <svg viewBox="0 0 400 560" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <clipPath id="arch">
+              <path d="M0,560 L0,200 A200,200 0 0 1 400,200 L400,560 Z"/>
+            </clipPath>
+            <linearGradient id="fade" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#fff" stop-opacity="1"/>
+              <stop offset=".34" stop-color="#fff" stop-opacity="1"/>
+              <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+            </linearGradient>
+            <mask id="softbottom"><rect width="400" height="560" fill="url(#fade)"/></mask>
+          </defs>
+          <g clip-path="url(#arch)">
+            <g mask="url(#softbottom)">
+              <path class="archface" d="M0,560 L0,200 A200,200 0 0 1 400,200 L400,560 Z"/>
+              <path class="parcel" d="M-29.4,38.0 L36.4,37.4 L39.7,125.4 L-29.9,125.0 Z"/>
+              <path class="parcel" d="M-29.9,125.0 L39.7,125.4 L34.7,213.1 L-28.1,207.4 Z"/>
+              <path class="parcel" d="M36.4,37.4 L113.3,41.0 L111.1,121.9 L39.7,125.4 Z"/>
+              <path class="parcel" d="M39.7,125.4 L111.1,121.9 L107.2,210.2 L34.7,213.1 Z"/>
+              <path class="parcel" d="M113.3,41.0 L197.2,38.0 L198.3,121.1 L111.1,121.9 Z"/>
+              <path class="parcel" d="M111.1,121.9 L198.3,121.1 L199.8,209.6 L107.2,210.2 Z"/>
+              <path class="parcel" d="M221.7,18.6 L335.7,17.2 L338.8,83.8 L225.2,87.6 Z"/>
+              <path class="parcel" d="M225.2,87.6 L338.8,83.8 L339.3,144.2 L224.2,146.2 Z"/>
+              <path class="parcel" d="M224.2,146.2 L339.3,144.2 L340.0,212.2 L220.8,208.3 Z"/>
+              <path class="parcel" d="M335.7,17.2 L428.8,18.1 L434.6,84.3 L338.8,83.8 Z"/>
+              <path class="parcel" d="M338.8,83.8 L434.6,84.3 L435.1,144.2 L339.3,144.2 Z"/>
+              <path class="parcel" d="M339.3,144.2 L435.1,144.2 L429.3,210.8 L340.0,212.2 Z"/>
+              <path class="parcel" d="M-37.0,239.7 L72.8,235.9 L71.2,312.2 L-42.4,311.0 Z"/>
+              <path class="parcel" d="M-42.4,311.0 L71.2,312.2 L68.9,399.5 L-42.6,395.2 Z"/>
+              <path class="parcel" d="M72.8,235.9 L147.6,238.9 L147.5,312.1 L71.2,312.2 Z"/>
+              <path class="parcel" d="M71.2,312.2 L147.5,312.1 L148.2,396.5 L68.9,399.5 Z"/>
+              <path class="parcel" d="M174.3,308.3 L252.1,306.3 L249.0,395.3 L169.4,401.1 Z"/>
+              <path class="parcel" d="M248.5,236.5 L319.4,238.5 L320.4,308.1 L252.1,306.3 Z"/>
+              <path class="parcel" d="M252.1,306.3 L320.4,308.1 L321.2,397.7 L249.0,395.3 Z"/>
+              <path class="parcel" d="M346.3,236.0 L482.0,239.5 L486.8,314.4 L341.8,318.9 Z"/>
+              <path class="parcel" d="M341.8,318.9 L486.8,314.4 L486.9,400.4 L346.0,396.4 Z"/>
+              <path class="parcel" d="M-21.7,427.3 L71.1,427.4 L70.5,494.5 L-21.6,498.3 Z"/>
+              <path class="parcel" d="M-21.6,498.3 L70.5,494.5 L73.6,608.3 L-19.4,604.7 Z"/>
+              <path class="parcel" d="M71.1,427.4 L156.6,424.6 L158.5,494.3 L70.5,494.5 Z"/>
+              <path class="parcel" d="M70.5,494.5 L158.5,494.3 L152.7,604.5 L73.6,608.3 Z"/>
+              <path class="parcel" d="M156.6,424.6 L219.7,423.2 L217.9,495.4 L158.5,494.3 Z"/>
+              <path class="parcel" d="M158.5,494.3 L217.9,495.4 L220.5,603.6 L152.7,604.5 Z"/>
+              <path class="parcel" d="M243.2,426.5 L327.0,429.0 L322.7,522.9 L239.7,519.0 Z"/>
+              <path class="parcel" d="M239.7,519.0 L322.7,522.9 L325.6,607.5 L238.9,608.6 Z"/>
+              <path class="parcel" d="M327.0,429.0 L440.8,429.2 L439.3,522.3 L322.7,522.9 Z"/>
+              <path class="parcel" d="M322.7,522.9 L439.3,522.3 L443.5,608.6 L325.6,607.5 Z"/>
+
+              <path class="found-fill" d="M170.1,237.3 L248.5,236.5 L252.1,306.3 L174.3,308.3 Z"/>
+              <path class="found-line" d="M170.1,237.3 L248.5,236.5 L252.1,306.3 L174.3,308.3 Z"/>
+            </g>
+          </g>
+        </svg>
+      </div>
+
+      <div class="copy">
+        <h1>Alla hus.<br />Inte bara de<br />till salu.</h1>
+        <p class="lede">ifound är en karta över husen omkring dig. Här kan du visa intresse för ett som inte ligger ute till försäljning — ägaren får veta det, och bestämmer själv om fastigheten ska synas.</p>
+        <p class="status">Vi bygger fortfarande. Sidan öppnar när kartan är klar.</p>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

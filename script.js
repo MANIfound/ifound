@@ -3013,6 +3013,8 @@ function _renderParcelPanelInner(feature) {
     }
     GILLANDE[pid] = { antal, jag: pa };
     _gillandeHamtat.add(pid);
+    // Listan i Sparade objekt är nu inaktuell — hämtas om nästa gång den visas.
+    MINA_GILLANDEN = null;
     // Lokal spegling tills alla vyer läser från servern.
     const s = loadState();
     s.myLikes = s.myLikes || {}; s.likes = s.likes || {};
@@ -4051,10 +4053,15 @@ function renderSaved() {
   const user = isLoggedIn ? getCurrentUser() : null;
   const state = loadState();
 
-  const likes = Object.keys(state.myLikes || {});
-  const interests = Object.keys(state.myInterests || {});
-  const follows = Object.keys(state.myFollows || {});
-  const all = [...new Set([...likes, ...interests, ...follows])];
+  // Gillandena kommer från servern (mina_gillanden). Tills svaret finns
+  // visas den lokala listan, och vyn ritas om en gång när servern svarat.
+  const { liked: likedSet, all } = sparadeObjektIds(state);
+  if (!MINA_GILLANDEN) {
+    hamtaMinaGillanden().then(() => {
+      if (!MINA_GILLANDEN) return;   // misslyckad hämtning: ingen omritning, ingen loop
+      if (currentView === "saved") renderSaved();
+    });
+  }
   const names = state.parcelNames || {};
   const photos = state.myPhotos || {};
   const pmeta = state.parcelMeta || {};
@@ -4065,7 +4072,7 @@ function renderSaved() {
   const card = (pid) => {
     const nm = names[pid] || pid;
     const photo = photos[pid];
-    const liked = !!state.myLikes?.[pid];
+    const liked = likedSet.has(pid);
     const interested = !!state.myInterests?.[pid];
     const wp = (state.wishPrices || {})[pid];
     const m = pmeta[pid] || {};
@@ -4505,7 +4512,7 @@ function renderDashboard() {
   const ownerName = ownerId ? state.parcelNames?.[ownerId] || ownerId : null;
   const claimStatus = state.claimStatus || null;
   const homeStatus = getHomeStatus(state);
-  const myLikedIds = Object.keys(state.myLikes || {});
+  const savedCount = sparadeObjektIds(state).all.length;
   const _og = ownerId ? GILLANDE[ownerId] : null;
   const ownerLikes = _og ? _og.antal : (ownerId ? state.likes?.[ownerId] || 0 : 0);
   const ownerInterests = ownerId ? state.interests?.[ownerId] || 0 : 0;
@@ -4610,7 +4617,7 @@ function renderDashboard() {
         <div class="stats-strip">
           <div class="stat-tile"><div class="stat-icon"><i class="ti ti-thumb-up"></i></div><div><div class="stat-num" id="ownerLikesNum">${ownerLikes}</div><div class="stat-lbl">Gillar</div></div></div>
           <div class="stat-tile"><div class="stat-icon"><i class="ti ti-star"></i></div><div><div class="stat-num">${ownerInterests}</div><div class="stat-lbl">Intresserade</div></div></div>
-          <button class="stat-tile stat-tile-btn" onclick="currentView='saved';render();"><div class="stat-icon"><i class="ti ti-heart"></i></div><div><div class="stat-num">${myLikedIds.length}</div><div class="stat-lbl">Sparade objekt</div></div><i class="ti ti-chevron-right stat-tile-arrow"></i></button>
+          <button class="stat-tile stat-tile-btn" onclick="currentView='saved';render();"><div class="stat-icon"><i class="ti ti-heart"></i></div><div><div class="stat-num" id="savedCountNum">${savedCount}</div><div class="stat-lbl">Sparade objekt</div></div><i class="ti ti-chevron-right stat-tile-arrow"></i></button>
         </div>
 
         <div class="two-col">
@@ -4766,6 +4773,7 @@ function renderDashboard() {
 
   // Visa välkomstflödet för den som inte valt roll ännu
   maybeShowWelcomeFlow();
+
   // Gillandena på den egna fastigheten kommer från servern. Siffran patchas
   // på plats — en full omritning hade kastat bort det man skrivit i profilen.
   if (ownerId && !_gillandeHamtat.has(ownerId)) {
@@ -4774,6 +4782,16 @@ function renderDashboard() {
       if (!GILLANDE[ownerId]) return;   // misslyckad hämtning: behåll gamla siffran, ingen loop
       const el = document.getElementById("ownerLikesNum");
       if (el) el.textContent = GILLANDE[ownerId].antal;
+    });
+  }
+
+  // Räknaren för Sparade objekt: samma källa som listan. Patchas på plats
+  // av samma skäl som gillar-siffran ovan.
+  if (!MINA_GILLANDEN) {
+    hamtaMinaGillanden().then(() => {
+      if (!MINA_GILLANDEN) return;   // misslyckad hämtning: behåll lokala siffran
+      const el = document.getElementById("savedCountNum");
+      if (el) el.textContent = sparadeObjektIds().all.length;
     });
   }
 
@@ -5323,6 +5341,76 @@ async function skickaGillande(pid, pa) {
   if (!r.ok) throw new Error("HTTP " + r.status);
   return await r.json();
 }
+
+// --- Mina gillanden: vilka fastigheter den här enheten gillat ------------
+// Serverns svar på frågan som gillande_for inte kan svara på. Raderna bär
+// beteckning och punkt ur lm.fastighet_punkt, så att Sparade objekt fungerar
+// på en annan enhet än den där gillandet gjordes.
+//
+// null = inte hämtat (eller inaktuellt efter ett nytt gillande).
+// Array = serverns svar, nyaste först: { fid, beteckning, lat, lon, antal, skapad }.
+let MINA_GILLANDEN = null;
+let _minaGillandenPagar = null;
+
+function hamtaMinaGillanden() {
+  if (_minaGillandenPagar) return _minaGillandenPagar;   // ett anrop åt gången
+  _minaGillandenPagar = (async () => {
+    try {
+      const r = await fetch(`${API_BASE_URL}/rest/v1/rpc/mina_gillanden`, {
+        method: "POST",
+        headers: { apikey: API_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ vem: enhetsId() })
+      });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      const rows = await r.json();
+      if (!Array.isArray(rows)) throw new Error("oväntat svar");
+
+      // Namn och punkt sparas lokalt, så att panelen och kartfokus fungerar
+      // för hus som gillats på en annan enhet. En enda skrivning för hela listan.
+      const s = loadState();
+      s.parcelNames = s.parcelNames || {};
+      s.parcelMeta = s.parcelMeta || {};
+      for (const row of rows) {
+        const fid = String(row.fid);
+        GILLANDE[fid] = { antal: row.antal || 0, jag: true };
+        _gillandeHamtat.add(fid);
+        if (row.beteckning) {
+          s.parcelNames[fid] = row.beteckning;
+          rememberParcelLabel(fid, row.beteckning);
+        }
+        if (row.lat != null && row.lon != null) {
+          const prev = s.parcelMeta[fid] || {};
+          s.parcelMeta[fid] = { area: prev.area ?? null, lat: row.lat, lon: row.lon };
+        }
+      }
+      saveState(s);
+
+      MINA_GILLANDEN = rows;
+    } catch (e) {
+      // MINA_GILLANDEN lämnas orörd. Den som ritar om efter hämtningen
+      // kontrollerar den — misslyckad hämtning ger ingen omritning, ingen loop.
+      console.warn("Kunde inte hämta mina gillanden:", e.message);
+    } finally {
+      _minaGillandenPagar = null;
+    }
+  })();
+  return _minaGillandenPagar;
+}
+
+// Fastighets-id:n som hör hemma i Sparade objekt. Gillanden från servern när
+// de finns, annars den lokala listan. Intressen och följningar ligger kvar
+// lokalt tills inloggningen finns — de flyttar med anspråken.
+function sparadeObjektIds(state) {
+  const st = state || loadState();
+  const liked = MINA_GILLANDEN
+    ? MINA_GILLANDEN.map(r => String(r.fid))
+    : Object.keys(st.myLikes || {});
+  return {
+    liked: new Set(liked),
+    all: [...new Set([...liked, ...Object.keys(st.myInterests || {}), ...Object.keys(st.myFollows || {})])],
+  };
+}
+
 const BBOX_MAX_ROWS = 3000;
 const BBOX_PAD = 0.2;               // hämta 20 % utanför vyn åt varje håll
 const BBOX_MAX_SPLIT_DEPTH = 2;     // avkortat svar delas i fyra, högst två gånger

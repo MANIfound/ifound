@@ -4608,7 +4608,7 @@ function renderDashboard() {
         </div>
 
         <div class="stats-strip">
-          <div class="stat-tile"><div class="stat-icon"><i class="ti ti-thumb-up"></i></div><div><div class="stat-num">${ownerLikes}</div><div class="stat-lbl">Gillar</div></div></div>
+          <div class="stat-tile"><div class="stat-icon"><i class="ti ti-thumb-up"></i></div><div><div class="stat-num" id="ownerLikesNum">${ownerLikes}</div><div class="stat-lbl">Gillar</div></div></div>
           <div class="stat-tile"><div class="stat-icon"><i class="ti ti-star"></i></div><div><div class="stat-num">${ownerInterests}</div><div class="stat-lbl">Intresserade</div></div></div>
           <button class="stat-tile stat-tile-btn" onclick="currentView='saved';render();"><div class="stat-icon"><i class="ti ti-heart"></i></div><div><div class="stat-num">${myLikedIds.length}</div><div class="stat-lbl">Sparade objekt</div></div><i class="ti ti-chevron-right stat-tile-arrow"></i></button>
         </div>

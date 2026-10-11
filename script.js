@@ -2677,10 +2677,18 @@ function _renderParcelPanelInner(feature) {
   const name = prettyName(feature);
   const mode = document.getElementById("modeSelect")?.value || loadSavedMapMode();
   const meta = getParcelMeta(feature);
-  const likes = state.likes?.[pid] || 0;
+  const _g = GILLANDE[pid];
+  const likes = _g ? _g.antal : (state.likes?.[pid] || 0);
   const interests = state.interests?.[pid] || 0;
   const isOwner = state.ownerParcelId === pid;
-  const iLiked = !!state.myLikes?.[pid];
+  const iLiked = _g ? _g.jag : !!state.myLikes?.[pid];
+  window._panelPid = pid;
+  if (!_gillandeHamtat.has(pid)) {
+    _gillandeHamtat.add(pid);
+    hamtaGillanden([pid]).then(() => {
+      if (window._panelPid === pid && document.getElementById("likeBtn")) renderParcelPanel(feature);
+    });
+  }
   const iInterested = !!state.myInterests?.[pid];
   const iFollow = !!state.myFollows?.[pid];
   // TVÅ SKILDA FRÅGOR, med avsikt hållna isär:
@@ -2989,12 +2997,30 @@ function _renderParcelPanelInner(feature) {
     renderParcelPanel(feature);
   };
 
-  document.getElementById("likeBtn").onclick = () => {
-    const s = loadState(); const already = !!s.myLikes?.[pid];
-    s.myLikes = s.myLikes || {}; s.parcelNames = s.parcelNames || {}; s.parcelNames[pid] = name;
-    if (already) { delete s.myLikes[pid]; s.likes[pid] = Math.max(0, (s.likes[pid] || 1) - 1); toast("Gillning borttagen."); }
-    else { s.likes[pid] = (s.likes[pid] || 0) + 1; s.myLikes[pid] = true; toast("Fastigheten är gillad."); }
-    saveState(s); redrawLayer(); renderParcelPanel(feature);
+  document.getElementById("likeBtn").onclick = async () => {
+    const pa = !(GILLANDE[pid] ? GILLANDE[pid].jag : !!loadState().myLikes?.[pid]);
+    const btn = document.getElementById("likeBtn");
+    if (btn) btn.disabled = true;
+    let antal;
+    try {
+      antal = await skickaGillande(pid, pa);
+    } catch (e) {
+      if (btn) btn.disabled = false;
+      console.warn("gilla:", e.message);
+      toast("Kunde inte spara gillningen just nu. Försök igen.");
+      return;
+    }
+    GILLANDE[pid] = { antal, jag: pa };
+    _gillandeHamtat.add(pid);
+    // Lokal spegling tills alla vyer läser från servern.
+    const s = loadState();
+    s.myLikes = s.myLikes || {}; s.likes = s.likes || {};
+    s.parcelNames = s.parcelNames || {}; s.parcelNames[pid] = name;
+    if (pa) s.myLikes[pid] = true; else delete s.myLikes[pid];
+    s.likes[pid] = antal;
+    saveState(s);
+    toast(pa ? "Fastigheten är gillad." : "Gillning borttagen.");
+    redrawLayer(); renderParcelPanel(feature);
   };
 
   document.getElementById("interestBtn").onclick = () => {
@@ -5229,6 +5255,62 @@ const API_BASE_URL = "https://db.ifound.se";
 // Publishable-nyckeln är byggd för att ligga i klientkod. Secret-nyckeln
 // går förbi all radnivåsäkerhet och får aldrig hamna här.
 const API_KEY = "sb_publishable_yzCbkrIjzgBYo3smNXcABe_cJh27XCn";
+
+// --- Gillanden: delad data via egen server -------------------------------
+// Gillandet kräver inget konto. Det hänger därför på en identitet som
+// sparas i webbläsaren. Skapar användaren konto senare kan enhetens
+// gillanden flyttas över till kontot.
+const LS_DEVICE = "prop_device_v1";
+
+function enhetsId() {
+  try {
+    let v = localStorage.getItem(LS_DEVICE);
+    if (!v) {
+      v = (crypto?.randomUUID ? crypto.randomUUID()
+           : "d-" + Math.random().toString(16).slice(2) + Date.now().toString(16));
+      localStorage.setItem(LS_DEVICE, v);
+    }
+    return v;
+  } catch {
+    // Blockerad localStorage: identiteten lever bara denna sidvisning.
+    return "d-flyktig-" + Math.random().toString(16).slice(2) + Date.now().toString(16);
+  }
+}
+
+// pid -> { antal, jag }. Serverns svar, inte localStorage.
+const GILLANDE = Object.create(null);
+const _gillandeHamtat = new Set();
+
+async function hamtaGillanden(ids) {
+  const want = (ids || []).filter(Boolean);
+  if (!want.length) return;
+  try {
+    const r = await fetch(`${API_BASE_URL}/rest/v1/rpc/gillande_for`, {
+      method: "POST",
+      headers: { apikey: API_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: want, vem: enhetsId() })
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const rows = await r.json();
+    // Fastigheter utan gillanden kommer inte tillbaka — nollställ dem här,
+    // annars försöker panelen hämta om dem i all evighet.
+    for (const id of want) if (!GILLANDE[id]) GILLANDE[id] = { antal: 0, jag: false };
+    for (const row of rows || []) GILLANDE[row.fid] = { antal: row.antal || 0, jag: !!row.jag };
+  } catch (e) {
+    console.warn("Kunde inte hämta gillanden:", e.message);
+    for (const id of want) _gillandeHamtat.delete(id);
+  }
+}
+
+async function skickaGillande(pid, pa) {
+  const r = await fetch(`${API_BASE_URL}/rest/v1/rpc/gilla`, {
+    method: "POST",
+    headers: { apikey: API_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ fid: pid, vem: enhetsId(), pa: !!pa })
+  });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return await r.json();
+}
 const BBOX_MAX_ROWS = 3000;
 const BBOX_PAD = 0.2;               // hämta 20 % utanför vyn åt varje håll
 const BBOX_MAX_SPLIT_DEPTH = 2;     // avkortat svar delas i fyra, högst två gånger

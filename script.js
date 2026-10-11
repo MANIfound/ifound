@@ -4506,7 +4506,8 @@ function renderDashboard() {
   const claimStatus = state.claimStatus || null;
   const homeStatus = getHomeStatus(state);
   const myLikedIds = Object.keys(state.myLikes || {});
-  const ownerLikes = ownerId ? state.likes?.[ownerId] || 0 : 0;
+  const _og = ownerId ? GILLANDE[ownerId] : null;
+  const ownerLikes = _og ? _og.antal : (ownerId ? state.likes?.[ownerId] || 0 : 0);
   const ownerInterests = ownerId ? state.interests?.[ownerId] || 0 : 0;
   const homeProfile = getHomeProfile(user);
   const images = homeProfile.images || [];

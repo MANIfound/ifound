@@ -4766,6 +4766,16 @@ function renderDashboard() {
 
   // Visa välkomstflödet för den som inte valt roll ännu
   maybeShowWelcomeFlow();
+  // Gillandena på den egna fastigheten kommer från servern. Siffran patchas
+  // på plats — en full omritning hade kastat bort det man skrivit i profilen.
+  if (ownerId && !_gillandeHamtat.has(ownerId)) {
+    _gillandeHamtat.add(ownerId);
+    hamtaGillanden([ownerId]).then(() => {
+      if (!GILLANDE[ownerId]) return;   // misslyckad hämtning: behåll gamla siffran, ingen loop
+      const el = document.getElementById("ownerLikesNum");
+      if (el) el.textContent = GILLANDE[ownerId].antal;
+    });
+  }
 
   const clearBtn = document.getElementById("clearOwnerBtn");
   if (clearBtn) clearBtn.onclick = () => { const s = loadState(); s.ownerParcelId = null; saveState(s); toast("Välj en ny fastighet."); render(); };

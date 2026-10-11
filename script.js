@@ -2686,6 +2686,7 @@ function _renderParcelPanelInner(feature) {
   if (!_gillandeHamtat.has(pid)) {
     _gillandeHamtat.add(pid);
     hamtaGillanden([pid]).then(() => {
+      if (!GILLANDE[pid]) return;   // misslyckad hämtning: ingen omritning, ingen loop
       if (window._panelPid === pid && document.getElementById("likeBtn")) renderParcelPanel(feature);
     });
   }

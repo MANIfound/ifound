@@ -2678,7 +2678,7 @@ function _renderParcelPanelInner(feature) {
   const mode = document.getElementById("modeSelect")?.value || loadSavedMapMode();
   const meta = getParcelMeta(feature);
   const _g = GILLANDE[pid];
-  const likes = _g ? _g.antal : (state.likes?.[pid] || 0);
+  const likes = _g ? _g.antal : 0;   // siffran kommer bara från servern
   const interests = state.interests?.[pid] || 0;
   const isOwner = state.ownerParcelId === pid;
   const iLiked = _g ? _g.jag : !!state.myLikes?.[pid];
@@ -3015,12 +3015,14 @@ function _renderParcelPanelInner(feature) {
     _gillandeHamtat.add(pid);
     // Listan i Sparade objekt är nu inaktuell — hämtas om nästa gång den visas.
     MINA_GILLANDEN = null;
-    // Lokal spegling tills alla vyer läser från servern.
+    _minaGillandenGen++;   // en hämtning som redan är på väg är nu inaktuell
+    // myLikes är en kopia av serverns lista, inte en egen källa. Den skrivs
+    // här så att checklistan och offline-läget hänger med direkt, och skrivs
+    // över helt nästa gång mina_gillanden svarar. Antalet sparas inte lokalt.
     const s = loadState();
-    s.myLikes = s.myLikes || {}; s.likes = s.likes || {};
+    s.myLikes = s.myLikes || {};
     s.parcelNames = s.parcelNames || {}; s.parcelNames[pid] = name;
     if (pa) s.myLikes[pid] = true; else delete s.myLikes[pid];
-    s.likes[pid] = antal;
     saveState(s);
     toast(pa ? "Fastigheten är gillad." : "Gillning borttagen.");
     redrawLayer(); renderParcelPanel(feature);
@@ -4514,7 +4516,7 @@ function renderDashboard() {
   const homeStatus = getHomeStatus(state);
   const savedCount = sparadeObjektIds(state).all.length;
   const _og = ownerId ? GILLANDE[ownerId] : null;
-  const ownerLikes = _og ? _og.antal : (ownerId ? state.likes?.[ownerId] || 0 : 0);
+  const ownerLikes = _og ? _og.antal : 0;
   const ownerInterests = ownerId ? state.interests?.[ownerId] || 0 : 0;
   const homeProfile = getHomeProfile(user);
   const images = homeProfile.images || [];
@@ -5206,7 +5208,7 @@ function addClaimedMarkers() {
         id: ownerId, lat, lon,
         status: vis === 'sale' ? 'sale' : vis === 'rent' ? 'rent' : 'passive',
         name: ownerName,
-        likes: state.likes?.[ownerId] || 0,
+        likes: GILLANDE[ownerId]?.antal || 0,
         interested: state.interests?.[ownerId] || 0,
       });
     }
@@ -5351,9 +5353,13 @@ async function skickaGillande(pid, pa) {
 // Array = serverns svar, nyaste först: { fid, beteckning, lat, lon, antal, skapad }.
 let MINA_GILLANDEN = null;
 let _minaGillandenPagar = null;
+// Räknas upp vid varje gillande. Ett svar som startade före klicket kan
+// sakna det nya gillandet och får då inte skriva över något.
+let _minaGillandenGen = 0;
 
 function hamtaMinaGillanden() {
   if (_minaGillandenPagar) return _minaGillandenPagar;   // ett anrop åt gången
+  const gen = _minaGillandenGen;
   _minaGillandenPagar = (async () => {
     try {
       const r = await fetch(`${API_BASE_URL}/rest/v1/rpc/mina_gillanden`, {
@@ -5364,14 +5370,22 @@ function hamtaMinaGillanden() {
       if (!r.ok) throw new Error("HTTP " + r.status);
       const rows = await r.json();
       if (!Array.isArray(rows)) throw new Error("oväntat svar");
+      if (gen !== _minaGillandenGen) return;   // inaktuellt svar: rör ingenting
 
       // Namn och punkt sparas lokalt, så att panelen och kartfokus fungerar
       // för hus som gillats på en annan enhet. En enda skrivning för hela listan.
       const s = loadState();
       s.parcelNames = s.parcelNames || {};
       s.parcelMeta = s.parcelMeta || {};
+      // Serverns lista ersätter den lokala helt. Skräp som demo-id:n från
+      // feeden ("3") och gillanden borttagna på en annan enhet försvinner.
+      s.myLikes = {};
+      // Den gamla lokala gillar-siffran läses inte längre av någon vy som
+      // räknas. Den tas bort så att inga påhittade tal ligger kvar.
+      delete s.likes;
       for (const row of rows) {
         const fid = String(row.fid);
+        s.myLikes[fid] = true;
         GILLANDE[fid] = { antal: row.antal || 0, jag: true };
         _gillandeHamtat.add(fid);
         if (row.beteckning) {
@@ -6256,7 +6270,7 @@ function renderAdmin() {
     { prop:"Laröd 3:19",       user:"Sara Björk",      date:"2025-06-15", visible:"Synlig",    likes:41, interested:9,  img:"https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=120&q=60" },
     { prop:"Fredriksdal 6:1",  user:"Lena Svensson",   date:"2025-06-18", visible:"Till salu", likes:19, interested:6,  img:"https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=120&q=60" },
     { prop:"Raus Plantage 7:2",user:"Sara Björk",       date:"2025-06-15", visible:"Privat",    likes:6,  interested:2,  img:"https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=120&q=60" },
-    ...(state.ownerParcelId ? [{ prop: state.parcelNames?.[state.ownerParcelId] || state.ownerParcelId, user: userList[0]?.name || "Du", date:"2025-06-19", visible:"Privat", likes: state.likes?.[state.ownerParcelId]||0, interested: state.interests?.[state.ownerParcelId]||0, img:"https://images.unsplash.com/photo-1523217582562-09d0def993a6?w=120&q=60" }] : [])
+    ...(state.ownerParcelId ? [{ prop: state.parcelNames?.[state.ownerParcelId] || state.ownerParcelId, user: userList[0]?.name || "Du", date:"2025-06-19", visible:"Privat", likes: GILLANDE[state.ownerParcelId]?.antal||0, interested: state.interests?.[state.ownerParcelId]||0, img:"https://images.unsplash.com/photo-1523217582562-09d0def993a6?w=120&q=60" }] : [])
   ];
 
   const mockActivity = [

@@ -5583,9 +5583,9 @@ function drawWatchedAreas() {
       // Skarp kontur: heldragen linje, full täckning, raka hörn. Den mörka
       // kanten är smal och tät så att den ramar in i stället för att skugga.
       L.geoJSON(geo, { pane: "bevakningPane", interactive: false,
-        style: { color: "#1F2A16", weight: 6, opacity: 0.8, lineJoin: "miter", fill: false } }).addTo(_bevakningLager);
+        style: { color: "#1F2A16", weight: 9, opacity: 1, lineJoin: "miter", fill: false } }).addTo(_bevakningLager);
       L.geoJSON(geo, { pane: "bevakningPane", interactive: false,
-        style: { color: "#D99A3E", weight: 3, opacity: 1, lineJoin: "miter",
+        style: { color: "#D99A3E", weight: 5, opacity: 1, lineJoin: "miter",
                  fillColor: "#D99A3E", fillOpacity: 0.10 } }).addTo(_bevakningLager);
     } catch {}
   }

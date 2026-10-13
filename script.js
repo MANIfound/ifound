@@ -5566,13 +5566,25 @@ function drawWatchedAreas() {
   if (!map) return;
   if (_bevakningLager) { try { _bevakningLager.remove(); } catch {} _bevakningLager = null; }
   if (!MINA_BEVAKNINGAR?.length) return;
+  // Egen ruta ovanför fastighetsgränserna (450) men under namnen (460).
+  // Släpper igenom alla klick.
+  if (!map.getPane("bevakningPane")) {
+    map.createPane("bevakningPane");
+    const bp = map.getPane("bevakningPane");
+    bp.style.zIndex = 455;
+    bp.style.pointerEvents = "none";
+  }
+  // Honung syns både mot kartan och mot flygfotot, där grönt försvann i
+  // trädgårdarna. En mörk kant under linjen ger kontrast mot ljusa tak.
   _bevakningLager = L.layerGroup();
   for (const b of MINA_BEVAKNINGAR) {
     try {
-      L.geoJSON(JSON.parse(b.geojson), {
-        interactive: false,   // klick går igenom till fastigheterna
-        style: { color: "#526D33", weight: 2, dashArray: "6 5", fillColor: "#526D33", fillOpacity: 0.06 },
-      }).addTo(_bevakningLager);
+      const geo = JSON.parse(b.geojson);
+      L.geoJSON(geo, { pane: "bevakningPane", interactive: false,
+        style: { color: "#1F2A16", weight: 7, opacity: 0.45, fill: false } }).addTo(_bevakningLager);
+      L.geoJSON(geo, { pane: "bevakningPane", interactive: false,
+        style: { color: "#D99A3E", weight: 4, dashArray: "12 7", lineCap: "butt",
+                 fillColor: "#D99A3E", fillOpacity: 0.10 } }).addTo(_bevakningLager);
     } catch {}
   }
   _bevakningLager.addTo(map);
@@ -5589,7 +5601,7 @@ function stopDrawWatch() {
   if (activeDrawFeature?._bevakning) activeDrawFeature = null;
 }
 
-const _bevakningStil = { color: "#526D33", weight: 2, fillColor: "#526D33", fillOpacity: 0.15 };
+const _bevakningStil = { color: "#D99A3E", weight: 4, fillColor: "#D99A3E", fillOpacity: 0.18 };
 
 function startDrawWatch() {
   if (!map) return;

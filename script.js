@@ -101,9 +101,10 @@ function onboardingSteps(role) {
       desc: "Visa upp ditt hem för den som är nyfiken." },
   ];
   const seeker = [
-    { id: "area", label: "Bevaka ett område", icon: "ti-map-pin",
-      done: !!(getProfile().watchedAreas || []).length,
-      desc: "Få en notis när något händer i ett område du är intresserad av." },
+    // "Bevaka ett område" är borttaget tills funktionen finns. Steget ledde
+    // bara till kartan och inget sparade watchedAreas, så det kunde aldrig
+    // bockas av. Kommer tillbaka när notiser går att skicka (kräver riktig
+    // inloggning och anspråk på servern) — se claude/idebank-agarsidan.md.
     { id: "likes", label: "Gilla ditt första hus", icon: "ti-heart",
       done: Object.keys(loadState().myLikes || {}).length > 0,
       desc: "Spara husen du fastnar för så hittar du tillbaka till dem." },

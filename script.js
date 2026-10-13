@@ -5580,10 +5580,12 @@ function drawWatchedAreas() {
   for (const b of MINA_BEVAKNINGAR) {
     try {
       const geo = JSON.parse(b.geojson);
+      // Skarp kontur: heldragen linje, full täckning, raka hörn. Den mörka
+      // kanten är smal och tät så att den ramar in i stället för att skugga.
       L.geoJSON(geo, { pane: "bevakningPane", interactive: false,
-        style: { color: "#1F2A16", weight: 7, opacity: 0.45, fill: false } }).addTo(_bevakningLager);
+        style: { color: "#1F2A16", weight: 6, opacity: 0.8, lineJoin: "miter", fill: false } }).addTo(_bevakningLager);
       L.geoJSON(geo, { pane: "bevakningPane", interactive: false,
-        style: { color: "#D99A3E", weight: 4, dashArray: "12 7", lineCap: "butt",
+        style: { color: "#D99A3E", weight: 3, opacity: 1, lineJoin: "miter",
                  fillColor: "#D99A3E", fillOpacity: 0.10 } }).addTo(_bevakningLager);
     } catch {}
   }

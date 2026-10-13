@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-10-13d";
+const IFOUND_VERSION = "2026-10-13e";
 console.info("[ifound] version " + IFOUND_VERSION);
 
 function toast(msg) {
@@ -28,23 +28,101 @@ function safeJsonParse(value, fallback = null) {
   catch { return fallback; }
 }
 
+// =========================
+// KONTON — Supabase Auth på egen server (db.ifound.se)
+// =========================
+// Inloggningen sköts av servern. KONTO är en synkron kopia av vem som är
+// inloggad, så att resten av appen kan fortsätta fråga loadSession() och
+// getCurrentUser() utan att vänta. Den fylls av laddaKonto() vid start,
+// inloggning och registrering, och töms vid utloggning.
+//
+// Mäklardemon (MOCK_BROKER_ACCOUNTS) är fortfarande lokal och använder
+// prop_session_v1 med isBroker. Inget annat läser den nyckeln längre.
+//
+// prop_users_v1 håller bara lokala tillägg per konto (bostadsprofil, bilder)
+// tills de flyttar till servern. Inga lösenord sparas där längre.
+let KONTO = null;   // { id, email, namn, ar_admin }
+let _sb = null;
+
+function sbKlient() {
+  if (!_sb) {
+    _sb = supabase.createClient(API_BASE_URL, API_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, storageKey: "ifound_auth_v1" },
+    });
+  }
+  return _sb;
+}
+
+// Läser inloggningen och profilen från servern. Returnerar KONTO.
+async function laddaKonto() {
+  try {
+    const { data } = await sbKlient().auth.getSession();
+    const user = data?.session?.user;
+    if (!user) { KONTO = null; return null; }
+    let profil = null;
+    try {
+      const r = await sbKlient().from("profil").select("namn, ar_admin").eq("id", user.id).maybeSingle();
+      profil = r.data || null;
+    } catch {}
+    KONTO = {
+      id: user.id,
+      email: user.email,
+      namn: profil?.namn || user.user_metadata?.namn || "",
+      ar_admin: !!profil?.ar_admin,
+    };
+  } catch (e) {
+    console.warn("Kunde inte läsa inloggningen:", e?.message);
+    KONTO = null;
+  }
+  return KONTO;
+}
+
+function arAdmin() { return !!KONTO?.ar_admin; }
+
+// Serverns felmeddelanden är på engelska. Översätt de vanliga.
+function kontoFel(error) {
+  const m = String(error?.message || "");
+  if (/invalid login credentials/i.test(m)) return "Fel e-post eller lösenord.";
+  if (/already registered|already been registered|already exists/i.test(m)) return "Det finns redan ett konto på den e-posten. Logga in i stället.";
+  if (/password should be at least|password is too short|weak password/i.test(m)) return "Lösenordet är för kort eller för enkelt. Använd minst 8 tecken.";
+  if (/email not confirmed/i.test(m)) return "Bekräfta din e-post först — kolla inkorgen.";
+  if (/rate limit|too many/i.test(m)) return "För många försök. Vänta en stund och prova igen.";
+  if (/invalid email|unable to validate email/i.test(m)) return "E-postadressen ser inte rätt ut.";
+  if (/failed to fetch|network/i.test(m)) return "Kunde inte nå servern. Kontrollera uppkopplingen.";
+  return "Något gick fel: " + (m || "okänt fel");
+}
+
 function loadUsers()        { return safeJsonParse(localStorage.getItem(LS_USERS), {}) || {}; }
 function saveUsers(u)       { localStorage.setItem(LS_USERS, JSON.stringify(u)); }
-function loadSession()      { return safeJsonParse(localStorage.getItem(LS_SESSION), null); }
-function saveSession(s)     { localStorage.setItem(LS_SESSION, JSON.stringify(s)); }
-function clearSession()     { localStorage.removeItem(LS_SESSION); }
+
+function loadSession() {
+  if (KONTO) return { email: KONTO.email, id: KONTO.id };
+  const lokal = safeJsonParse(localStorage.getItem(LS_SESSION), null);
+  return lokal?.isBroker ? lokal : null;   // bara mäklardemon
+}
+function saveSession(s)     { localStorage.setItem(LS_SESSION, JSON.stringify(s)); }   // bara mäklardemon
+function clearSession() {
+  localStorage.removeItem(LS_SESSION);
+  if (KONTO) {
+    KONTO = null;
+    sbKlient().auth.signOut().catch(e => console.warn("Utloggning:", e?.message));
+  }
+}
 
 function getCurrentUser() {
   const s = loadSession();
   if (!s?.email) return null;
-  return loadUsers()[s.email] || null;
+  const lokal = loadUsers()[s.email] || {};
+  if (!KONTO) return lokal;   // mäklardemon
+  return { ...lokal, email: KONTO.email, name: KONTO.namn || lokal.name || KONTO.email.split("@")[0] };
 }
 
 function saveCurrentUser(u) {
   const s = loadSession();
   if (!s?.email) return;
   const users = loadUsers();
-  users[s.email] = u;
+  const { password, ...utanLosen } = u || {};
+  users[s.email] = utanLosen;
   saveUsers(users);
 }
 
@@ -3113,9 +3191,8 @@ function openAuthModal(tab = 'login') {
           <strong>Logga in för att:</strong> spara gillar, skicka intresse, claima din fastighet.
         </div>
         <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:5px;">E-post</label><input id="loginEmail" class="input" type="email" placeholder="din@epost.se" style="width:100%;" /></div>
-        <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:5px;">Lösenord</label><input id="loginPass" class="input" type="password" placeholder="••••••••" style="width:100%;" /></div>
+        <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:5px;">Lösenord</label><input id="loginPass" class="input" type="password" placeholder="••••••••" autocomplete="current-password" style="width:100%;" /></div>
         <button id="loginBtn" class="btn-primary" style="width:100%;justify-content:center;padding:12px;">Logga in</button>
-        <div style="font-size:11px;color:var(--ink-muted);text-align:center;">Admin: admin@ifound.se / ifound2025</div>
       </div>
 
       <div id="regForm" style="display:none;flex-direction:column;gap:12px;">
@@ -3124,7 +3201,7 @@ function openAuthModal(tab = 'login') {
         </div>
         <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:5px;">Namn</label><input id="regName" class="input" placeholder="Ditt namn" style="width:100%;" /></div>
         <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:5px;">E-post</label><input id="regEmail" class="input" type="email" placeholder="din@epost.se" style="width:100%;" /></div>
-        <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:5px;">Lösenord</label><input id="regPass" class="input" type="password" placeholder="Min 4 tecken" style="width:100%;" /></div>
+        <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:5px;">Lösenord</label><input id="regPass" class="input" type="password" placeholder="Minst 8 tecken" autocomplete="new-password" style="width:100%;" /></div>
         <button id="regBtn" class="btn-primary" style="width:100%;justify-content:center;padding:12px;">Skapa gratis konto</button>
       </div>
     </div>
@@ -3135,25 +3212,55 @@ function openAuthModal(tab = 'login') {
 
   if (tab === 'reg') switchTab('reg');
 
-  document.getElementById("loginBtn").onclick = () => {
+  // Enter i lösenordsfälten skickar formuläret.
+  document.getElementById("loginPass").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("loginBtn").click(); });
+  document.getElementById("regPass").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("regBtn").click(); });
+
+  document.getElementById("loginBtn").onclick = async () => {
+    const btn   = document.getElementById("loginBtn");
     const email = document.getElementById("loginEmail").value.trim().toLowerCase();
     const pass  = document.getElementById("loginPass").value;
-    const users = loadUsers();
-    const user  = users[email];
-    if (!user || user.password !== pass) { toast("Fel e-post eller lösenord."); return; }
-    saveSession({ email }); closeAuthModal(); toast("Inloggad!");
-    currentView = "feed"; render();
+    if (!email || !pass) { toast("Fyll i e-post och lösenord."); return; }
+    btn.disabled = true; btn.textContent = "Loggar in…";
+    const { error } = await sbKlient().auth.signInWithPassword({ email, password: pass });
+    if (error) {
+      btn.disabled = false; btn.textContent = "Logga in";
+      toast(kontoFel(error));
+      return;
+    }
+    localStorage.removeItem(LS_SESSION);   // en kvarglömd mäklardemo får inte ligga kvar
+    await laddaKonto();
+    closeAuthModal();
+    toast(KONTO?.namn ? `Välkommen tillbaka, ${KONTO.namn.split(" ")[0]}!` : "Inloggad!");
+    currentView = arAdmin() ? "admin" : "feed"; render();
   };
 
-  document.getElementById("regBtn").onclick = () => {
+  document.getElementById("regBtn").onclick = async () => {
+    const btn   = document.getElementById("regBtn");
     const name  = document.getElementById("regName").value.trim();
     const email = document.getElementById("regEmail").value.trim().toLowerCase();
     const pass  = document.getElementById("regPass").value;
-    if (!name || !email.includes("@") || pass.length < 4) { toast("Fyll i alla fält korrekt."); return; }
-    const users = loadUsers();
-    if (users[email]) { toast("Det finns redan ett konto på den e-posten."); return; }
-    users[email] = { name, email, password: pass };
-    saveUsers(users); saveSession({ email }); closeAuthModal();
+    if (!name) { toast("Skriv ditt namn."); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast("E-postadressen ser inte rätt ut."); return; }
+    if (pass.length < 8) { toast("Lösenordet måste vara minst 8 tecken."); return; }
+    btn.disabled = true; btn.textContent = "Skapar konto…";
+    const { data, error } = await sbKlient().auth.signUp({
+      email, password: pass, options: { data: { namn: name } },
+    });
+    if (error) {
+      btn.disabled = false; btn.textContent = "Skapa gratis konto";
+      toast(kontoFel(error));
+      return;
+    }
+    if (!data?.session) {
+      // Servern kräver bekräftelse via e-post (när det slås på igen).
+      closeAuthModal();
+      toast("Nästan klart — vi har skickat en länk till " + email + ". Klicka på den för att aktivera kontot.");
+      return;
+    }
+    localStorage.removeItem(LS_SESSION);
+    await laddaKonto();
+    closeAuthModal();
     toast("Konto skapat — välkommen!");
 
     // Skickade de ett meddelande innan kontot fanns? Slutför det nu.
@@ -4513,8 +4620,7 @@ function toggleNotifyPref() {
 function renderDashboard() {
   const session = loadSession();
   if (!session?.email) return navigate("welcome");
-  const users   = loadUsers();
-  const user    = users[session.email];
+  const user    = getCurrentUser();   // namn från servern, bostadsprofil lokalt
   const state   = loadState();
   const ownerId = state.ownerParcelId;
   const ownerName = ownerId ? state.parcelNames?.[ownerId] || ownerId : null;
@@ -7101,7 +7207,7 @@ function renderAdmin() {
           <span style="font-size:10px;font-weight:700;background:rgba(204,41,54,.25);color:var(--accent);border-radius:999px;padding:3px 9px;letter-spacing:.08em;">ADMIN</span>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
-          <span style="font-size:12px;color:rgba(255,255,255,.4);">admin@ifound.se</span>
+          <span style="font-size:12px;color:rgba(255,255,255,.4);">${escapeHtmlBasic(KONTO?.email || "")}</span>
           <button onclick="clearSession();navigate('welcome');" style="font-size:12px;color:rgba(255,255,255,.5);background:transparent;border:none;cursor:pointer;font-family:var(--font-body);padding:6px 12px;border-radius:8px;border:0.5px solid rgba(255,255,255,.12);">Logga ut</button>
         </div>
       </nav>
@@ -7665,7 +7771,7 @@ function brokerEditListing(id) {
 function render() {
   renderView();
   const s = loadSession();
-  if (s?.email === "admin@ifound.se" || isBroker()) return;
+  if (arAdmin() || isBroker()) return;
   if (currentView === "brokerWelcome") return;
   let active = "welcome";
   if (currentView === "map") active = "map";
@@ -7688,7 +7794,7 @@ function renderView() {
     if (currentView.startsWith("property_")) { renderPropertyView(); return; }
     renderWelcome(); return;
   }
-  if (session.email === "admin@ifound.se") { renderAdmin(); return; }
+  if (arAdmin()) { renderAdmin(); return; }
   if (isBroker()) {
     if (currentView === "brokerAddListing") { renderBrokerAddListing(); return; }
     if (currentView === "feed")   { renderFeed(); return; }
@@ -7710,15 +7816,37 @@ function renderView() {
 
 window.addEventListener("keydown", ev => { if (currentView === "map" && ev.key === "Escape") closePanel(); });
 
-(() => {
-  // Pre-register admin account
-  const users = loadUsers();
-  if (!users["admin@ifound.se"]) {
-    users["admin@ifound.se"] = { name: "Admin", email: "admin@ifound.se", password: "ifound2025" };
+(async () => {
+  // Städa bort det gamla lokala kontosystemet: lösenord i klartext och det
+  // förinlagda adminkontot. Bostadsprofiler per e-post får ligga kvar.
+  try {
+    const users = loadUsers();
+    delete users["admin@ifound.se"];
+    for (const e of Object.keys(users)) {
+      if (users[e] && !users[e].isBroker) delete users[e].password;
+    }
     saveUsers(users);
-  }
+    const gammal = safeJsonParse(localStorage.getItem(LS_SESSION), null);
+    if (gammal && !gammal.isBroker) localStorage.removeItem(LS_SESSION);
+  } catch {}
+
+  // Vem är inloggad? Högst tre sekunder — svarar inte servern ritas sidan
+  // som utloggad, och inloggningen dyker upp när svaret väl kommer.
+  await Promise.race([laddaKonto(), new Promise(r => setTimeout(r, 3000))]);
+
+  // Inloggning eller utloggning i en annan flik, eller en session som gått ut.
+  // Inga anrop till servern direkt i lyssnaren — supabase-js låser sig då.
+  sbKlient().auth.onAuthStateChange((event) => {
+    if (event !== "SIGNED_IN" && event !== "SIGNED_OUT") return;
+    setTimeout(async () => {
+      const fore = KONTO?.id || null;
+      await laddaKonto();
+      if ((KONTO?.id || null) !== fore) render();
+    }, 0);
+  });
+
   const session = loadSession();
-  currentView = session?.email ? "feed" : "welcome";
+  currentView = arAdmin() ? "admin" : session?.email ? "feed" : "welcome";
   render();
 })();
 

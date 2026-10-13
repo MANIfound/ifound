@@ -87,7 +87,7 @@ function onboardingSteps(role) {
       desc: "Vi anpassar Min sida efter varför du är här. Går att ändra när som helst." },
     { id: "notify", label: "Aviseringar", icon: "ti-bell",
       done: getProfile().notify !== undefined,
-      desc: "Få veta när någon gillar din fastighet eller när ett bevakat hus dyker upp." },
+      desc: "Välj om du vill ha e-post när något händer. Utskicken startar när inloggningen är klar — till dess syns allt på Min sida." },
   ];
   const owner = [
     { id: "claim", label: "Koppla din fastighet", icon: "ti-home-check",
@@ -101,10 +101,10 @@ function onboardingSteps(role) {
       desc: "Visa upp ditt hem för den som är nyfiken." },
   ];
   const seeker = [
-    // "Bevaka ett område" är borttaget tills funktionen finns. Steget ledde
-    // bara till kartan och inget sparade watchedAreas, så det kunde aldrig
-    // bockas av. Kommer tillbaka när notiser går att skicka (kräver riktig
-    // inloggning och anspråk på servern) — se claude/idebank-agarsidan.md.
+    // watchedAreas är en kopia av serverns lista (mina_bevakningar).
+    { id: "area", label: "Bevaka ett område", icon: "ti-map-pin",
+      done: !!(getProfile().watchedAreas || []).length,
+      desc: "Rita ett område på kartan och se vad som händer där." },
     { id: "likes", label: "Gilla ditt första hus", icon: "ti-heart",
       done: Object.keys(loadState().myLikes || {}).length > 0,
       desc: "Spara husen du fastnar för så hittar du tillbaka till dem." },
@@ -4482,7 +4482,7 @@ function runOnboardingStep(id) {
       document.getElementById("wishPriceInput")?.focus();
       return;
     case "photo":   return document.getElementById("homeImageInput")?.click();
-    case "area":    return navigate("map");
+    case "area":    return openWatchDraw();
     case "likes":
     case "explore": return navigate("map");
   }
@@ -4501,7 +4501,7 @@ function toggleNotifyPref() {
   const cur = getProfile().notify;
   const next = cur === true ? false : true;
   saveProfile({ notify: next });
-  toast(next ? "Aviseringar på. Vi hör av oss när något händer." : "Aviseringar av.");
+  toast(next ? "Sparat. E-post skickas när inloggningen är klar — till dess syns det nya på Min sida." : "Aviseringar av.");
   if (currentView === "dashboard") render();
 }
 
@@ -4516,6 +4516,8 @@ function renderDashboard() {
   const claimStatus = state.claimStatus || null;
   const homeStatus = getHomeStatus(state);
   const savedCount = sparadeObjektIds(state).all.length;
+  // Dina områden visas för den som söker, och för alla som redan har ett.
+  const visaOmraden = getProfile().role === "seeker" || (getProfile().watchedAreas || []).length > 0;
   const _og = ownerId ? GILLANDE[ownerId] : null;
   const ownerLikes = _og ? _og.antal : 0;
   const ownerInterests = ownerId ? state.interests?.[ownerId] || 0 : 0;
@@ -4622,6 +4624,8 @@ function renderDashboard() {
           <div class="stat-tile"><div class="stat-icon"><i class="ti ti-star"></i></div><div><div class="stat-num">${ownerInterests}</div><div class="stat-lbl">Intresserade</div></div></div>
           <button class="stat-tile stat-tile-btn" onclick="currentView='saved';render();"><div class="stat-icon"><i class="ti ti-heart"></i></div><div><div class="stat-num" id="savedCountNum">${savedCount}</div><div class="stat-lbl">Sparade objekt</div></div><i class="ti ti-chevron-right stat-tile-arrow"></i></button>
         </div>
+
+        ${visaOmraden ? bevakningarKortHtml() : ""}
 
         <div class="two-col">
           <div>
@@ -4785,6 +4789,20 @@ function renderDashboard() {
       if (!GILLANDE[ownerId]) return;   // misslyckad hämtning: behåll gamla siffran, ingen loop
       const el = document.getElementById("ownerLikesNum");
       if (el) el.textContent = GILLANDE[ownerId].antal;
+    });
+  }
+
+  // Dina områden: hämtas och patchas på plats, av samma skäl som siffrorna.
+  if (visaOmraden && !MINA_BEVAKNINGAR) {
+    hamtaBevakningar().then(() => {
+      const el = document.getElementById("watchCard");
+      if (!el) return;
+      if (!MINA_BEVAKNINGAR) {   // misslyckad hämtning: ingen omritning, ingen loop
+        const l = document.getElementById("watchLoading");
+        if (l) l.textContent = "Kunde inte hämta dina områden just nu.";
+        return;
+      }
+      el.outerHTML = bevakningarKortHtml();
     });
   }
 
@@ -5092,6 +5110,7 @@ function renderMapView() {
   setTimeout(() => {
     try { map.invalidateSize(); } catch {}
     addClaimedMarkers();
+    consumePendingArea();
   }, 120);
 }
 
@@ -5424,6 +5443,342 @@ function sparadeObjektIds(state) {
     liked: new Set(liked),
     all: [...new Set([...liked, ...Object.keys(st.myInterests || {}), ...Object.keys(st.myFollows || {})])],
   };
+}
+
+// --- Bevakade områden ------------------------------------------------------
+// Den som söker ritar ett område och ser vad som händer där: de mest gillade
+// husen och nya gillanden från andra sedan förra besöket. Sparas på servern
+// mot samma enhetsidentitet som gillandena. E-postnotis kommer med riktig
+// inloggning — då flyttas områdena till kontot.
+//
+// null = inte hämtat (eller inaktuellt). Array = serverns svar:
+// { id, namn, geojson, skapad, senast_sedd, fastigheter, gillanden, nya, topp[] }
+let MINA_BEVAKNINGAR = null;
+let _bevakningarPagar = null;
+let _bevakningLager = null;        // områdena utritade på kartan
+let _bevakningRitning = null;      // { handler, lager } medan man ritar
+const BEVAKNING_MAX_KVM = 25000000; // samma gräns som servern, 25 km²
+
+async function bevakningRpc(namn, body) {
+  const r = await fetch(`${API_BASE_URL}/rest/v1/rpc/${namn}`, {
+    method: "POST",
+    headers: { apikey: API_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) {
+    // Serverns egna felmeddelanden ("Området är för stort …") är skrivna för
+    // användaren. Allt annat blir ett allmänt fel.
+    let msg = "";
+    try { msg = (await r.json())?.message || ""; } catch {}
+    const e = new Error(msg || ("HTTP " + r.status));
+    e.anvandarText = /[åäöÅÄÖ]|\.$/.test(msg) ? msg : null;
+    throw e;
+  }
+  return await r.json();
+}
+
+function hamtaBevakningar() {
+  if (_bevakningarPagar) return _bevakningarPagar;
+  _bevakningarPagar = (async () => {
+    try {
+      const rows = await bevakningRpc("mina_bevakningar", { vem: enhetsId() });
+      if (!Array.isArray(rows)) throw new Error("oväntat svar");
+      MINA_BEVAKNINGAR = rows;
+      // Kopia för checklistan, som läses synkront. Servern är källan.
+      saveProfile({ watchedAreas: rows.map(r => r.id) });
+    } catch (e) {
+      console.warn("Kunde inte hämta bevakade områden:", e.message);
+    } finally {
+      _bevakningarPagar = null;
+    }
+  })();
+  return _bevakningarPagar;
+}
+
+// Från Min sida eller checklistan: öppna kartan i ritläge.
+function openWatchDraw() {
+  window._pendingArea = { mode: "draw" };
+  window._focusOrigin = "dashboard";
+  currentView = "map";
+  render();
+}
+
+// Från Min sida: visa ett område på kartan och markera det som sett.
+function openWatchedArea(id) {
+  window._pendingArea = { mode: "show", id };
+  window._focusOrigin = "dashboard";
+  currentView = "map";
+  render();
+  bevakningRpc("bevakning_sedd", { vem: enhetsId(), bid: id })
+    .then(() => { MINA_BEVAKNINGAR = null; })
+    .catch(e => console.warn("bevakning_sedd:", e.message));
+}
+
+async function removeWatchedArea(id, namn) {
+  if (!confirm(`Sluta bevaka ${namn || "området"}?`)) return;
+  try {
+    await bevakningRpc("ta_bort_bevakning", { vem: enhetsId(), bid: id });
+  } catch (e) {
+    toast(e.anvandarText || "Kunde inte ta bort området just nu. Försök igen.");
+    return;
+  }
+  MINA_BEVAKNINGAR = (MINA_BEVAKNINGAR || []).filter(b => b.id !== id);
+  saveProfile({ watchedAreas: MINA_BEVAKNINGAR.map(b => b.id) });
+  toast("Området bevakas inte längre.");
+  if (currentView === "dashboard") render();
+}
+
+// Anropas när kartvyn är på plats: rita ut områdena och gör det
+// Min sida bad om (rita nytt, eller visa ett befintligt).
+function consumePendingArea() {
+  if (!map) return;
+  const pending = window._pendingArea;
+  window._pendingArea = null;
+
+  // Kartan byggs om vid varje kartbyte. Lämnade man kartan mitt i en
+  // ritning hör den till den gamla kartan — släpp den, annars ligger
+  // spärren för fastighetsklick kvar.
+  _bevakningRitning = null;
+  if (activeDrawFeature?._bevakning) activeDrawFeature = null;
+
+  const efter = () => {
+    drawWatchedAreas();
+    if (pending?.mode === "show") {
+      const b = (MINA_BEVAKNINGAR || []).find(x => x.id === pending.id);
+      if (!b) { toast("Hittar inte området."); return; }
+      try {
+        const bounds = L.geoJSON(JSON.parse(b.geojson)).getBounds();
+        if (bounds.isValid()) map.fitBounds(bounds, { padding: [30, 30] });
+      } catch {}
+    }
+  };
+
+  if (pending?.mode === "draw") startDrawWatch();
+
+  if (MINA_BEVAKNINGAR) efter();
+  else hamtaBevakningar().then(() => {
+    if (!MINA_BEVAKNINGAR || currentView !== "map") return;   // misslyckad hämtning: ingen omritning
+    efter();
+  });
+}
+
+function drawWatchedAreas() {
+  if (!map) return;
+  if (_bevakningLager) { try { _bevakningLager.remove(); } catch {} _bevakningLager = null; }
+  if (!MINA_BEVAKNINGAR?.length) return;
+  _bevakningLager = L.layerGroup();
+  for (const b of MINA_BEVAKNINGAR) {
+    try {
+      L.geoJSON(JSON.parse(b.geojson), {
+        interactive: false,   // klick går igenom till fastigheterna
+        style: { color: "#526D33", weight: 2, dashArray: "6 5", fillColor: "#526D33", fillOpacity: 0.06 },
+      }).addTo(_bevakningLager);
+    } catch {}
+  }
+  _bevakningLager.addTo(map);
+}
+
+function stopDrawWatch() {
+  if (_bevakningRitning) {
+    try { _bevakningRitning.handler?.disable(); } catch {}
+    try { _bevakningRitning.lager?.remove(); } catch {}
+    map?.off(L.Draw.Event.CREATED, onWatchDrawCreated);
+    _bevakningRitning = null;
+  }
+  // Spärren som hindrar fastighetsklick under ritning.
+  if (activeDrawFeature?._bevakning) activeDrawFeature = null;
+}
+
+const _bevakningStil = { color: "#526D33", weight: 2, fillColor: "#526D33", fillOpacity: 0.15 };
+
+function startDrawWatch() {
+  if (!map) return;
+  stopDraw();          // en pågående avstyckningsritning avbryts
+  stopDrawWatch();
+  // activeDrawFeature spärrar fastighetsklick medan man ritar.
+  activeDrawFeature = { _bevakning: true };
+  _bevakningRitning = { handler: null, lager: L.featureGroup().addTo(map) };
+  map.on(L.Draw.Event.CREATED, onWatchDrawCreated);
+
+  openPanel(`
+    <button class="panel-close" id="cancelWatchBtn">✕</button>
+    <div class="panel-eyebrow">Bevaka ett område</div>
+    <div class="panel-name" style="font-size:15px;">Rita området du vill hålla koll på</div>
+    <div style="margin:12px 0;padding:12px;background:var(--green-50);border-radius:10px;font-size:13px;color:var(--green-900);line-height:1.6;">
+      Ett kvarter, en gata, en by. På Min sida ser du sedan de mest gillade husen där och vad som hänt sedan du var inne senast.
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button id="watchPolyBtn" class="panel-btn" style="flex:1;background:var(--green-600);color:#fff;border-color:var(--green-600);">
+        <i class="ti ti-vector-triangle"></i> Rita fritt
+      </button>
+      <button id="watchRectBtn" class="panel-btn" style="flex:1;">
+        <i class="ti ti-rectangle"></i> Rektangel
+      </button>
+    </div>
+    <div id="watchStatus" style="font-size:12px;color:var(--ink-muted);text-align:center;margin-top:10px;min-height:20px;"></div>
+  `);
+
+  document.getElementById("cancelWatchBtn").onclick = () => { stopDrawWatch(); closePanel(); };
+  const starta = (Typ, opts, text) => {
+    try { _bevakningRitning?.handler?.disable(); } catch {}
+    const h = new Typ(map, opts);
+    h.enable();
+    if (_bevakningRitning) _bevakningRitning.handler = h;
+    const st = document.getElementById("watchStatus");
+    if (st) st.textContent = text;
+  };
+  document.getElementById("watchPolyBtn").onclick = () =>
+    starta(L.Draw.Polygon, { allowIntersection: false, showArea: false, shapeOptions: _bevakningStil },
+           "Klicka ut hörnen. Klicka på första punkten för att avsluta.");
+  document.getElementById("watchRectBtn").onclick = () =>
+    starta(L.Draw.Rectangle, { shapeOptions: _bevakningStil },
+           "Klicka och dra över området.");
+}
+
+function onWatchDrawCreated(e) {
+  if (!_bevakningRitning) return;
+  window._lastDrawCreatedAt = Date.now();
+  const layer = e.layer;
+  _bevakningRitning.lager.clearLayers();
+  _bevakningRitning.lager.addLayer(layer);
+
+  let kvm = null;
+  try {
+    const ll = layer.getLatLngs();
+    const ring = Array.isArray(ll[0]) ? ll[0] : ll;
+    if (L.GeometryUtil && ring.length >= 3) kvm = L.GeometryUtil.geodesicArea(ring);
+  } catch {}
+
+  const forStort = kvm != null && kvm > BEVAKNING_MAX_KVM;
+  const ytaText = kvm == null ? "" : kvm >= 1e6
+    ? `${(kvm / 1e6).toLocaleString("sv-SE", { maximumFractionDigits: 1 })} km²`
+    : `${(Math.round(kvm / 100) * 100).toLocaleString("sv-SE")} m²`;
+
+  openPanel(`
+    <button class="panel-close" id="cancelWatchBtn2">✕</button>
+    <div class="panel-eyebrow">Bevaka ett område</div>
+    <div class="panel-name" style="font-size:15px;">${forStort ? "Området är för stort" : "Vad ska området heta?"}</div>
+    ${forStort ? `
+      <div style="margin:12px 0;padding:12px;background:var(--clay-soft, #F6E6E0);border-radius:10px;font-size:13px;color:var(--clay);line-height:1.6;">
+        Det du ritat är ${ytaText}. Högst 25 km² går att bevaka — ungefär en stadsdel. Rita ett mindre område.
+      </div>` : `
+      <div style="font-size:12px;color:var(--ink-muted);margin:6px 0 12px;">${ytaText ? "Ca " + ytaText : ""}</div>
+      <input id="watchNameInput" class="input" maxlength="60" placeholder="t.ex. Pålsjö, Tågaborg, Kvarteret vid skolan" style="margin-bottom:10px;" />
+      <button id="saveWatchBtn" class="btn-primary" style="width:100%;justify-content:center;">
+        <i class="ti ti-eye"></i> Bevaka området
+      </button>`}
+    <button id="redrawWatchBtn" style="display:block;margin:10px auto 0;background:transparent;border:none;font-size:12px;color:var(--ink-muted);cursor:pointer;font-family:var(--font-body);">
+      Rita om
+    </button>
+  `);
+
+  document.getElementById("cancelWatchBtn2").onclick = () => { stopDrawWatch(); closePanel(); };
+  document.getElementById("redrawWatchBtn").onclick = () => startDrawWatch();
+  if (forStort) return;
+
+  const input = document.getElementById("watchNameInput");
+  setTimeout(() => input?.focus(), 50);
+  input?.addEventListener("keydown", ev => { if (ev.key === "Enter") document.getElementById("saveWatchBtn")?.click(); });
+
+  document.getElementById("saveWatchBtn").onclick = async () => {
+    const btn = document.getElementById("saveWatchBtn");
+    if (btn) btn.disabled = true;
+    const namn = (input?.value || "").trim() || "Mitt område";
+    let geom;
+    try { geom = layer.toGeoJSON().geometry; } catch { geom = null; }
+    if (!geom) { toast("Kunde inte läsa formen. Rita om."); if (btn) btn.disabled = false; return; }
+    let nid;
+    try {
+      nid = await bevakningRpc("spara_bevakning", { vem: enhetsId(), rubrik: namn, form: JSON.stringify(geom) });
+    } catch (e) {
+      if (btn) btn.disabled = false;
+      console.warn("spara_bevakning:", e.message);
+      toast(e.anvandarText || "Kunde inte spara området just nu. Försök igen.");
+      return;
+    }
+    stopDrawWatch();
+    MINA_BEVAKNINGAR = null;
+    await hamtaBevakningar();
+    // En hämtning som redan var på väg kan ha startat före sparningen och
+    // sakna det nya området. Hämta då en gång till.
+    if (!MINA_BEVAKNINGAR?.some(b => b.id === nid)) { MINA_BEVAKNINGAR = null; await hamtaBevakningar(); }
+    drawWatchedAreas();
+    toast(`${namn} bevakas.`);
+    openPanel(`
+      <div style="text-align:center;padding:20px 16px;">
+        <div style="width:48px;height:48px;border-radius:50%;background:var(--green-50);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
+          <i class="ti ti-eye" style="font-size:24px;color:var(--green-600);"></i>
+        </div>
+        <div style="font-size:16px;font-weight:700;color:var(--ink);margin-bottom:8px;">${escapeHtmlBasic(namn)} bevakas</div>
+        <div style="font-size:13px;color:var(--ink-soft);line-height:1.6;margin-bottom:20px;">
+          På Min sida ser du de mest gillade husen här och vad som hänt sedan du var inne senast.
+        </div>
+        <button onclick="closePanel();navigate('dashboard')" class="btn-primary" style="width:100%;justify-content:center;">Till Min sida</button>
+        <button onclick="startDrawWatch()" style="display:block;margin:10px auto 0;background:transparent;border:none;font-size:12px;color:var(--ink-muted);cursor:pointer;font-family:var(--font-body);">Rita ett område till</button>
+      </div>
+    `);
+  };
+}
+
+// Kortet "Dina områden" på Min sida. Ritas med det som finns och fylls
+// på när servern svarat — se renderDashboard.
+function bevakningarKortHtml() {
+  const lista = MINA_BEVAKNINGAR;
+  const laddar = lista === null;
+  const rad = (b) => {
+    const id = escapeHtmlBasic(b.id);
+    const namn = escapeHtmlBasic(b.namn);
+    // Till onclick-strängar: citattecken bort FÖRE escapning, annars blir
+    // &#39; ett ' igen i attributet och bryter JavaScript-strängen.
+    const namnJs = escapeHtmlBasic(String(b.namn || "").replace(/['"\\]/g, ""));
+    const topp = Array.isArray(b.topp) ? b.topp : [];
+    return `
+      <div style="padding:14px 0;border-top:1px solid var(--line, #E4E8DC);">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+          <div style="min-width:0;">
+            <div style="font-family:var(--font-display);font-weight:700;font-size:16px;color:var(--green-900);">${namn}</div>
+            <div style="font-size:12px;color:var(--ink-muted);margin-top:2px;">
+              <span style="font-family:var(--font-data);">${Number(b.fastigheter || 0).toLocaleString("sv-SE")}</span> fastigheter ·
+              <span style="font-family:var(--font-data);">${Number(b.gillanden || 0).toLocaleString("sv-SE")}</span> gillanden
+            </div>
+          </div>
+          ${b.nya > 0 ? `<span style="flex-shrink:0;background:var(--honey-soft);color:var(--green-900);border-radius:999px;padding:4px 11px;font-size:12px;font-weight:600;">${b.nya} ${b.nya === 1 ? "nytt gillande" : "nya gillanden"}</span>` : ""}
+        </div>
+        ${topp.length ? `
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:4px;">
+            ${topp.map(t => `
+              <button onclick="openParcelById('${escapeHtmlBasic(String(t.fid))}','${escapeHtmlBasic(String(t.beteckning || "").replace(/['"\\]/g, ""))}','dashboard')"
+                style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--green-50);border:none;border-radius:8px;padding:8px 11px;cursor:pointer;text-align:left;font-family:var(--font-body);">
+                <span class="beteckning" style="font-size:12px;">${escapeHtmlBasic(t.beteckning || "Okänd")}</span>
+                <span style="font-size:12px;color:var(--ink-soft);white-space:nowrap;"><i class="ti ti-thumb-up" style="font-size:12px;"></i> ${t.antal}</span>
+              </button>`).join("")}
+          </div>` : `
+          <div style="margin-top:8px;font-size:12px;color:var(--ink-muted);">Ingen har gillat något här ännu. Det syns här när någon gör det.</div>`}
+        <div style="display:flex;gap:14px;margin-top:10px;">
+          <button onclick="openWatchedArea('${id}')" style="background:none;border:none;padding:0;font-size:12px;font-weight:600;color:var(--green-600);cursor:pointer;font-family:var(--font-body);">
+            <i class="ti ti-map-2"></i> Visa på kartan
+          </button>
+          <button onclick="removeWatchedArea('${id}', '${namnJs}')" style="background:none;border:none;padding:0;font-size:12px;color:var(--ink-muted);cursor:pointer;font-family:var(--font-body);">
+            Sluta bevaka
+          </button>
+        </div>
+      </div>`;
+  };
+
+  return `
+    <div class="card" id="watchCard" style="margin-bottom:16px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <div class="card-title" style="margin:0;">Dina områden</div>
+        ${lista && lista.length < 10 ? `<button onclick="openWatchDraw()" class="btn-ghost" style="font-size:12px;padding:6px 12px;"><i class="ti ti-plus"></i> Nytt område</button>` : ""}
+      </div>
+      ${laddar ? `<div id="watchLoading" style="font-size:13px;color:var(--ink-muted);padding:12px 0 2px;">Hämtar…</div>`
+        : lista.length ? lista.map(rad).join("") : `
+        <div style="font-size:13px;color:var(--ink-soft);line-height:1.6;padding:10px 0 4px;">
+          Rita ett område du är nyfiken på — ett kvarter, en gata, en by. Här ser du sedan de mest gillade husen där och vad som hänt sedan du var inne senast.
+        </div>
+        <button onclick="openWatchDraw()" class="btn-primary" style="margin-top:8px;"><i class="ti ti-pencil"></i> Rita ett område</button>`}
+      <div style="font-size:11px;color:var(--ink-muted);margin-top:12px;">Notis via e-post kommer när kontot kopplas till riktig inloggning.</div>
+    </div>`;
 }
 
 const BBOX_MAX_ROWS = 3000;

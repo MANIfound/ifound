@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-10-13e";
+const IFOUND_VERSION = "2026-10-13f";
 console.info("[ifound] version " + IFOUND_VERSION);
 
 function toast(msg) {
@@ -70,6 +70,7 @@ async function laddaKonto() {
       namn: profil?.namn || user.user_metadata?.namn || "",
       ar_admin: !!profil?.ar_admin,
     };
+    await hamtaMittAgarskap();
   } catch (e) {
     console.warn("Kunde inte läsa inloggningen:", e?.message);
     KONTO = null;
@@ -106,6 +107,71 @@ function clearSession() {
   if (KONTO) {
     KONTO = null;
     sbKlient().auth.signOut().catch(e => console.warn("Utloggning:", e?.message));
+  }
+  // Ägarskapet hör till kontot, inte till webbläsaren. Nästa konto i samma
+  // webbläsare ska inte ärva det.
+  MITT_AGARSKAP = undefined;
+  ADMIN_AGARSKAP = null;
+  speglaAgarskap(null);
+}
+
+// =========================
+// ÄGARSKAP — ansökan, granskning och status (servern är källan)
+// =========================
+// EN väg: välj fastigheten på kartan i Ägarläge → "Detta är min fastighet"
+// → formuläret → väntande ansökan → admin godkänner eller avslår.
+//
+// MITT_AGARSKAP: undefined = inte hämtat, null = inget, annars serverns rad
+// { id, fastighet_id, beteckning, status, synlighet, skapad, granskad, lat, lon }.
+// state.ownerParcelId och state.claimStatus är en kopia för vyerna, som
+// läser dem synkront. De skrivs bara av speglaAgarskap().
+let MITT_AGARSKAP = undefined;
+let ADMIN_AGARSKAP = null;    // adminlistan, null = inte hämtad
+let _adminAgarskapFel = false;
+
+function speglaAgarskap(row) {
+  const s = loadState();
+  const fore = JSON.stringify([s.ownerParcelId || null, s.claimStatus || null]);
+  const aktiv = !!row && (row.status === "pending" || row.status === "verified");
+  s.ownerParcelId = aktiv ? String(row.fastighet_id) : null;
+  s.claimStatus = row ? row.status : null;
+  s.claimAvslagen = row?.status === "rejected" ? row.beteckning : null;
+  if (aktiv) {
+    s.parcelNames = s.parcelNames || {};
+    s.parcelNames[s.ownerParcelId] = row.beteckning;
+    if (row.lat != null && row.lon != null) { s.ownerLat = row.lat; s.ownerLon = row.lon; }
+  } else {
+    delete s.ownerLat; delete s.ownerLon;
+  }
+  saveState(s);
+  return fore !== JSON.stringify([s.ownerParcelId, s.claimStatus]);
+}
+
+// Returnerar true om något ändrades lokalt.
+async function hamtaMittAgarskap() {
+  if (!KONTO) { MITT_AGARSKAP = null; return speglaAgarskap(null); }
+  try {
+    const { data, error } = await sbKlient().rpc("mitt_agarskap");
+    if (error) throw error;
+    const row = Array.isArray(data) ? (data[0] || null) : (data || null);
+    MITT_AGARSKAP = row;
+    return speglaAgarskap(row);
+  } catch (e) {
+    // Behåll det som fanns. Ingen omritning, ingen loop.
+    console.warn("Kunde inte hämta ägarskap:", e?.message);
+    return false;
+  }
+}
+
+async function hamtaAdminAgarskap() {
+  try {
+    const { data, error } = await sbKlient().rpc("admin_agarskap");
+    if (error) throw error;
+    ADMIN_AGARSKAP = Array.isArray(data) ? data : [];
+    _adminAgarskapFel = false;
+  } catch (e) {
+    console.warn("Kunde inte hämta ansökningar:", e?.message);
+    _adminAgarskapFel = true;
   }
 }
 
@@ -2871,33 +2937,31 @@ function _renderParcelPanelInner(feature) {
       <button class="panel-close" id="closePanelBtn">✕</button>
       <div class="panel-eyebrow">Ägarläge</div>
       <div class="panel-name">${name}</div>
-      <div class="panel-mode">Markera fastigheten som din.</div>
+      <div class="panel-mode">${isOwner
+        ? (state.claimStatus === "verified" ? "Du är verifierad ägare till fastigheten." : "Din ansökan granskas — oftast inom 24 timmar.")
+        : "Äger du fastigheten? Ansök om att koppla den till ditt konto."}</div>
       <div class="panel-meta">${metaRows}</div>
       <div class="panel-actions">
-        <button id="setMineBtn" class="panel-btn ${isOwner ? "active-owner" : ""}">${isOwner ? "✓ Min fastighet" : "Detta är min fastighet"}</button>
+        <button id="setMineBtn" class="panel-btn ${isOwner ? "active-owner" : ""}">${isOwner
+          ? (state.claimStatus === "verified" ? "✓ Min fastighet" : "Väntar på granskning")
+          : "Detta är min fastighet"}</button>
       </div>
       ${statsHtml}
     `);
+    // Den enda vägen till ägarskap: härifrån öppnas ansökan, med
+    // fastigheten redan vald. Inget kopplas förrän admin godkänt.
     document.getElementById("setMineBtn").onclick = () => {
-      const s = loadState();
-      s.ownerParcelId = pid;
-      s.parcelNames = s.parcelNames || {};
-      s.parcelNames[pid] = name;
-      // Store centroid for marker placement
-      try {
-        const coords = feature?.geometry?.coordinates?.[0] || [];
-        if (coords.length) {
-          const lons = coords.map(p => p[0]);
-          const lats = coords.map(p => p[1]);
-          s.ownerLon = lons.reduce((a,b)=>a+b,0)/lons.length;
-          s.ownerLat = lats.reduce((a,b)=>a+b,0)/lats.length;
-        }
-      } catch {}
-      saveState(s);
-      toast("Fastigheten kopplad till ditt konto.");
-      redrawLayer();
-      addClaimedMarkers();
-      renderParcelPanel(feature);
+      if (!KONTO) {
+        openAuthModal("reg");
+        toast("Skapa ett konto för att ansöka om din fastighet.");
+        return;
+      }
+      if (isOwner) { navigate("dashboard"); return; }
+      if (state.claimStatus === "verified") {
+        toast("Du har redan en godkänd fastighet. Välj Byt fastighet på Min sida först.");
+        return;
+      }
+      openClaimModal({ pid, name });
     };
     document.getElementById("closePanelBtn").onclick = closePanel;
     return;
@@ -4723,6 +4787,7 @@ function renderDashboard() {
             <div class="hero-meta" id="hero-meta">${HOME_STATUS_META[homeStatus].desc}</div>
             <div class="hero-actions">
               ${ownerId ? `<button class="hero-btn primary" onclick="navigate('map')"><i class="ti ti-map-pin"></i> Visa i kartan</button>` : `<button class="hero-btn primary" onclick="openClaimModal()"><i class="ti ti-home-check"></i> Claima din fastighet</button>`}
+              ${!ownerId && claimStatus === 'rejected' ? `<span style="background:rgba(181,87,60,.25);border:1.5px solid rgba(181,87,60,.5);color:#fff;border-radius:999px;padding:5px 13px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px;"><i class="ti ti-x" style="font-size:13px;"></i> Ansökan om ${escapeHtmlBasic(state.claimAvslagen || "fastigheten")} avslogs</span>` : ''}
               ${ownerId && claimStatus === 'pending' ? `<span style="background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.3);color:#fff;border-radius:999px;padding:5px 13px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px;"><i class="ti ti-clock" style="font-size:13px;"></i> Verifieras inom 24h</span>` : ''}
               ${ownerId && claimStatus === 'verified' ? `<span style="background:rgba(22,163,74,.2);border:1.5px solid rgba(22,163,74,.4);color:#fff;border-radius:999px;padding:5px 13px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px;"><i class="ti ti-check" style="font-size:13px;"></i> Verifierad ägare</span>` : ''}
               ${ownerId ? `<button class="hero-btn" id="clearOwnerBtn"><i class="ti ti-switch-horizontal"></i> Byt fastighet</button>` : ""}
@@ -4928,7 +4993,25 @@ function renderDashboard() {
   }
 
   const clearBtn = document.getElementById("clearOwnerBtn");
-  if (clearBtn) clearBtn.onclick = () => { const s = loadState(); s.ownerParcelId = null; saveState(s); toast("Välj en ny fastighet."); render(); };
+  if (clearBtn) clearBtn.onclick = async () => {
+    const st0 = loadState();
+    const bet = st0.parcelNames?.[st0.ownerParcelId] || "fastigheten";
+    const vad = st0.claimStatus === "verified" ? "ditt ägarskap av" : "din ansökan om";
+    if (!confirm(`Avsluta ${vad} ${bet}? Du kan ansöka om en annan fastighet efteråt.`)) return;
+    const { error } = await sbKlient().rpc("avsluta_agarskap");
+    if (error) { toast("Kunde inte avsluta just nu. Försök igen."); return; }
+    await hamtaMittAgarskap();
+    toast("Klart. Välj din fastighet på kartan.");
+    render();
+  };
+
+  // Ägarskapet hämtas vid inloggning. Har det inte hunnit hämtas (eller
+  // ändrats av admin sedan dess) ritas sidan om en gång när svaret kommer.
+  if (MITT_AGARSKAP === undefined) {
+    hamtaMittAgarskap().then(andrat => {
+      if (andrat && currentView === "dashboard") render();
+    });
+  }
 
   const wishBtn = document.getElementById("saveWishPriceBtn");
   if (wishBtn) wishBtn.onclick = () => {
@@ -6554,9 +6637,27 @@ function closeMapAreaCard() {
 }
 
 
-function openClaimModal() {
+function openClaimModal(fastighet) {
   const existing = document.getElementById('claim-modal-overlay');
   if (existing) existing.remove();
+
+  if (!KONTO) {
+    openAuthModal('reg');
+    toast("Skapa ett konto för att ansöka om din fastighet.");
+    return;
+  }
+  // Utan vald fastighet: till kartan i ägarläge. Beteckningen skrivs aldrig
+  // för hand — den måste vara en riktig fastighet ur registret.
+  if (!fastighet?.pid) {
+    saveMapMode("owner");
+    currentView = "map";
+    render();
+    toast("Klicka på din fastighet på kartan och välj Detta är min fastighet.");
+    return;
+  }
+  window._claimFastighet = { pid: String(fastighet.pid), name: fastighet.name || "" };
+  selectedClaimVis = 'private';
+  const forNamn = escapeHtmlBasic(KONTO?.namn || "");
 
   const overlay = document.createElement('div');
   overlay.id = 'claim-modal-overlay';
@@ -6575,24 +6676,20 @@ function openClaimModal() {
       <div style="background:var(--page-bg);border-radius:12px;padding:14px 16px;margin-bottom:20px;display:flex;align-items:center;gap:12px;">
         <i class="ti ti-home" style="font-size:20px;color:var(--accent);" aria-hidden="true"></i>
         <div>
-          <div style="font-size:13px;font-weight:600;color:var(--ink);">Ingen fastighet vald</div>
-          <div style="font-size:11px;color:var(--ink-muted);">Välj fastighet via kartan för att koppla den till din profil</div>
+          <div class="beteckning" style="font-size:13px;color:var(--ink);">${escapeHtmlBasic(fastighet.name || "")}</div>
+          <div style="font-size:11px;color:var(--ink-muted);">Fastigheten du valde på kartan</div>
         </div>
       </div>
 
       <div style="display:flex;flex-direction:column;gap:14px;margin-bottom:20px;">
         <div>
           <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:6px;">Fullständigt namn</label>
-          <input id="claim-name" class="input" placeholder="Anna Lindqvist" style="width:100%;" />
+          <input id="claim-name" class="input" placeholder="Anna Lindqvist" value="${forNamn}" style="width:100%;" />
         </div>
         <div>
           <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:6px;">Personnummer</label>
           <input id="claim-pnr" class="input" placeholder="YYYYMMDD-XXXX" maxlength="13" style="width:100%;font-family:monospace;letter-spacing:.05em;" />
           <div style="font-size:11px;color:var(--ink-muted);margin-top:5px;">Används endast för att verifiera ägandet mot fastighetsregistret.</div>
-        </div>
-        <div>
-          <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:6px;">Fastighetsbeteckning</label>
-          <input id="claim-prop" class="input" placeholder="Ex. Pålsjö 4:7" style="width:100%;" />
         </div>
       </div>
 
@@ -6620,12 +6717,12 @@ function openClaimModal() {
         `).join('')}
       </div>
 
-      <button onclick="submitClaim()" style="width:100%;padding:14px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:14px;font-weight:600;font-family:var(--font-body);cursor:pointer;letter-spacing:-.01em;">
-        Skicka in claim
+      <button id="submitClaimBtn" onclick="submitClaim()" style="width:100%;padding:14px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:14px;font-weight:600;font-family:var(--font-body);cursor:pointer;letter-spacing:-.01em;">
+        Skicka ansökan
       </button>
 
       <div style="font-size:11px;color:var(--ink-muted);text-align:center;margin-top:12px;line-height:1.5;">
-        Ditt personnummer lagras krypterat och används endast för verifiering. Det visas aldrig publikt.
+        Bara födelsedatumet sparas (ÅÅÅÅMMDD-****). De fyra sista siffrorna lämnar aldrig din webbläsare, och inget av det visas för andra.
       </div>
     </div>
   `;
@@ -6663,40 +6760,43 @@ function selectClaimVis(val) {
   });
 }
 
-function submitClaim() {
+async function submitClaim() {
+  const f    = window._claimFastighet;
   const name = document.getElementById('claim-name')?.value.trim();
-  const pnr  = document.getElementById('claim-pnr')?.value.trim();
-  const prop = document.getElementById('claim-prop')?.value.trim();
+  const pnr  = document.getElementById('claim-pnr')?.value.trim().replace(/\s/g, "");
+  const btn  = document.getElementById('submitClaimBtn');
 
-  if (!name || !pnr || !prop) {
-    toast('Fyll i alla fält för att fortsätta.');
+  if (!f?.pid) { closeClaimModal(); openClaimModal(); return; }
+  if (!name) { toast('Skriv ditt fullständiga namn.'); return; }
+  if (!/^\d{8}-?\d{4}$/.test(pnr || "")) {
+    toast('Personnumret ska skrivas ÅÅÅÅMMDD-XXXX.');
     return;
   }
 
-  if (!/^\d{8}-\d{4}$/.test(pnr)) {
-    toast('Personnummer måste vara i format YYYYMMDD-XXXX.');
+  // Maskeras här, innan något skickas. Servern vägrar ta emot fullt nummer.
+  const maskerat = pnr.slice(0, 8) + '-****';
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Skickar…'; }
+  const { error } = await sbKlient().rpc('ansok_agarskap', {
+    vald_fid: f.pid, fullt_namn: name, pnr: maskerat, syns: selectedClaimVis,
+  });
+  if (error) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Skicka ansökan'; }
+    console.warn('ansok_agarskap:', error.message);
+    toast(/[åäöÅÄÖ]/.test(error.message || "") ? error.message : 'Kunde inte skicka ansökan just nu. Försök igen.');
     return;
   }
 
+  // Synligheten ligger också kvar lokalt, där statusväljaren på Min sida läser den.
   const s = loadState();
-  s.claimStatus = 'pending';
-  s.claimData = { name, pnr: pnr.slice(0,8) + '-****', prop, visibility: selectedClaimVis, submittedAt: new Date().toISOString() };
-  s.ownerParcelId = prop;
-  s.parcelNames = s.parcelNames || {};
-  s.parcelNames[prop] = prop;
+  s.claimData = { ...(s.claimData || {}), visibility: selectedClaimVis };
   saveState(s);
 
-  // Save pending claim for admin
-  const users = loadUsers();
-  const session = loadSession();
-  if (session?.email && users[session.email]) {
-    users[session.email].pendingClaim = { name, pnr: pnr.slice(0,8) + '-****', prop, visibility: selectedClaimVis, submittedAt: new Date().toISOString(), status: 'pending' };
-    saveUsers(users);
-  }
-
+  await hamtaMittAgarskap();
   closeClaimModal();
-  toast('Claim inskickad! Vi återkommer inom 24h.');
-  render();
+  toast('Ansökan skickad! Vi granskar den, oftast inom 24 timmar.');
+  if (currentView === "map") { closePanel(); redrawLayer(); addClaimedMarkers(); }
+  else render();
 }
 
 
@@ -6736,28 +6836,31 @@ function renderInterestMessages() {
 
 let adminTab = "overview";
 
-// Godkänn eller avslå ett ägaranspråk. Sätter claimStatus, som tidigare
-// aldrig kunde bli något annat än 'pending'.
-function decideClaim(email, decision) {
-  const users = loadUsers();
-  const u = users[email];
-  if (!u?.pendingClaim) return;
-  u.pendingClaim.status = decision;
-  u.pendingClaim.decidedAt = new Date().toISOString();
-  saveUsers(users);
-
-  const st = loadState();
-  st.claimStatus = decision === "verified" ? "verified" : "rejected";
-  if (decision !== "verified") st.ownerParcelId = null;
-  saveState(st);
-
-  toast(decision === "verified"
-    ? `${u.pendingClaim.prop} är nu verifierad för ${u.name}.`
-    : `Anspråket på ${u.pendingClaim.prop} avslogs.`);
+// Godkänn eller avslå en ansökan om ägarskap. Beslutet tas på servern;
+// den sökande ser det nästa gång hen öppnar Min sida.
+async function decideClaim(id, decision) {
+  const a = (ADMIN_AGARSKAP || []).find(x => x.id === id);
+  const { data, error } = await sbKlient().rpc("admin_besluta", { aid: id, beslut: decision });
+  if (error) { toast("Kunde inte spara beslutet: " + (error.message || "okänt fel")); return; }
+  if (data === false) toast("Ansökan var redan granskad.");
+  else toast(decision === "verified"
+    ? `${a?.beteckning || "Fastigheten"} är nu verifierad för ${a?.namn || "den sökande"}.`
+    : `Ansökan om ${a?.beteckning || "fastigheten"} avslogs.`);
+  ADMIN_AGARSKAP = null;
+  await hamtaAdminAgarskap();
   renderAdmin();
 }
 
 function renderAdmin() {
+  // Ansökningarna kommer från servern. Första gången ritas sidan med
+  // "Hämtar…" och ritas om en gång när svaret kommit.
+  if (ADMIN_AGARSKAP === null && !_adminAgarskapFel) {
+    hamtaAdminAgarskap().then(() => {
+      if (ADMIN_AGARSKAP !== null && arAdmin()) renderAdmin();   // misslyckad hämtning: ingen loop
+      else if (_adminAgarskapFel && arAdmin()) renderAdmin();    // visa felet en gång
+    });
+  }
+  const ansokningar = ADMIN_AGARSKAP || [];
   const users = loadUsers();
   const state = loadState();
   const userList = Object.values(users).filter(u => u.email !== "admin@ifound.se");
@@ -6952,9 +7055,9 @@ function renderAdmin() {
     </div>
   `;
 
-  const pendingClaims = Object.values(users).filter(u => u.pendingClaim && u.pendingClaim.status === 'pending');
+  const pendingClaims = ansokningar.filter(a => a.status === 'pending');
 
-  const pendingClaimsHtml = pendingClaims.length > 0 ? pendingClaims.map(u => `
+  const pendingClaimsHtml = pendingClaims.length > 0 ? pendingClaims.map(a => { const u = { email: a.email, pendingClaim: { name: escapeHtmlBasic(a.namn), pnr: escapeHtmlBasic(a.pnr_maskerat), prop: escapeHtmlBasic(a.beteckning), visibility: a.synlighet } }; return `
     <div style="padding:16px 20px;border-bottom:0.5px solid rgba(17,24,39,.05);">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;">
         <div>
@@ -6982,11 +7085,11 @@ function renderAdmin() {
         </div>
       </div>
       <div style="display:flex;gap:8px;">
-        <button onclick="approveClaim('${u.email}')" style="flex:1;padding:9px;border-radius:9px;border:none;background:#16a34a;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-body);">Godkänn</button>
-        <button onclick="rejectClaim('${u.email}')" style="flex:1;padding:9px;border-radius:9px;border:0.5px solid rgba(17,24,39,.12);background:#fff;color:#dc2626;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-body);">Neka</button>
+        <button onclick="decideClaim('${a.id}','verified')" style="flex:1;padding:9px;border-radius:9px;border:none;background:#16a34a;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-body);">Godkänn</button>
+        <button onclick="decideClaim('${a.id}','rejected')" style="flex:1;padding:9px;border-radius:9px;border:0.5px solid rgba(17,24,39,.12);background:#fff;color:#dc2626;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-body);">Neka</button>
       </div>
     </div>
-  `).join('') : '<div style="padding:16px 20px;font-size:13px;color:var(--ink-muted);">Inga väntande claims.</div>';
+  `; }).join('') : '<div style="padding:16px 20px;font-size:13px;color:var(--ink-muted);">Inga väntande ansökningar.</div>';
 
   const moderationHtml = `
     <div style="display:grid;gap:12px;">
@@ -7161,7 +7264,6 @@ function renderAdmin() {
 
   // Ägaranspråk. Innan BankID finns är detta den manuella verifieringen —
   // claimStatus sattes tidigare till 'pending' utan att något kunde godkänna den.
-  const claimUsers = Object.values(loadUsers()).filter(u => u.pendingClaim);
   const claimsHtml = `
     <div class="card">
       <div class="card-title">Ägaranspråk att granska</div>
@@ -7169,8 +7271,13 @@ function renderAdmin() {
         Manuell verifiering tills BankID är på plats. Kontrollera att personen står som lagfaren ägare
         till fastigheten innan du godkänner — det är den enda spärren mot att någon claimar ett hus de inte äger.
       </div>
-      ${claimUsers.length ? claimUsers.map(u => {
-        const c = u.pendingClaim;
+      ${ADMIN_AGARSKAP === null
+        ? `<div style="font-size:13px;color:var(--ink-muted);padding:22px 0;text-align:center;">${_adminAgarskapFel ? "Kunde inte hämta ansökningarna. Ladda om sidan." : "Hämtar…"}</div>`
+        : ansokningar.length ? ansokningar.map(a => {
+        const c = { prop: escapeHtmlBasic(a.beteckning), name: escapeHtmlBasic(a.namn), pnr: escapeHtmlBasic(a.pnr_maskerat),
+                    visibility: ({ private: "Privat", public: "Synlig", sale: "Till salu/uthyrning" })[a.synlighet] || a.synlighet,
+                    submittedAt: a.skapad, status: a.status };
+        const u = { email: escapeHtmlBasic(a.email || "") };
         const done = c.status && c.status !== "pending";
         return `
         <div style="border:1px solid var(--hairline);border-radius:13px;padding:15px 16px;margin-bottom:10px;background:${done ? "var(--surface-2)" : "var(--surface)"};">
@@ -7188,12 +7295,12 @@ function renderAdmin() {
                 ? `<span style="font-size:11.5px;font-weight:600;padding:6px 12px;border-radius:999px;background:${c.status === "verified" ? "var(--green-100)" : "#FDE7E3"};color:${c.status === "verified" ? "var(--green-800)" : "#9B3A22"};">
                      ${c.status === "verified" ? "Godkänd" : "Avslagen"}
                    </span>`
-                : `<button onclick="decideClaim('${u.email}','verified')" style="padding:8px 14px;border-radius:9px;border:none;background:var(--green-600);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--font-body);">Godkänn</button>
-                   <button onclick="decideClaim('${u.email}','rejected')" style="padding:8px 14px;border-radius:9px;border:0.5px solid var(--hairline);background:transparent;color:var(--ink-soft);font-size:12.5px;font-weight:500;cursor:pointer;font-family:var(--font-body);">Avslå</button>`}
+                : `<button onclick="decideClaim('${a.id}','verified')" style="padding:8px 14px;border-radius:9px;border:none;background:var(--green-600);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--font-body);">Godkänn</button>
+                   <button onclick="decideClaim('${a.id}','rejected')" style="padding:8px 14px;border-radius:9px;border:0.5px solid var(--hairline);background:transparent;color:var(--ink-soft);font-size:12.5px;font-weight:500;cursor:pointer;font-family:var(--font-body);">Avslå</button>`}
             </div>
           </div>
         </div>`;
-      }).join("") : `<div style="font-size:13px;color:var(--ink-muted);padding:22px 0;text-align:center;">Inga anspråk väntar på granskning.</div>`}
+      }).join("") : `<div style="font-size:13px;color:var(--ink-muted);padding:22px 0;text-align:center;">Inga ansökningar ännu.</div>`}
     </div>`;
 
   const tabContent = { overview:overviewHtml, claims:claimsHtml, users:usersHtml, properties:propertiesHtml, moderation:moderationHtml, insights:insightsHtml, premium:premiumHtml };
@@ -7255,25 +7362,7 @@ function adminToast(msg) {
 
 
 
-function approveClaim(email) {
-  const users = loadUsers();
-  if (users[email]?.pendingClaim) {
-    users[email].pendingClaim.status = 'approved';
-    saveUsers(users);
-  }
-  toast('Claim godkänd — ' + email);
-  renderAdmin();
-}
 
-function rejectClaim(email) {
-  const users = loadUsers();
-  if (users[email]?.pendingClaim) {
-    users[email].pendingClaim.status = 'rejected';
-    saveUsers(users);
-  }
-  toast('Claim nekad — ' + email);
-  renderAdmin();
-}
 
 
 // =========================
@@ -7833,6 +7922,8 @@ window.addEventListener("keydown", ev => { if (currentView === "map" && ev.key =
   // Vem är inloggad? Högst tre sekunder — svarar inte servern ritas sidan
   // som utloggad, och inloggningen dyker upp när svaret väl kommer.
   await Promise.race([laddaKonto(), new Promise(r => setTimeout(r, 3000))]);
+  // Utloggad: inget lokalt ägarskap från ett tidigare konto får ligga kvar.
+  if (!KONTO && !loadSession()?.isBroker) speglaAgarskap(null);
 
   // Inloggning eller utloggning i en annan flik, eller en session som gått ut.
   // Inga anrop till servern direkt i lyssnaren — supabase-js låser sig då.

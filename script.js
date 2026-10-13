@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-10-13g";
+const IFOUND_VERSION = "2026-10-13h";
 console.info("[ifound] version " + IFOUND_VERSION);
 
 function toast(msg) {
@@ -6789,10 +6789,13 @@ function openClaimModal(fastighet) {
 
   const overlay = document.createElement('div');
   overlay.id = 'claim-modal-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;';
+  // Formuläret är högre än en mobilskärm. Rutan bakom scrollar, och kortet
+  // centreras med margin:auto — det ger centrering när det får plats och
+  // börjar överst när det inte gör det (align-items:center klipper toppen).
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:9000;display:flex;justify-content:center;align-items:flex-start;padding:20px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;';
 
   overlay.innerHTML = `
-    <div style="background:#fff;border-radius:20px;padding:28px;width:100%;max-width:440px;box-shadow:0 24px 64px rgba(0,0,0,.2);">
+    <div style="background:#fff;border-radius:20px;padding:28px;width:100%;max-width:440px;box-shadow:0 24px 64px rgba(0,0,0,.2);margin:auto 0;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
         <div>
           <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:4px;">Claima fastighet</div>

@@ -10,6 +10,11 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Helpers
 // =========================
+// Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
+// så att det går att se vilken version webbläsaren faktiskt kör.
+const IFOUND_VERSION = "2026-10-13d";
+console.info("[ifound] version " + IFOUND_VERSION);
+
 function toast(msg) {
   const el = document.createElement("div");
   el.className = "toast";
@@ -5584,12 +5589,40 @@ function drawWatchedAreas() {
       // kanten är smal och tät så att den ramar in i stället för att skugga.
       L.geoJSON(geo, { pane: "bevakningPane", interactive: false,
         style: { color: "#1F2A16", weight: 9, opacity: 1, lineJoin: "miter", fill: false } }).addTo(_bevakningLager);
+      // Fyllningen är ett mönster av sneda streck (se bevakningMonster).
       L.geoJSON(geo, { pane: "bevakningPane", interactive: false,
         style: { color: "#D99A3E", weight: 5, opacity: 1, lineJoin: "miter",
-                 fillColor: "#D99A3E", fillOpacity: 0.10 } }).addTo(_bevakningLager);
+                 fillColor: "url(#bevakningHatch)", fillOpacity: 1 } }).addTo(_bevakningLager);
     } catch {}
   }
   _bevakningLager.addTo(map);
+  bevakningMonster();
+}
+
+// Snedstreckat mönster för områdenas fyllning. Leaflet ritar varje ruta i
+// en egen <svg>; mönstret måste ligga i just den. Kartan byggs om vid varje
+// vybyte, så det läggs in på nytt varje gång områdena ritas.
+function bevakningMonster() {
+  const svg = map?.getPane("bevakningPane")?.querySelector("svg");
+  if (!svg || svg.querySelector("#bevakningHatch")) return;
+  const NS = "http://www.w3.org/2000/svg";
+  const defs = document.createElementNS(NS, "defs");
+  const pat = document.createElementNS(NS, "pattern");
+  pat.setAttribute("id", "bevakningHatch");
+  pat.setAttribute("patternUnits", "userSpaceOnUse");
+  pat.setAttribute("width", "10");
+  pat.setAttribute("height", "10");
+  pat.setAttribute("patternTransform", "rotate(45)");
+  // Svag ton över hela ytan, och ett tydligare streck var tionde pixel.
+  const bg = document.createElementNS(NS, "rect");
+  bg.setAttribute("width", "10"); bg.setAttribute("height", "10");
+  bg.setAttribute("fill", "#D99A3E"); bg.setAttribute("fill-opacity", "0.08");
+  const streck = document.createElementNS(NS, "rect");
+  streck.setAttribute("width", "2.5"); streck.setAttribute("height", "10");
+  streck.setAttribute("fill", "#D99A3E"); streck.setAttribute("fill-opacity", "0.55");
+  pat.appendChild(bg); pat.appendChild(streck);
+  defs.appendChild(pat);
+  svg.insertBefore(defs, svg.firstChild);
 }
 
 function stopDrawWatch() {

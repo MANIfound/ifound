@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-10-13f";
+const IFOUND_VERSION = "2026-10-13g";
 console.info("[ifound] version " + IFOUND_VERSION);
 
 function toast(msg) {
@@ -137,9 +137,23 @@ function speglaAgarskap(row) {
   s.claimStatus = row ? row.status : null;
   s.claimAvslagen = row?.status === "rejected" ? row.beteckning : null;
   if (aktiv) {
+    const pid = s.ownerParcelId;
     s.parcelNames = s.parcelNames || {};
-    s.parcelNames[s.ownerParcelId] = row.beteckning;
+    s.parcelNames[pid] = row.beteckning;
     if (row.lat != null && row.lon != null) { s.ownerLat = row.lat; s.ownerLon = row.lon; }
+    // Önskepris och hemstatus: servern är källan, vyerna läser kopian.
+    s.wishPrices = s.wishPrices || {};
+    if (row.onskepris != null) {
+      s.wishPrices[pid] = {
+        amount: Number(row.onskepris).toLocaleString("sv-SE"),
+        value: Number(row.onskepris),
+        visible: !!row.onskepris_synligt,
+        updatedAt: row.andrad || null,
+      };
+    } else if (row.onskepris === null && "onskepris" in row) {
+      delete s.wishPrices[pid];
+    }
+    if (row.hemstatus) s.claimData = { ...(s.claimData || {}), visibility: row.hemstatus };
   } else {
     delete s.ownerLat; delete s.ownerLon;
   }
@@ -160,6 +174,69 @@ async function hamtaMittAgarskap() {
     // Behåll det som fanns. Ingen omritning, ingen loop.
     console.warn("Kunde inte hämta ägarskap:", e?.message);
     return false;
+  }
+}
+
+// Dokumenttyper som godtas som bevis för ägande.
+const BEVIS_TYPER = {
+  lagfart:          "Lagfartsbevis",
+  fastighetsutdrag: "Fastighetsutdrag (Lantmäteriet)",
+  skatteverket:     "Beslut om fastighetsavgift/taxering (Skatteverket)",
+  kopekontrakt:     "Köpekontrakt eller köpebrev",
+  annat:            "Annat",
+};
+const BEVIS_MAX_BYTE = 10 * 1024 * 1024;
+
+function bevisValjareHtml(idPrefix) {
+  return `
+    <select id="${idPrefix}Typ" class="input" style="width:100%;margin-bottom:8px;">
+      ${Object.entries(BEVIS_TYPER).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}
+    </select>
+    <input id="${idPrefix}Fil" type="file" accept="application/pdf,image/jpeg,image/png,image/heic,image/heif,image/webp" style="width:100%;font-size:12px;" />`;
+}
+
+// Laddar upp till förrådet (egen mapp), kopplar filen till ansökan och
+// städar bort äldre filer i mappen. Returnerar true om allt gick.
+async function laddaUppBevis(fil, typ) {
+  if (!KONTO || !fil) return false;
+  if (fil.size > BEVIS_MAX_BYTE) { toast("Filen är för stor. Högst 10 MB."); return false; }
+  const ext = (fil.name.split(".").pop() || "").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 5) || "bin";
+  const sokvag = `${KONTO.id}/${Date.now()}.${ext}`;
+  const lager = sbKlient().storage.from("agarbevis");
+
+  const up = await lager.upload(sokvag, fil, { contentType: fil.type || undefined, upsert: false });
+  if (up.error) {
+    console.warn("uppladdning:", up.error.message);
+    toast(/mime|type/i.test(up.error.message || "")
+      ? "Filtypen godtas inte. Använd PDF, JPG eller PNG."
+      : "Kunde inte ladda upp filen just nu. Försök igen.");
+    return false;
+  }
+  const { error } = await sbKlient().rpc("bifoga_bevis", { sokvag, typ });
+  if (error) {
+    await lager.remove([sokvag]).catch(() => {});
+    toast(/[åäöÅÄÖ]/.test(error.message || "") ? error.message : "Kunde inte koppla filen till ansökan.");
+    return false;
+  }
+  // Allt annat i den egna mappen är gammalt: en ersatt fil eller en fil från
+  // en tidigare ansökan. Bort med det.
+  try {
+    const { data: lista } = await lager.list(KONTO.id, { limit: 100 });
+    const gamla = (lista || []).map(f => `${KONTO.id}/${f.name}`).filter(x => x !== sokvag);
+    if (gamla.length) await lager.remove(gamla);
+  } catch {}
+  await hamtaMittAgarskap();
+  return true;
+}
+
+async function raderaBevisfil(sokvag) {
+  if (!sokvag) return;
+  try {
+    const { error } = await sbKlient().storage.from("agarbevis").remove([sokvag]);
+    if (error) throw error;
+  } catch (e) {
+    console.warn("Kunde inte radera bevisfil:", e?.message);
+    toast("Obs: dokumentet kunde inte raderas automatiskt. Säg till, så tar vi bort det för hand.");
   }
 }
 
@@ -4789,7 +4866,7 @@ function renderDashboard() {
               ${ownerId ? `<button class="hero-btn primary" onclick="navigate('map')"><i class="ti ti-map-pin"></i> Visa i kartan</button>` : `<button class="hero-btn primary" onclick="openClaimModal()"><i class="ti ti-home-check"></i> Claima din fastighet</button>`}
               ${!ownerId && claimStatus === 'rejected' ? `<span style="background:rgba(181,87,60,.25);border:1.5px solid rgba(181,87,60,.5);color:#fff;border-radius:999px;padding:5px 13px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px;"><i class="ti ti-x" style="font-size:13px;"></i> Ansökan om ${escapeHtmlBasic(state.claimAvslagen || "fastigheten")} avslogs</span>` : ''}
               ${ownerId && claimStatus === 'pending' ? `<span style="background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.3);color:#fff;border-radius:999px;padding:5px 13px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px;"><i class="ti ti-clock" style="font-size:13px;"></i> Verifieras inom 24h</span>` : ''}
-              ${ownerId && claimStatus === 'verified' ? `<span style="background:rgba(22,163,74,.2);border:1.5px solid rgba(22,163,74,.4);color:#fff;border-radius:999px;padding:5px 13px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px;"><i class="ti ti-check" style="font-size:13px;"></i> Verifierad ägare</span>` : ''}
+              ${ownerId && claimStatus === 'verified' ? `<span style="background:rgba(22,163,74,.2);border:1.5px solid rgba(22,163,74,.4);color:#fff;border-radius:999px;padding:5px 13px;font-size:11px;font-weight:600;display:flex;align-items:center;gap:6px;"><i class="ti ti-check" style="font-size:13px;"></i> Godkänd ägare${(MITT_AGARSKAP?.niva || 0) >= 1 ? " · dokument kontrollerat" : ""}</span>` : ''}
               ${ownerId ? `<button class="hero-btn" id="clearOwnerBtn"><i class="ti ti-switch-horizontal"></i> Byt fastighet</button>` : ""}
             </div>
           </div>
@@ -4870,6 +4947,33 @@ function renderDashboard() {
           </div>
           <div>
             ${ownerId ? (() => {
+              const m = MITT_AGARSKAP || {};
+              const niva = m.niva || 0;
+              const inner = niva >= 1
+                ? `<div style="display:flex;gap:10px;align-items:flex-start;">
+                     <i class="ti ti-shield-check" style="font-size:20px;color:var(--green-600);flex-shrink:0;"></i>
+                     <div style="font-size:12.5px;color:var(--ink-soft);line-height:1.6;">
+                       <strong style="color:var(--ink);">Dokument kontrollerat${m.kontrollerad ? " " + new Date(m.kontrollerad).toLocaleDateString("sv-SE") : ""}.</strong>
+                       Önskepris och "till salu" kan visas för andra. Dokumentet är raderat.
+                     </div>
+                   </div>`
+                : m.har_bevis
+                ? `<div style="display:flex;gap:10px;align-items:flex-start;">
+                     <i class="ti ti-clock" style="font-size:20px;color:var(--honey);flex-shrink:0;"></i>
+                     <div style="font-size:12.5px;color:var(--ink-soft);line-height:1.6;">
+                       <strong style="color:var(--ink);">${escapeHtmlBasic(BEVIS_TYPER[m.bevis_typ] || "Dokument")} uppladdat.</strong>
+                       Vi kontrollerar det mot fastighetsregistret och raderar det sedan.
+                     </div>
+                   </div>
+                   <button id="bevisBytBtn" style="background:none;border:none;padding:8px 0 0;font-size:12px;color:var(--ink-muted);cursor:pointer;font-family:var(--font-body);">Byt dokument</button>
+                   <div id="bevisForm" style="display:none;margin-top:8px;">${bevisValjareHtml("dashBevis")}<button class="save-btn" id="bevisSparaBtn" style="margin-top:10px;">Ladda upp</button></div>`
+                : `<div style="font-size:12.5px;color:var(--ink-soft);line-height:1.6;margin-bottom:12px;">
+                     Ladda upp ett dokument som visar att du äger fastigheten. Det krävs för att önskepris och "till salu" ska synas för andra, och raderas när vi kontrollerat det.
+                   </div>
+                   <div id="bevisForm">${bevisValjareHtml("dashBevis")}<button class="save-btn" id="bevisSparaBtn" style="margin-top:10px;">Ladda upp</button></div>`;
+              return `<div class="card" style="margin-bottom:12px;"><div class="card-title">Bevis för ägandet</div>${inner}</div>`;
+            })() : ""}
+            ${ownerId ? (() => {
               const wp = (state.wishPrices || {})[ownerId] || {};
               const amount = wp.amount || "";
               const visible = !!wp.visible;
@@ -4889,9 +4993,11 @@ function renderDashboard() {
                 <input type="checkbox" id="wishPriceVisible" ${visible ? "checked" : ""} />
                 <span>
                   <strong>Visa priset för intressenter</strong>
-                  <em>${visible
+                  <em>${!visible
+                    ? "Priset är privat. Du ser det själv, men ingen annan."
+                    : (MITT_AGARSKAP?.niva || 0) >= 1
                     ? "Den som visar intresse ser summan direkt."
-                    : "Priset är privat. Du ser det själv, men ingen annan."}</em>
+                    : "Syns för andra när ditt dokument är kontrollerat."}</em>
                 </span>
               </label>
 
@@ -4998,8 +5104,9 @@ function renderDashboard() {
     const bet = st0.parcelNames?.[st0.ownerParcelId] || "fastigheten";
     const vad = st0.claimStatus === "verified" ? "ditt ägarskap av" : "din ansökan om";
     if (!confirm(`Avsluta ${vad} ${bet}? Du kan ansöka om en annan fastighet efteråt.`)) return;
-    const { error } = await sbKlient().rpc("avsluta_agarskap");
+    const { data: fil, error } = await sbKlient().rpc("avsluta_agarskap");
     if (error) { toast("Kunde inte avsluta just nu. Försök igen."); return; }
+    if (fil) await raderaBevisfil(fil);
     await hamtaMittAgarskap();
     toast("Klart. Välj din fastighet på kartan.");
     render();
@@ -5013,33 +5120,45 @@ function renderDashboard() {
     });
   }
 
+  const bevisByt = document.getElementById("bevisBytBtn");
+  if (bevisByt) bevisByt.onclick = () => {
+    const f = document.getElementById("bevisForm");
+    if (f) f.style.display = "block";
+    bevisByt.style.display = "none";
+  };
+  const bevisSpara = document.getElementById("bevisSparaBtn");
+  if (bevisSpara) bevisSpara.onclick = async () => {
+    const fil = document.getElementById("dashBevisFil")?.files?.[0];
+    const typ = document.getElementById("dashBevisTyp")?.value || "annat";
+    if (!fil) { toast("Välj en fil först."); return; }
+    bevisSpara.disabled = true; bevisSpara.textContent = "Laddar upp…";
+    const ok = await laddaUppBevis(fil, typ);
+    bevisSpara.disabled = false; bevisSpara.textContent = "Ladda upp";
+    if (ok) { toast("Dokumentet är uppladdat. Vi kontrollerar det och raderar det sedan."); render(); }
+  };
+
   const wishBtn = document.getElementById("saveWishPriceBtn");
-  if (wishBtn) wishBtn.onclick = () => {
+  if (wishBtn) wishBtn.onclick = async () => {
     const raw = document.getElementById("wishPriceInput").value;
     const visible = document.getElementById("wishPriceVisible").checked;
     const digits = String(raw).replace(/\D/g, "");
-    const st = loadState();
-    st.wishPrices = st.wishPrices || {};
-    const pid = st.ownerParcelId;
-    if (!pid) return;
+    if (!loadState().ownerParcelId) return;
+    const num = digits ? parseInt(digits, 10) : null;
+    if (num !== null && num < 10000) { toast("Ange priset i kronor, till exempel 4 200 000."); return; }
 
-    if (!digits) {
-      delete st.wishPrices[pid];
-      saveState(st);
-      toast("Önskepriset är borttaget.");
-      return render();
+    wishBtn.disabled = true;
+    const { error } = await sbKlient().rpc("spara_onskepris", { pris: num, synligt: visible });
+    wishBtn.disabled = false;
+    if (error) {
+      toast(/[åäöÅÄÖ]/.test(error.message || "") ? error.message : "Kunde inte spara önskepriset just nu.");
+      return;
     }
-    const num = parseInt(digits, 10);
-    if (num < 10000) { toast("Ange priset i kronor, till exempel 4 200 000."); return; }
-
-    st.wishPrices[pid] = {
-      amount: num.toLocaleString("sv-SE"),
-      value: num,
-      visible,
-      updatedAt: new Date().toISOString(),
-    };
-    saveState(st);
-    toast(visible ? "Önskepriset sparat och synligt för intressenter." : "Önskepriset sparat — bara du ser det.");
+    await hamtaMittAgarskap();
+    const niva = MITT_AGARSKAP?.niva || 0;
+    toast(num === null ? "Önskepriset är borttaget."
+      : !visible ? "Önskepriset sparat — bara du ser det."
+      : niva >= 1 ? "Önskepriset sparat och synligt för intressenter."
+      : "Önskepriset sparat. Det syns för andra när ditt dokument är kontrollerat.");
     render();
   };
 
@@ -5127,6 +5246,15 @@ function setStatus(m) {
   // formulärfält, så det ska inte krävas ett extra klick för att det
   // ska sitta.
   saveHomeStatus(m);
+  if (KONTO && loadState().ownerParcelId) {
+    sbKlient().rpc("spara_hemstatus", { ny_status: m }).then(({ error }) => {
+      if (error) { toast("Kunde inte spara statusen på servern just nu."); return; }
+      const niva = MITT_AGARSKAP?.niva || 0;
+      if (m === "rent") toast("Sparat. Uthyrning visas för andra först när BankID finns på plats — förbered gärna redan nu.");
+      else if (m === "sale" && niva < 1) toast("Sparat. \"Till salu\" syns för andra när ditt dokument är kontrollerat.");
+      hamtaMittAgarskap();
+    });
+  }
 
   ["passive","rent","sale"].forEach(x => { const b = document.getElementById("sp-"+x); if(b) b.className="status-pill"; });
   const b = document.getElementById("sp-"+m); if(b) b.classList.add("active-"+m);
@@ -6717,6 +6845,20 @@ function openClaimModal(fastighet) {
         `).join('')}
       </div>
 
+      <div style="background:var(--surface-2);border-radius:12px;padding:14px 16px;margin-bottom:14px;">
+        <div style="font-size:12.5px;font-weight:600;color:var(--ink);margin-bottom:4px;">Bevis för ägandet <span style="font-weight:400;color:var(--ink-muted);">— valfritt nu, kan laddas upp senare</span></div>
+        <div style="font-size:11.5px;color:var(--ink-muted);line-height:1.5;margin-bottom:10px;">Krävs för att önskepris och "till salu" ska synas för andra. Dokumentet raderas när vi har kontrollerat det.</div>
+        ${bevisValjareHtml("claimBevis")}
+      </div>
+
+      <label style="display:flex;gap:10px;align-items:flex-start;margin-bottom:16px;cursor:pointer;">
+        <input type="checkbox" id="claim-intyg" style="margin-top:3px;width:16px;height:16px;accent-color:var(--green-600);flex-shrink:0;" />
+        <span style="font-size:12px;color:var(--ink-soft);line-height:1.55;">
+          <strong style="color:var(--ink);">Jag intygar att jag är lagfaren ägare eller delägare till fastigheten.</strong>
+          Oriktiga uppgifter leder till att kontot stängs och kan vara brottsliga, till exempel olovlig identitetsanvändning eller urkundsförfalskning.
+        </span>
+      </label>
+
       <button id="submitClaimBtn" onclick="submitClaim()" style="width:100%;padding:14px;border-radius:12px;border:none;background:var(--accent);color:#fff;font-size:14px;font-weight:600;font-family:var(--font-body);cursor:pointer;letter-spacing:-.01em;">
         Skicka ansökan
       </button>
@@ -6768,6 +6910,11 @@ async function submitClaim() {
 
   if (!f?.pid) { closeClaimModal(); openClaimModal(); return; }
   if (!name) { toast('Skriv ditt fullständiga namn.'); return; }
+  const intygar = !!document.getElementById('claim-intyg')?.checked;
+  if (!intygar) { toast('Du behöver intyga att du är lagfaren ägare eller delägare.'); return; }
+  const bevisFil = document.getElementById('claimBevisFil')?.files?.[0] || null;
+  const bevisTyp = document.getElementById('claimBevisTyp')?.value || 'annat';
+  if (bevisFil && bevisFil.size > BEVIS_MAX_BYTE) { toast('Filen är för stor. Högst 10 MB.'); return; }
   if (!/^\d{8}-?\d{4}$/.test(pnr || "")) {
     toast('Personnumret ska skrivas ÅÅÅÅMMDD-XXXX.');
     return;
@@ -6778,7 +6925,7 @@ async function submitClaim() {
 
   if (btn) { btn.disabled = true; btn.textContent = 'Skickar…'; }
   const { error } = await sbKlient().rpc('ansok_agarskap', {
-    vald_fid: f.pid, fullt_namn: name, pnr: maskerat, syns: selectedClaimVis,
+    vald_fid: f.pid, fullt_namn: name, pnr: maskerat, syns: selectedClaimVis, intygar,
   });
   if (error) {
     if (btn) { btn.disabled = false; btn.textContent = 'Skicka ansökan'; }
@@ -6787,14 +6934,16 @@ async function submitClaim() {
     return;
   }
 
-  // Synligheten ligger också kvar lokalt, där statusväljaren på Min sida läser den.
-  const s = loadState();
-  s.claimData = { ...(s.claimData || {}), visibility: selectedClaimVis };
-  saveState(s);
-
+  let bevisOk = false;
+  if (bevisFil) {
+    if (btn) btn.textContent = 'Laddar upp dokument…';
+    bevisOk = await laddaUppBevis(bevisFil, bevisTyp);
+  }
   await hamtaMittAgarskap();
   closeClaimModal();
-  toast('Ansökan skickad! Vi granskar den, oftast inom 24 timmar.');
+  toast(bevisFil && !bevisOk
+    ? 'Ansökan skickad, men dokumentet kom inte med. Ladda upp det från Min sida.'
+    : 'Ansökan skickad! Vi granskar den, oftast inom 24 timmar.');
   if (currentView === "map") { closePanel(); redrawLayer(); addClaimedMarkers(); }
   else render();
 }
@@ -6842,10 +6991,46 @@ async function decideClaim(id, decision) {
   const a = (ADMIN_AGARSKAP || []).find(x => x.id === id);
   const { data, error } = await sbKlient().rpc("admin_besluta", { aid: id, beslut: decision });
   if (error) { toast("Kunde inte spara beslutet: " + (error.message || "okänt fel")); return; }
-  if (data === false) toast("Ansökan var redan granskad.");
+  const svar = Array.isArray(data) ? data[0] : data;
+  if (svar?.bevis) await raderaBevisfil(svar.bevis);
+  if (!svar?.ok) toast("Ansökan var redan granskad.");
   else toast(decision === "verified"
     ? `${a?.beteckning || "Fastigheten"} är nu verifierad för ${a?.namn || "den sökande"}.`
     : `Ansökan om ${a?.beteckning || "fastigheten"} avslogs.`);
+  ADMIN_AGARSKAP = null;
+  await hamtaAdminAgarskap();
+  renderAdmin();
+}
+
+// Öppna en sökandes dokument. Länken gäller i fem minuter.
+async function adminOppnaBevis(id) {
+  const a = (ADMIN_AGARSKAP || []).find(x => x.id === id);
+  if (!a?.bevis_sokvag) { toast("Inget dokument uppladdat."); return; }
+  const fonster = window.open("", "_blank");
+  const { data, error } = await sbKlient().storage.from("agarbevis").createSignedUrl(a.bevis_sokvag, 300);
+  if (error || !data?.signedUrl) {
+    if (fonster) fonster.close();
+    toast("Kunde inte öppna dokumentet: " + (error?.message || "okänt fel"));
+    return;
+  }
+  if (fonster) fonster.location = data.signedUrl; else window.location.href = data.signedUrl;
+}
+
+// Dokumentet kontrollerat: nivå 1. Anteckningen sparas, dokumentet raderas.
+async function adminKontrollera(id) {
+  const a = (ADMIN_AGARSKAP || []).find(x => x.id === id);
+  if (!a) return;
+  const forslag = a.bevis_typ
+    ? `${BEVIS_TYPER[a.bevis_typ] || "Dokument"} — namnet stämmer med lagfaren ägare`
+    : "Kontrollerat mot lagfaren ägare i fastighetsregistret";
+  const anteckning = prompt(`Hur kontrollerade du ägandet av ${a.beteckning}?\n\nSparas som spår. Dokumentet raderas efteråt.`, forslag);
+  if (anteckning === null) return;
+  if (!anteckning.trim()) { toast("Skriv hur du kontrollerade ägandet."); return; }
+  const { data, error } = await sbKlient().rpc("admin_kontrollera", { aid: id, anteckning });
+  if (error) { toast("Kunde inte spara: " + (error.message || "okänt fel")); return; }
+  const svar = Array.isArray(data) ? data[0] : data;
+  if (svar?.bevis) await raderaBevisfil(svar.bevis);
+  toast(svar?.ok ? `${a.beteckning}: dokument kontrollerat. Önskepris och till salu kan nu visas.` : "Ansökan finns inte längre.");
   ADMIN_AGARSKAP = null;
   await hamtaAdminAgarskap();
   renderAdmin();
@@ -7287,10 +7472,20 @@ function renderAdmin() {
               <div style="font-size:13px;color:var(--ink);margin-top:5px;font-weight:600;">${c.name}</div>
               <div style="font-size:12px;color:var(--ink-muted);margin-top:2px;">${c.pnr} · ${u.email}</div>
               <div style="font-size:11.5px;color:var(--ink-muted);margin-top:5px;">
-                Synlighet: ${c.visibility || "—"} · Inskickad ${new Date(c.submittedAt).toLocaleDateString("sv-SE")}
+                Synlighet: ${c.visibility || "—"} · Inskickad ${new Date(c.submittedAt).toLocaleDateString("sv-SE")}${a.intygat ? " · har intygat ägande" : ""}
+              </div>
+              <div style="font-size:11.5px;margin-top:6px;color:${a.niva >= 1 ? "var(--green-700)" : "var(--ink-soft)"};">
+                ${a.niva >= 1
+                  ? `<i class="ti ti-shield-check"></i> Dokument kontrollerat ${a.kontrollerad ? new Date(a.kontrollerad).toLocaleDateString("sv-SE") : ""}: ${escapeHtmlBasic(a.kontroll || "")}`
+                  : a.bevis_sokvag
+                  ? `<i class="ti ti-file-text"></i> ${escapeHtmlBasic(BEVIS_TYPER[a.bevis_typ] || "Dokument")} uppladdat`
+                  : `<i class="ti ti-file-off"></i> Inget dokument uppladdat`}
+                ${a.oppna_anmalningar > 0 ? ` · <strong style="color:var(--clay);">${a.oppna_anmalningar} öppen anmälan</strong>` : ""}
               </div>
             </div>
-            <div style="display:flex;gap:7px;flex-shrink:0;">
+            <div style="display:flex;gap:7px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;">
+              ${a.bevis_sokvag ? `<button onclick="adminOppnaBevis('${a.id}')" style="padding:8px 12px;border-radius:9px;border:0.5px solid var(--hairline);background:var(--surface);color:var(--ink);font-size:12.5px;font-weight:500;cursor:pointer;font-family:var(--font-body);"><i class="ti ti-eye"></i> Öppna dokument</button>` : ""}
+              ${a.status !== "rejected" && a.niva < 1 ? `<button onclick="adminKontrollera('${a.id}')" style="padding:8px 12px;border-radius:9px;border:0.5px solid var(--green-600);background:var(--green-50);color:var(--green-800);font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--font-body);"><i class="ti ti-shield-check"></i> Dokument kontrollerat</button>` : ""}
               ${done
                 ? `<span style="font-size:11.5px;font-weight:600;padding:6px 12px;border-radius:999px;background:${c.status === "verified" ? "var(--green-100)" : "#FDE7E3"};color:${c.status === "verified" ? "var(--green-800)" : "#9B3A22"};">
                      ${c.status === "verified" ? "Godkänd" : "Avslagen"}

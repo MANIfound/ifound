@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-10-13h";
+const IFOUND_VERSION = "2026-10-16a";
 console.info("[ifound] version " + IFOUND_VERSION);
 
 function toast(msg) {
@@ -53,8 +53,56 @@ function sbKlient() {
   return _sb;
 }
 
+// Huvuden för egna anrop mot servern. Inloggad: med kontots nyckel, så att
+// servern vet vem som frågar (gillanden och områden följer då kontot).
+async function rpcHeaders() {
+  const h = { apikey: API_KEY, "Content-Type": "application/json" };
+  if (KONTO) {
+    try {
+      const { data } = await sbKlient().auth.getSession();
+      const t = data?.session?.access_token;
+      if (t) h.Authorization = "Bearer " + t;
+    } catch {}
+  }
+  return h;
+}
+
+// Gillanden, områden och ägaruppgifter i minnet gäller den som var
+// inloggad (eller webbläsaren). Byts identitet måste allt hämtas om.
+function aterstallDeladData() {
+  try {
+    for (const k of Object.keys(GILLANDE)) delete GILLANDE[k];
+    _gillandeHamtat.clear();
+    MINA_GILLANDEN = null;
+    _minaGillandenGen++;
+    MINA_BEVAKNINGAR = null;
+    for (const k of Object.keys(AGARE)) delete AGARE[k];
+    _agareHamtat.clear();
+    const s = loadState();
+    s.myLikes = {};
+    s.profile = { ...(s.profile || {}), watchedAreas: [] };
+    saveState(s);
+  } catch (e) { console.warn("aterstallDeladData:", e?.message); }
+}
+
+// Det webbläsaren gillat och bevakat innan inloggningen flyttas till kontot.
+async function flyttaTillKonto() {
+  try {
+    const { data, error } = await sbKlient().rpc("flytta_till_konto", { vem: enhetsId() });
+    if (error) throw error;
+    const r = Array.isArray(data) ? data[0] : data;
+    if (r && (r.gillanden || r.bevakningar)) {
+      console.info(`[ifound] Flyttade ${r.gillanden} gillanden och ${r.bevakningar} områden till kontot.`);
+    }
+  } catch (e) {
+    console.warn("Kunde inte flytta till kontot:", e?.message);
+  }
+  aterstallDeladData();
+}
+
 // Läser inloggningen och profilen från servern. Returnerar KONTO.
 async function laddaKonto() {
+  const fore = KONTO?.id || null;
   try {
     const { data } = await sbKlient().auth.getSession();
     const user = data?.session?.user;
@@ -70,6 +118,7 @@ async function laddaKonto() {
       namn: profil?.namn || user.user_metadata?.namn || "",
       ar_admin: !!profil?.ar_admin,
     };
+    if (KONTO.id !== fore) await flyttaTillKonto();   // ny inloggning, inte en uppdatering
     await hamtaMittAgarskap();
   } catch (e) {
     console.warn("Kunde inte läsa inloggningen:", e?.message);
@@ -112,7 +161,9 @@ function clearSession() {
   // webbläsare ska inte ärva det.
   MITT_AGARSKAP = undefined;
   ADMIN_AGARSKAP = null;
+  ADMIN_ANMALNINGAR = null;
   speglaAgarskap(null);
+  aterstallDeladData();
 }
 
 // =========================
@@ -127,6 +178,7 @@ function clearSession() {
 // läser dem synkront. De skrivs bara av speglaAgarskap().
 let MITT_AGARSKAP = undefined;
 let ADMIN_AGARSKAP = null;    // adminlistan, null = inte hämtad
+let ADMIN_ANMALNINGAR = null; // anmälningar "det här är mitt hus"
 let _adminAgarskapFel = false;
 
 function speglaAgarskap(row) {
@@ -242,9 +294,13 @@ async function raderaBevisfil(sokvag) {
 
 async function hamtaAdminAgarskap() {
   try {
-    const { data, error } = await sbKlient().rpc("admin_agarskap");
+    const [{ data, error }, anm] = await Promise.all([
+      sbKlient().rpc("admin_agarskap"),
+      sbKlient().rpc("admin_anmalningar"),
+    ]);
     if (error) throw error;
     ADMIN_AGARSKAP = Array.isArray(data) ? data : [];
+    ADMIN_ANMALNINGAR = anm?.error ? [] : (Array.isArray(anm?.data) ? anm.data : []);
     _adminAgarskapFel = false;
   } catch (e) {
     console.warn("Kunde inte hämta ansökningar:", e?.message);
@@ -695,6 +751,7 @@ function ensureMapMounted() {
   // Fastigheterna hämtas för den vy man tittar på, när kartan stannat.
   map.on("moveend", scheduleParcelLoad);
   map.on("moveend", scheduleLabelLoad);
+  map.on("moveend", schemalaggAgareIVy);
 
   // CC BY 4.0 kräver att källan syns i kartan.
   map.attributionControl?.addAttribution("&copy; Lantmäteriet, Fastighetsindelning");
@@ -1699,8 +1756,7 @@ function isParcelClaimed(pid) {
   const n = norm(pid);
   const st = loadState();
   if (st.ownerParcelId && norm(st.ownerParcelId) === n) return true;
-  const ln = norm(parcelLabel(pid, st));   // CLAIMED_PROPS är nycklade på beteckning
-  return CLAIMED_PROPS.some(p => norm(p.id) === ln || norm(p.name) === ln);
+  return !!AGARE[pid] || AGARE_I_VY.has(String(pid));
 }
 
 function getPostcardStatus(pid) {
@@ -3044,13 +3100,18 @@ function _renderParcelPanelInner(feature) {
     return;
   }
 
-  // Find image from CLAIMED_PROPS or PROP_DATA
-  const claimedProp = CLAIMED_PROPS.find(p => {
-    const pNorm = p.id.toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g,'');
-    const nNorm = parcelLabel(pid).toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g,'');
-    return pNorm === nNorm || p.name.toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g,'') === nNorm;
-  });
-  const panelImg = claimedProp?.img || null;
+  // Ägaren på ifound, från servern. Panelen ritas om en gång när svaret
+  // kommer — och bara om det kom (misslyckad hämtning: ingen loop).
+  const ag = AGARE[pid];
+  if (ag === undefined && !_agareHamtat.has(pid)) {
+    _agareHamtat.add(pid);
+    hamtaAgare([pid]).then(ok => {
+      if (!ok) return;
+      if (window._panelPid === pid && document.getElementById("likeBtn")) renderParcelPanel(feature);
+    });
+  }
+  const claimedProp = ag || null;
+  const panelImg = null;   // demobilderna är borta; ägarens egna bilder kommer senare
 
   // FOMO-teaser: fastigheten har aktivitet men är inte claimad — visa det, och gör claim till nyckeln.
   const isClaimed = !!claimedProp || isOwner;
@@ -3128,10 +3189,22 @@ function _renderParcelPanelInner(feature) {
       </button>` : ""}
     <div class="panel-mode">${isBrf ? "Gilla och intresse gäller hela föreningen." : isRental ? `Hyresfastighet${ownerName ? " — " + ownerName : ""}. Intresse gäller hela huset.` : isMulti ? "Flerbostadshus — intresse gäller hela huset." : "Spara intresse och följ objektet."}</div>
     ${renderRentalVisitorBlock(pid, name, { isOwner })}
+    ${ag && !isOwner ? `
+    <div style="margin:10px 0 4px;padding:12px 14px;background:var(--green-50);border:0.5px solid rgba(82,109,51,.25);border-radius:11px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--green-800);">
+          <i class="ti ti-home-check" style="font-size:16px;"></i> Ägaren finns på ifound
+        </div>
+        ${ag.hemstatus === "sale" ? `<span style="font-size:11px;font-weight:600;background:var(--green-600);color:#fff;border-radius:999px;padding:3px 10px;">Till salu</span>` : ""}
+      </div>
+      <div style="font-size:11.5px;color:var(--ink-soft);margin-top:4px;line-height:1.5;">Ägaren ser när någon gillar eller visar intresse för huset.</div>
+    </div>` : ""}
     ${(() => {
-      const wp = (state.wishPrices || {})[pid];
-      if (!wp?.amount) return "";
       const own = state.ownerParcelId === pid;
+      const wp = own
+        ? (state.wishPrices || {})[pid]
+        : (ag?.onskepris ? { amount: Number(ag.onskepris).toLocaleString("sv-SE"), visible: true } : null);
+      if (!wp?.amount) return "";
       if (!wp.visible && !own) return "";
       return `
       <div class="wish-banner ${own && !wp.visible ? "wish-banner-private" : ""}">
@@ -3174,8 +3247,23 @@ function _renderParcelPanelInner(feature) {
         </button>
       </div>
     </div>`}
+    ${ag && !isOwner ? `
+    <div style="margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--surface-2);display:flex;gap:9px;align-items:flex-start;">
+      <i class="ti ti-shield-lock" style="font-size:16px;color:var(--ink-soft);flex-shrink:0;margin-top:1px;"></i>
+      <div style="font-size:11.5px;color:var(--ink-soft);line-height:1.55;">
+        <strong style="color:var(--ink);">Betala aldrig handpenning, deposition eller hyra</strong> innan du träffat ägaren och sett kontraktet. ifound förmedlar aldrig betalningar.
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:8px;">
+      <button id="anmalAgareBtn" style="background:none;border:none;padding:2px;font-size:11px;color:var(--ink-muted);cursor:pointer;font-family:var(--font-body);text-decoration:underline;">
+        Det här är mitt hus – anmäl
+      </button>
+    </div>` : ""}
     ${statsHtml}
   `);
+
+  const anmalBtn = document.getElementById("anmalAgareBtn");
+  if (anmalBtn) anmalBtn.onclick = () => anmalAgarskap(pid, name);
 
   if (document.getElementById("teaserClaimBtn")) {
     document.getElementById("teaserClaimBtn").onclick = () => {
@@ -5432,6 +5520,7 @@ function renderMapView() {
   setTimeout(() => {
     try { map.invalidateSize(); } catch {}
     addClaimedMarkers();
+    schemalaggAgareIVy();
     consumePendingArea();
   }, 120);
 }
@@ -5441,21 +5530,8 @@ function renderMapView() {
 // CUSTOM MARKERS
 // =========================
 
-// Mock claimed properties for demo — in production these come from database
-const CLAIMED_PROPS = [
-  { id: "RÅDHUSET 3>1",      lat: 56.04661, lon: 12.69311, status: "passive", name: "Rådhuset 3:1",      likes: 18, interested: 4,  area: "Villa · Centrum",       img: "https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=400&q=60" },
-  { id: "PÅLSJÖ 1>27",       lat: 56.07200, lon: 12.70200, status: "sale",    name: "Pålsjö 1:27",       likes: 31, interested: 11, price: "4 200 000 kr", area: "Villa · Pålsjö",         img: "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=400&q=60" },
-  { id: "SÖDER 1>102",       lat: 56.03324, lon: 12.71180, status: "rent",    name: "Söder 1:102",       likes: 14, interested: 5,  price: "9 800 kr/mån",  area: "Lägenhet · Söder",       img: "https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=400&q=60" },
-  { id: "FREDRIKSDAL 1>1",   lat: 56.06038, lon: 12.72680, status: "sale",    name: "Fredriksdal 1:1",   likes: 19, interested: 6,  price: "5 750 000 kr", area: "Villa · Fredriksdal",    img: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=400&q=60" },
-  { id: "LARÖD 49>126",      lat: 56.08092, lon: 12.71870, status: "passive", name: "Laröd 49:126",      likes: 41, interested: 9,  area: "Gård · Laröd · 5 200 kvm", img: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=400&q=60" },
-  { id: "KULLA 1>4",         lat: 56.06800, lon: 12.73500, status: "passive", name: "Kulla 1:4",         likes: 24, interested: 7,  area: "Tomt · 2 400 kvm",      img: "https://images.unsplash.com/photo-1449844908441-8829872d2607?w=400&q=60" },
-  { id: "SÖDER 8>22B",       lat: 56.04100, lon: 12.70500, status: "rent",    name: "Söder 8:22B",       likes: 8,  interested: 3,  price: "7 500 kr/mån",  area: "Lägenhet · Söder",       img: "https://images.unsplash.com/photo-1523217582562-09d0def993a6?w=400&q=60" },
-];
-
-// User's own claimed property (always shown if claimedByCurrentUser)
-const OWNER_PARCEL_COORDS = {
-  "VENDELA 11": { lat: 56.04027, lon: 12.72815 },
-};
+// Ägarmarkörerna kommer från servern (agare_bbox). De påhittade demoägarna
+// (CLAIMED_PROPS, OWNER_PARCEL_COORDS) är borttagna 16 oktober.
 
 let markerLayer = null;
 
@@ -5509,20 +5585,21 @@ function addClaimedMarkers() {
 
   const state = loadState();
   const ownerId = state.ownerParcelId;
-  const allProps = [...CLAIMED_PROPS];
+  // Godkända ägare i vyn, från servern. De påhittade demoägarna är borta.
+  const allProps = [...AGARE_I_VY.values()].map(a => ({
+    id: String(a.fid), lat: a.lat, lon: a.lon,
+    status: a.hemstatus === "sale" ? "sale" : "passive",
+    name: a.beteckning || "",
+    likes: GILLANDE[a.fid]?.antal ?? "–",
+    interested: "–",
+  }));
 
-  // Add user's own claimed property
+  // Den egna fastigheten syns för en själv även medan ansökan granskas.
   if (ownerId) {
     const ownerName = state.parcelNames?.[ownerId] || ownerId;
     let lat = state.ownerLat;
     let lon = state.ownerLon;
 
-    // Check hardcoded coords first
-    if (!lat || !lon) {
-      const ownerNorm = parcelLabel(ownerId).toUpperCase().trim();
-      const hardcoded = OWNER_PARCEL_COORDS[ownerNorm];
-      if (hardcoded) { lat = hardcoded.lat; lon = hardcoded.lon; }
-    }
     // Then try parcelsLayer centroid
     if ((!lat || !lon) && parcelsLayer) {
       try {
@@ -5564,11 +5641,8 @@ function addClaimedMarkers() {
     const statusColor = { passive: '#6B7280', sale: '#CC2936', rent: '#2563eb' }[prop.status] || '#6B7280';
 
     // Find matching PROP_DATA entry for image
-    const propDataMatch = (typeof PROP_DATA !== 'undefined') ? PROP_DATA.find(p =>
-      p.name.toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g,'') === prop.name.toUpperCase().replace(/[^A-ZÅÄÖ0-9]/g,'')
-    ) : null;
-    const imgSrc = prop.img || propDataMatch?.img || null;
-    const area = prop.area || propDataMatch?.meta || '';
+    // Inga demobilder: en riktig fastighet får aldrig visas med någon annans hus.
+    const imgSrc = null;
 
     marker.bindPopup(`
       <div style="font-family:var(--font-body);width:220px;overflow:hidden;">
@@ -5586,8 +5660,10 @@ function addClaimedMarkers() {
             <span style="font-size:10px;font-weight:700;color:${statusColor};text-transform:uppercase;letter-spacing:.08em;background:${statusColor}18;padding:2px 7px;border-radius:999px;">${statusLabel}</span>
             ${prop.price ? `<span style="font-size:12px;font-weight:700;color:var(--ink);">${prop.price}</span>` : ''}
           </div>
-          <div style="font-size:14px;font-weight:700;letter-spacing:-.03em;color:var(--ink);margin-bottom:2px;">${prop.name}</div>
-          ${area ? `<div style="font-size:11px;color:var(--ink-muted);margin-bottom:10px;">${area}</div>` : '<div style="margin-bottom:10px;"></div>'}
+          <div class="beteckning" style="font-size:12px;color:var(--ink);margin-bottom:2px;">${escapeHtmlBasic(prop.name)}</div>
+          <div style="font-size:11px;color:var(--ink-muted);margin-bottom:10px;">${prop.id === ownerId
+            ? (state.claimStatus === "verified" ? "Din fastighet" : "Din ansökan granskas")
+            : "Ägaren finns på ifound"}</div>
           <div style="display:flex;gap:0;border-top:0.5px solid #F3F4F6;padding-top:10px;">
             <div style="flex:1;text-align:center;">
               <div style="font-size:17px;font-weight:700;color:var(--ink);line-height:1;">${prop.likes}</div>
@@ -5661,7 +5737,7 @@ async function hamtaGillanden(ids) {
   try {
     const r = await fetch(`${API_BASE_URL}/rest/v1/rpc/gillande_for`, {
       method: "POST",
-      headers: { apikey: API_KEY, "Content-Type": "application/json" },
+      headers: await rpcHeaders(),
       body: JSON.stringify({ ids: want, vem: enhetsId() })
     });
     if (!r.ok) throw new Error("HTTP " + r.status);
@@ -5679,11 +5755,83 @@ async function hamtaGillanden(ids) {
 async function skickaGillande(pid, pa) {
   const r = await fetch(`${API_BASE_URL}/rest/v1/rpc/gilla`, {
     method: "POST",
-    headers: { apikey: API_KEY, "Content-Type": "application/json" },
+    headers: await rpcHeaders(),
     body: JSON.stringify({ fid: pid, vem: enhetsId(), pa: !!pa })
   });
   if (!r.ok) throw new Error("HTTP " + r.status);
   return await r.json();
+}
+
+// --- Ägare på ifound: det som syns för alla besökare -----------------------
+// Servern lämnar aldrig ut namn. "Till salu" och önskepris kommer bara när
+// ägarens dokument är kontrollerat och ingen anmälan är öppen.
+// AGARE[fid]: undefined = inte hämtat, null = ingen ägare, annars
+// { hemstatus, onskepris, niva }.
+const AGARE = Object.create(null);
+const _agareHamtat = new Set();
+
+// Returnerar true om svaret kom (även "ingen ägare").
+async function hamtaAgare(ids) {
+  const want = (ids || []).filter(Boolean);
+  if (!want.length) return false;
+  try {
+    const r = await fetch(`${API_BASE_URL}/rest/v1/rpc/offentliga_agare`, {
+      method: "POST", headers: await rpcHeaders(), body: JSON.stringify({ ids: want }),
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const rows = await r.json();
+    for (const id of want) AGARE[id] = null;
+    for (const row of rows || []) AGARE[row.fid] = { hemstatus: row.hemstatus, onskepris: row.onskepris, niva: row.niva };
+    return true;
+  } catch (e) {
+    console.warn("Kunde inte hämta ägare:", e.message);
+    for (const id of want) _agareHamtat.delete(id);
+    return false;
+  }
+}
+
+// Ägare i kartvyn, för markörerna. fid → { fid, beteckning, lat, lon, hemstatus }.
+let AGARE_I_VY = new Map();
+let _agareVyTimer = null;
+function schemalaggAgareIVy() {
+  clearTimeout(_agareVyTimer);
+  _agareVyTimer = setTimeout(hamtaAgareIVy, 350);
+}
+async function hamtaAgareIVy() {
+  if (!map) return;
+  try {
+    const b = map.getBounds().pad(0.2);
+    const r = await fetch(`${API_BASE_URL}/rest/v1/rpc/agare_bbox`, {
+      method: "POST", headers: await rpcHeaders(),
+      body: JSON.stringify({ minlon: b.getWest(), minlat: b.getSouth(), maxlon: b.getEast(), maxlat: b.getNorth() }),
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const rows = await r.json();
+    AGARE_I_VY = new Map((rows || []).map(x => [String(x.fid), x]));
+    addClaimedMarkers();
+  } catch (e) {
+    console.warn("Kunde inte hämta ägare i vyn:", e.message);   // markörerna står kvar som de var
+  }
+}
+
+// "Det här är mitt hus". Kräver konto; döljer pris och status direkt.
+async function anmalAgarskap(pid, name) {
+  if (!KONTO) {
+    openAuthModal("reg");
+    toast("Skapa ett konto eller logga in för att anmäla.");
+    return;
+  }
+  const text = prompt(`Anmäl ägarskapet av ${name}.\n\nÄger du fastigheten, eller ser något fel ut? Skriv gärna några ord. Vi granskar anmälan och hör av oss. Pris och status döljs medan vi tittar på det.`, "");
+  if (text === null) return;
+  const { error } = await sbKlient().rpc("anmal_agarskap", { vald_fid: pid, text_in: text });
+  if (error) {
+    toast(/[åäöÅÄÖ]/.test(error.message || "") ? error.message : "Kunde inte skicka anmälan just nu.");
+    return;
+  }
+  toast("Tack. Vi granskar anmälan. Pris och status är dolda tills dess.");
+  delete AGARE[pid]; _agareHamtat.delete(pid);
+  if (window._currentPanelFeature) renderParcelPanel(window._currentPanelFeature);
+  schemalaggAgareIVy();
 }
 
 // --- Mina gillanden: vilka fastigheter den här enheten gillat ------------
@@ -5706,7 +5854,7 @@ function hamtaMinaGillanden() {
     try {
       const r = await fetch(`${API_BASE_URL}/rest/v1/rpc/mina_gillanden`, {
         method: "POST",
-        headers: { apikey: API_KEY, "Content-Type": "application/json" },
+        headers: await rpcHeaders(),
         body: JSON.stringify({ vem: enhetsId() })
       });
       if (!r.ok) throw new Error("HTTP " + r.status);
@@ -5784,7 +5932,7 @@ const BEVAKNING_MAX_KVM = 25000000; // samma gräns som servern, 25 km²
 async function bevakningRpc(namn, body) {
   const r = await fetch(`${API_BASE_URL}/rest/v1/rpc/${namn}`, {
     method: "POST",
-    headers: { apikey: API_KEY, "Content-Type": "application/json" },
+    headers: await rpcHeaders(),
     body: JSON.stringify(body)
   });
   if (!r.ok) {
@@ -7005,6 +7153,19 @@ async function decideClaim(id, decision) {
   renderAdmin();
 }
 
+// Anmälan "det här är mitt hus": avfärda, eller återkalla ägarskapet.
+async function adminHanteraAnmalan(id, atgard) {
+  if (atgard === "atgardad" && !confirm("Återkalla ägarskapet? Ägaren förlorar kopplingen till fastigheten och dokumentet raderas.")) return;
+  const { data, error } = await sbKlient().rpc("admin_hantera_anmalan", { nid: id, atgard });
+  if (error) { toast("Kunde inte spara: " + (error.message || "okänt fel")); return; }
+  const svar = Array.isArray(data) ? data[0] : data;
+  if (svar?.bevis) await raderaBevisfil(svar.bevis);
+  toast(!svar?.ok ? "Anmälan var redan hanterad." : atgard === "atgardad" ? "Ägarskapet är återkallat." : "Anmälan avfärdad. Pris och status visas igen.");
+  ADMIN_AGARSKAP = null;
+  await hamtaAdminAgarskap();
+  renderAdmin();
+}
+
 // Öppna en sökandes dokument. Länken gäller i fem minuter.
 async function adminOppnaBevis(id) {
   const a = (ADMIN_AGARSKAP || []).find(x => x.id === id);
@@ -7452,7 +7613,25 @@ function renderAdmin() {
 
   // Ägaranspråk. Innan BankID finns är detta den manuella verifieringen —
   // claimStatus sattes tidigare till 'pending' utan att något kunde godkänna den.
-  const claimsHtml = `
+  const oppnaAnm = (ADMIN_ANMALNINGAR || []).filter(n => n.status === "oppen");
+  const anmalningarHtml = oppnaAnm.length ? `
+    <div class="card" style="margin-bottom:14px;border:1.5px solid var(--clay);">
+      <div class="card-title" style="color:var(--clay);">Anmälningar — "det här är mitt hus" (${oppnaAnm.length})</div>
+      <div style="font-size:12.5px;color:var(--ink-soft);line-height:1.6;margin-bottom:14px;">
+        Pris och status är dolda för besökare tills du hanterat anmälan. Kontrollera lagfaren ägare innan du bestämmer dig.
+      </div>
+      ${oppnaAnm.map(n => `
+        <div style="border:1px solid var(--hairline);border-radius:12px;padding:13px 15px;margin-bottom:9px;">
+          <div class="beteckning" style="font-size:13px;color:var(--ink);">${escapeHtmlBasic(n.beteckning || n.fastighet_id)}</div>
+          <div style="font-size:12px;color:var(--ink-muted);margin-top:4px;">Anmäld av ${escapeHtmlBasic(n.anmalare_email || "")} · ägare enligt ifound: ${escapeHtmlBasic(n.agare_email || "—")} · ${new Date(n.skapad).toLocaleDateString("sv-SE")}</div>
+          ${n.meddelande ? `<div style="font-size:12.5px;color:var(--ink);margin-top:8px;padding:8px 11px;background:var(--surface-2);border-radius:8px;line-height:1.55;">${escapeHtmlBasic(n.meddelande)}</div>` : ""}
+          <div style="display:flex;gap:7px;margin-top:10px;flex-wrap:wrap;">
+            <button onclick="adminHanteraAnmalan('${n.id}','avfardad')" style="padding:7px 12px;border-radius:9px;border:0.5px solid var(--hairline);background:var(--surface);font-size:12.5px;cursor:pointer;font-family:var(--font-body);">Avfärda — ägaren stämmer</button>
+            <button onclick="adminHanteraAnmalan('${n.id}','atgardad')" style="padding:7px 12px;border-radius:9px;border:none;background:var(--clay);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--font-body);">Återkalla ägarskapet</button>
+          </div>
+        </div>`).join("")}
+    </div>` : "";
+  const claimsHtml = anmalningarHtml + `
     <div class="card">
       <div class="card-title">Ägaranspråk att granska</div>
       <div style="font-size:12.5px;color:var(--ink-soft);line-height:1.65;margin-bottom:16px;">

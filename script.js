@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-10-16a";
+const IFOUND_VERSION = "2026-10-17a";
 console.info("[ifound] version " + IFOUND_VERSION);
 
 function toast(msg) {
@@ -8298,7 +8298,11 @@ window.addEventListener("keydown", ev => { if (currentView === "map" && ev.key =
 
   // Vem är inloggad? Högst tre sekunder — svarar inte servern ritas sidan
   // som utloggad, och inloggningen dyker upp när svaret väl kommer.
-  await Promise.race([laddaKonto(), new Promise(r => setTimeout(r, 3000))]);
+  const kontoKlart = laddaKonto();
+  const hann = await Promise.race([
+    kontoKlart.then(() => true),
+    new Promise(r => setTimeout(() => r(false), 3000)),
+  ]);
   // Utloggad: inget lokalt ägarskap från ett tidigare konto får ligga kvar.
   if (!KONTO && !loadSession()?.isBroker) speglaAgarskap(null);
 
@@ -8316,6 +8320,18 @@ window.addEventListener("keydown", ev => { if (currentView === "map" && ev.key =
   const session = loadSession();
   currentView = arAdmin() ? "admin" : session?.email ? "feed" : "welcome";
   render();
+
+  // Hann inloggningen inte klart på tre sekunder ritades sidan som utloggad.
+  // Rita om när den väl är klar — annars syns varken Min sida eller admin
+  // förrän man laddar om.
+  if (!hann) {
+    kontoKlart.then(() => {
+      if (!KONTO) return;
+      if (arAdmin()) currentView = "admin";
+      else if (currentView === "welcome") currentView = "feed";
+      render();
+    });
+  }
 })();
 
 

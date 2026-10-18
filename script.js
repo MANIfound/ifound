@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-10-17a";
+const IFOUND_VERSION = "2026-10-18a";
 console.info("[ifound] version " + IFOUND_VERSION);
 
 function toast(msg) {
@@ -78,8 +78,13 @@ function aterstallDeladData() {
     MINA_BEVAKNINGAR = null;
     for (const k of Object.keys(AGARE)) delete AGARE[k];
     _agareHamtat.clear();
+    for (const k of Object.keys(INTRESSE)) delete INTRESSE[k];
+    _intresseHamtat.clear();
+    MINA_SAMTAL = null;
     const s = loadState();
     s.myLikes = {};
+    s.myInterests = {};
+    delete s.interests; delete s.interestMessages;
     s.profile = { ...(s.profile || {}), watchedAreas: [] };
     saveState(s);
   } catch (e) { console.warn("aterstallDeladData:", e?.message); }
@@ -245,6 +250,124 @@ function bevisValjareHtml(idPrefix) {
       ${Object.entries(BEVIS_TYPER).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}
     </select>
     <input id="${idPrefix}Fil" type="file" accept="application/pdf,image/jpeg,image/png,image/heic,image/heif,image/webp" style="width:100%;font-size:12px;" />`;
+}
+
+// Kortet "Meddelanden" på Min sida — båda rollerna i samma lista.
+function samtalKortHtml() {
+  if (!KONTO) return "";
+  const lista = MINA_SAMTAL;
+  const tidText = (t) => {
+    const d = new Date(t), idag = new Date();
+    return d.toDateString() === idag.toDateString()
+      ? d.toLocaleTimeString("sv-SE", { hour: "2-digit", minute: "2-digit" })
+      : d.toLocaleDateString("sv-SE", { day: "numeric", month: "short" });
+  };
+  const rad = (x) => `
+    <button onclick="openSamtal('${escapeHtmlBasic(x.id)}')" style="width:100%;display:flex;gap:11px;align-items:flex-start;text-align:left;background:${x.olasta ? "var(--green-50)" : "transparent"};border:none;border-top:1px solid var(--hairline);padding:11px 6px;cursor:pointer;font-family:var(--font-body);">
+      <i class="ti ${x.roll === "agare" ? "ti-home-heart" : "ti-message"}" style="font-size:18px;color:var(--green-600);margin-top:2px;flex-shrink:0;"></i>
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;justify-content:space-between;gap:8px;">
+          <span class="beteckning" style="font-size:11.5px;color:var(--ink);">${escapeHtmlBasic(x.beteckning || "Fastighet")}</span>
+          <span style="font-size:11px;color:var(--ink-muted);flex-shrink:0;">${tidText(x.senast)}</span>
+        </div>
+        <div style="font-size:12px;color:var(--ink-muted);margin-top:1px;">${x.roll === "agare" ? "Från " + escapeHtmlBasic(x.motpart) + " · till dig som ägare" : "Till ägaren"}</div>
+        <div style="font-size:12.5px;color:${x.olasta ? "var(--ink)" : "var(--ink-soft)"};font-weight:${x.olasta ? 600 : 400};margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtmlBasic(x.senaste_text || "")}</div>
+      </div>
+      ${x.olasta ? `<span style="background:var(--green-600);color:#fff;border-radius:999px;font-size:11px;font-weight:700;padding:2px 8px;flex-shrink:0;margin-top:2px;">${x.olasta}</span>` : ""}
+    </button>`;
+  return `
+    <div class="card" id="samtalKort" style="margin-bottom:12px;">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">
+        <span>Meddelanden</span>
+        ${olastaTotalt() ? `<span style="background:var(--green-600);color:#fff;border-radius:999px;font-size:11px;font-weight:700;padding:2px 9px;">${olastaTotalt()} nya</span>` : ""}
+      </div>
+      ${lista === null ? `<div style="font-size:12.5px;color:var(--ink-muted);">Hämtar…</div>`
+        : lista.length ? lista.map(rad).join("")
+        : `<div style="font-size:12.5px;color:var(--ink-muted);line-height:1.6;">Inga meddelanden ännu. Skriv till en ägare genom att markera intresse för ett hus på kartan.</div>`}
+    </div>`;
+}
+
+async function openSamtal(id) {
+  const x = (MINA_SAMTAL || []).find(s => s.id === id);
+  if (!x) return;
+  document.getElementById("samtal-overlay")?.remove();
+  const overlay = document.createElement("div");
+  overlay.id = "samtal-overlay";
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:9000;display:flex;justify-content:center;align-items:flex-start;padding:20px;overflow-y:auto;overscroll-behavior:contain;";
+  overlay.innerHTML = `
+    <div style="background:#fff;border-radius:20px;padding:22px;width:100%;max-width:480px;margin:auto 0;font-family:var(--font-body);box-shadow:0 24px 64px rgba(0,0,0,.2);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;">
+        <div>
+          <div class="beteckning" style="font-size:12px;color:var(--ink);">${escapeHtmlBasic(x.beteckning || "Fastighet")}</div>
+          <div style="font-size:15px;font-weight:700;color:var(--ink);margin-top:3px;">${x.roll === "agare" ? escapeHtmlBasic(x.motpart) : "Ägaren"}</div>
+        </div>
+        <button id="samtalStang" style="width:32px;height:32px;border-radius:50%;border:none;background:var(--surface-2);cursor:pointer;font-size:16px;color:var(--ink-soft);flex-shrink:0;">✕</button>
+      </div>
+      <div id="samtalTrad" style="display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow-y:auto;padding:4px 2px 10px;">
+        <div style="font-size:12.5px;color:var(--ink-muted);">Hämtar…</div>
+      </div>
+      <div style="font-size:11px;color:var(--ink-muted);line-height:1.5;margin:8px 0 10px;padding:8px 10px;background:var(--surface-2);border-radius:8px;">
+        <i class="ti ti-shield-lock"></i> Betala aldrig handpenning, deposition eller hyra innan ni träffats och du sett kontraktet. Telefonnummer och e-post kan skickas när båda har skrivit.
+      </div>
+      <textarea id="samtalText" class="input" placeholder="Skriv ett svar…" style="min-height:80px;"></textarea>
+      ${x.roll === "intressent" ? `
+      <label style="display:flex;gap:8px;align-items:center;margin-top:9px;font-size:12px;color:var(--ink-soft);cursor:pointer;">
+        <input type="checkbox" id="samtalVisaNamn" style="accent-color:var(--green-600);" /> Visa mitt förnamn för ägaren
+      </label>` : ""}
+      <button id="samtalSkicka" class="btn-primary" style="width:100%;margin-top:12px;justify-content:center;">Skicka</button>
+    </div>`;
+  document.body.appendChild(overlay);
+  const stang = () => {
+    overlay.remove();
+    hamtaMinaSamtal().then(() => {
+      const el = document.getElementById("samtalKort");
+      if (el) el.outerHTML = samtalKortHtml();
+    });
+  };
+  overlay.addEventListener("click", e => { if (e.target === overlay) stang(); });
+  document.getElementById("samtalStang").onclick = stang;
+
+  const ladda = async () => {
+    const trad = document.getElementById("samtalTrad");
+    const { data, error } = await sbKlient().rpc("samtal_meddelanden", { sid: id });
+    if (!trad) return;
+    if (error) { trad.innerHTML = `<div style="font-size:12.5px;color:var(--clay);">Kunde inte hämta samtalet.</div>`; return; }
+    trad.innerHTML = (data || []).map(m => `
+      <div style="align-self:${m.min ? "flex-end" : "flex-start"};max-width:85%;background:${m.min ? "var(--green-600)" : "var(--surface-2)"};color:${m.min ? "#fff" : "var(--ink)"};border-radius:14px;padding:9px 12px;font-size:13px;line-height:1.5;white-space:pre-wrap;word-wrap:break-word;">
+        ${escapeHtmlBasic(m.innehall)}
+        <div style="font-size:10px;opacity:.7;margin-top:3px;text-align:right;">${new Date(m.skapad).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
+      </div>`).join("") || `<div style="font-size:12.5px;color:var(--ink-muted);">Inga meddelanden.</div>`;
+    trad.scrollTop = trad.scrollHeight;
+  };
+  await ladda();
+
+  const visaNamn = document.getElementById("samtalVisaNamn");
+  if (visaNamn) {
+    visaNamn.checked = false;
+    visaNamn.onchange = async () => {
+      const { error } = await sbKlient().rpc("visa_mitt_namn", { sid: id, visa: visaNamn.checked });
+      if (error) { visaNamn.checked = !visaNamn.checked; toast("Kunde inte ändra just nu."); return; }
+      toast(visaNamn.checked ? "Ägaren ser nu ditt förnamn." : "Ditt namn är dolt igen.");
+    };
+  }
+
+  document.getElementById("samtalSkicka").onclick = async () => {
+    const ta = document.getElementById("samtalText");
+    const btn = document.getElementById("samtalSkicka");
+    const text = (ta?.value || "").trim();
+    if (!text) { toast("Skriv något först."); return; }
+    btn.disabled = true;
+    const { error } = x.roll === "agare"
+      ? await sbKlient().rpc("svara_meddelande", { sid: id, text_in: text })
+      : await sbKlient().rpc("skicka_meddelande", { vald_fid: x.fastighet_id, text_in: text });
+    btn.disabled = false;
+    if (error) {
+      toast(/[åäöÅÄÖ]/.test(error.message || "") ? error.message : "Kunde inte skicka just nu.");
+      return;
+    }
+    ta.value = "";
+    await ladda();
+  };
 }
 
 // Laddar upp till förrådet (egen mapp), kopplar filen till ansökan och
@@ -1609,7 +1732,7 @@ function openInterestModal(feature, pid, name) {
       <div style="margin-bottom:16px;">
         <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:6px;">Meddelande till ägaren <span style="font-weight:400;text-transform:none;letter-spacing:0;">(valfritt)</span></label>
         <textarea id="interestMessage" style="width:100%;border:0.5px solid rgba(17,24,39,.12);border-radius:9px;padding:11px 13px;font-size:13px;font-family:var(--font-body);color:var(--ink);outline:none;min-height:100px;resize:vertical;line-height:1.6;background:#fff;" placeholder="Ex: Jag är intresserad av att köpa denna fastighet om ni någonsin funderar på att sälja. Hör gärna av er!"></textarea>
-        <div style="font-size:11px;color:var(--ink-muted);margin-top:5px;">Meddelandet är anonymt tills du väljer att avslöja din identitet.</div>
+        <div style="font-size:11px;color:var(--ink-muted);margin-top:5px;line-height:1.5;">Ägaren ser inte vem du är förrän du väljer att visa ditt namn. Telefonnummer och e-post kan skickas när ägaren har svarat.</div>
       </div>
 
       <div style="display:flex;flex-direction:column;gap:10px;">
@@ -1693,30 +1816,32 @@ function handleMyPhotoPick(pid, name, input) {
   reader.readAsDataURL(file);
 }
 
-function saveInterest(pid, name, message) {
+async function saveInterest(pid, name, message) {
+  const btn = document.getElementById("sendInterestBtn");
+  if (btn) btn.disabled = true;
   const s = loadState();
-  s.myInterests = s.myInterests || {};
   s.parcelNames = s.parcelNames || {};
   s.parcelNames[pid] = name;
-  s.interests = s.interests || {};
-
-  if (!s.myInterests[pid]) {
-    s.interests[pid] = (s.interests[pid] || 0) + 1;
-    s.myInterests[pid] = true;
-  }
-
-  // Save message if provided
-  if (message) {
-    s.interestMessages = s.interestMessages || {};
-    s.interestMessages[pid] = s.interestMessages[pid] || [];
-    s.interestMessages[pid].push({
-      message,
-      sentAt: new Date().toISOString(),
-      anonymous: true,
-    });
-  }
-
   saveState(s);
+
+  // Meddelandet först: avvisas det (kontaktuppgifter, betalning) ska man
+  // kunna rätta texten utan att något redan skickats.
+  if (message) {
+    const { error } = await sbKlient().rpc("skicka_meddelande", { vald_fid: pid, text_in: message });
+    if (error) {
+      if (btn) btn.disabled = false;
+      toast(/[åäöÅÄÖ]/.test(error.message || "") ? error.message : "Kunde inte skicka meddelandet just nu.");
+      return;
+    }
+    MINA_SAMTAL = null;
+  }
+  try { await skickaIntresse(pid, true); }
+  catch (e) {
+    if (btn) btn.disabled = false;
+    toast("Kunde inte spara intresset just nu. Försök igen.");
+    return;
+  }
+
   closeInterestModal();
   redrawLayer();
 
@@ -1733,7 +1858,9 @@ function saveInterest(pid, name, message) {
     return;
   }
 
-  toast(message ? "Intresse och meddelande skickat till ägaren!" : "Intresse markerat!");
+  toast(message
+    ? (isParcelClaimed(pid) ? "Intresse och meddelande skickat till ägaren! Svaret kommer på Min sida." : "Intresse och meddelande sparat. Ägaren ser det när hen går med på ifound.")
+    : "Intresse markerat!");
 }
 
 // =========================
@@ -2962,18 +3089,19 @@ function _renderParcelPanelInner(feature) {
   const meta = getParcelMeta(feature);
   const _g = GILLANDE[pid];
   const likes = _g ? _g.antal : 0;   // siffran kommer bara från servern
-  const interests = state.interests?.[pid] || 0;
+  const _i = INTRESSE[pid];
+  const interests = _i ? _i.antal : 0;   // siffran kommer bara från servern
   const isOwner = state.ownerParcelId === pid;
   const iLiked = _g ? _g.jag : !!state.myLikes?.[pid];
   window._panelPid = pid;
-  if (!_gillandeHamtat.has(pid)) {
-    _gillandeHamtat.add(pid);
-    hamtaGillanden([pid]).then(() => {
-      if (!GILLANDE[pid]) return;   // misslyckad hämtning: ingen omritning, ingen loop
+  if (!_gillandeHamtat.has(pid) || !_intresseHamtat.has(pid)) {
+    _gillandeHamtat.add(pid); _intresseHamtat.add(pid);
+    Promise.all([hamtaGillanden([pid]), hamtaIntressen([pid])]).then(() => {
+      if (!GILLANDE[pid] || !INTRESSE[pid]) return;   // misslyckad hämtning: ingen omritning, ingen loop
       if (window._panelPid === pid && document.getElementById("likeBtn")) renderParcelPanel(feature);
     });
   }
-  const iInterested = !!state.myInterests?.[pid];
+  const iInterested = _i ? _i.jag : !!state.myInterests?.[pid];
   const iFollow = !!state.myFollows?.[pid];
   // TVÅ SKILDA FRÅGOR, med avsikt hållna isär:
   //   isMulti — är det ett flerbostadshus? styr vad som är relevant för HUSET
@@ -3341,15 +3469,13 @@ function _renderParcelPanelInner(feature) {
     redrawLayer(); renderParcelPanel(feature);
   };
 
-  document.getElementById("interestBtn").onclick = () => {
-    const s = loadState();
-    if (s.myInterests?.[pid]) {
-      // Already interested — toggle off
-      delete s.myInterests[pid];
-      s.interests[pid] = Math.max(0, (s.interests[pid] || 1) - 1);
-      delete (s.interestMessages || {})[pid];
-      saveState(s);
-      toast("Intressemarkering borttagen.");
+  document.getElementById("interestBtn").onclick = async () => {
+    if (iInterested) {
+      const btn = document.getElementById("interestBtn");
+      if (btn) btn.disabled = true;
+      try { await skickaIntresse(pid, false); }
+      catch (e) { if (btn) btn.disabled = false; toast("Kunde inte ta bort intresset just nu."); return; }
+      toast("Intressemarkering borttagen. Meddelanden du skickat finns kvar på Min sida.");
       redrawLayer();
       renderParcelPanel(feature);
     } else {
@@ -4860,7 +4986,7 @@ function renderDashboard() {
   const visaOmraden = getProfile().role === "seeker" || (getProfile().watchedAreas || []).length > 0;
   const _og = ownerId ? GILLANDE[ownerId] : null;
   const ownerLikes = _og ? _og.antal : 0;
-  const ownerInterests = ownerId ? state.interests?.[ownerId] || 0 : 0;
+  const ownerInterests = ownerId && INTRESSE[ownerId] ? INTRESSE[ownerId].antal : 0;
   const homeProfile = getHomeProfile(user);
   const images = homeProfile.images || [];
 
@@ -4962,7 +5088,7 @@ function renderDashboard() {
 
         <div class="stats-strip">
           <div class="stat-tile"><div class="stat-icon"><i class="ti ti-thumb-up"></i></div><div><div class="stat-num" id="ownerLikesNum">${ownerLikes}</div><div class="stat-lbl">Gillar</div></div></div>
-          <div class="stat-tile"><div class="stat-icon"><i class="ti ti-star"></i></div><div><div class="stat-num">${ownerInterests}</div><div class="stat-lbl">Intresserade</div></div></div>
+          <div class="stat-tile"><div class="stat-icon"><i class="ti ti-star"></i></div><div><div class="stat-num" id="ownerIntNum">${ownerInterests}</div><div class="stat-lbl">Intresserade</div></div></div>
           <button class="stat-tile stat-tile-btn" onclick="currentView='saved';render();"><div class="stat-icon"><i class="ti ti-heart"></i></div><div><div class="stat-num" id="savedCountNum">${savedCount}</div><div class="stat-lbl">Sparade objekt</div></div><i class="ti ti-chevron-right stat-tile-arrow"></i></button>
         </div>
 
@@ -5095,22 +5221,10 @@ function renderDashboard() {
             </div>
             ${renderRentalOwnerCard(ownerId)}`;
             })() : ""}
+            ${samtalKortHtml()}
             <div class="card" style="margin-bottom:12px;">
               <div class="card-title">Aktivitet</div>
-              ${ownerId && state.interestMessages?.[ownerId]?.length ? `
-                <div style="margin-bottom:12px;padding:12px;background:var(--accent-soft);border-radius:10px;">
-                  <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px;display:flex;align-items:center;gap:6px;">
-                    <i class="ti ti-message" style="font-size:14px;"></i>
-                    ${state.interestMessages[ownerId].length} meddelande${state.interestMessages[ownerId].length > 1 ? 'n' : ''} från intressenter
-                  </div>
-                  ${state.interestMessages[ownerId].map(m => `
-                    <div style="background:#fff;border-radius:8px;padding:10px 12px;margin-bottom:6px;font-size:12px;color:var(--ink-soft);line-height:1.5;border:0.5px solid rgba(204,41,54,.15);">
-                      "${m.message}"
-                      <div style="font-size:10px;color:var(--ink-muted);margin-top:4px;">${new Date(m.sentAt).toLocaleDateString('sv-SE')} · Anonymt</div>
-                    </div>
-                  `).join('')}
-                </div>
-              ` : ''}
+
               <div class="act-row"><div class="act-dot"></div>Utforska fastigheter på kartan</div>
               <div class="act-row"><div class="act-dot"></div>Markera intresse på objekt du gillar</div>
               <div class="act-row"><div class="act-dot"></div>Välj ägarläge och koppla din fastighet</div>
@@ -5155,6 +5269,11 @@ function renderDashboard() {
   // på plats — en full omritning hade kastat bort det man skrivit i profilen.
   if (ownerId && !_gillandeHamtat.has(ownerId)) {
     _gillandeHamtat.add(ownerId);
+    _intresseHamtat.add(ownerId);
+    hamtaIntressen([ownerId]).then(() => {
+      const el = document.getElementById("ownerIntNum");
+      if (el && INTRESSE[ownerId]) el.textContent = INTRESSE[ownerId].antal;
+    });
     hamtaGillanden([ownerId]).then(() => {
       if (!GILLANDE[ownerId]) return;   // misslyckad hämtning: behåll gamla siffran, ingen loop
       const el = document.getElementById("ownerLikesNum");
@@ -5173,6 +5292,15 @@ function renderDashboard() {
         return;
       }
       el.outerHTML = bevakningarKortHtml();
+    });
+  }
+
+  // Meddelanden: hämtas och patchas på plats.
+  if (MINA_SAMTAL === null && KONTO) {
+    hamtaMinaSamtal().then(() => {
+      if (MINA_SAMTAL === null) return;   // misslyckad hämtning: ingen loop
+      const el = document.getElementById("samtalKort");
+      if (el) el.outerHTML = samtalKortHtml();
     });
   }
 
@@ -5628,7 +5756,7 @@ function addClaimedMarkers() {
         status: vis === 'sale' ? 'sale' : vis === 'rent' ? 'rent' : 'passive',
         name: ownerName,
         likes: GILLANDE[ownerId]?.antal || 0,
-        interested: state.interests?.[ownerId] || 0,
+        interested: INTRESSE[ownerId]?.antal ?? "–",
       });
     }
   }
@@ -5752,6 +5880,71 @@ async function hamtaGillanden(ids) {
   }
 }
 
+// --- Intressen: samma mönster som gillanden ------------------------------
+// INTRESSE[fid] = { antal, jag }. Kräver inget konto; meddelanden gör det.
+const INTRESSE = Object.create(null);
+const _intresseHamtat = new Set();
+
+async function hamtaIntressen(ids) {
+  const want = (ids || []).filter(Boolean);
+  if (!want.length) return;
+  try {
+    const r = await fetch(`${API_BASE_URL}/rest/v1/rpc/intresse_for`, {
+      method: "POST", headers: await rpcHeaders(),
+      body: JSON.stringify({ ids: want, vem: enhetsId() }),
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const rows = await r.json();
+    for (const id of want) if (!INTRESSE[id]) INTRESSE[id] = { antal: 0, jag: false };
+    for (const row of rows || []) INTRESSE[row.fid] = { antal: row.antal || 0, jag: !!row.jag };
+  } catch (e) {
+    console.warn("Kunde inte hämta intressen:", e.message);
+    for (const id of want) _intresseHamtat.delete(id);
+  }
+}
+
+async function skickaIntresse(pid, pa) {
+  const r = await fetch(`${API_BASE_URL}/rest/v1/rpc/visa_intresse`, {
+    method: "POST", headers: await rpcHeaders(),
+    body: JSON.stringify({ fid: pid, vem: enhetsId(), pa: !!pa }),
+  });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  const antal = await r.json();
+  INTRESSE[pid] = { antal, jag: !!pa };
+  _intresseHamtat.add(pid);
+  const s = loadState();
+  s.myInterests = s.myInterests || {};
+  if (pa) s.myInterests[pid] = true; else delete s.myInterests[pid];
+  delete s.interests;                      // gamla lokala antal läses inte längre
+  saveState(s);
+  MINA_GILLANDEN = null; _minaGillandenGen++;   // Sparade objekt hämtas om
+  return antal;
+}
+
+// --- Samtal: meddelanden mellan intressent och ägare ---------------------
+// MINA_SAMTAL: null = inte hämtat, annars serverns lista (båda rollerna).
+let MINA_SAMTAL = null;
+let _samtalPagar = null;
+function hamtaMinaSamtal() {
+  if (!KONTO) { MINA_SAMTAL = []; return Promise.resolve(); }
+  if (_samtalPagar) return _samtalPagar;
+  _samtalPagar = (async () => {
+    try {
+      const { data, error } = await sbKlient().rpc("mina_samtal");
+      if (error) throw error;
+      MINA_SAMTAL = Array.isArray(data) ? data : [];
+    } catch (e) {
+      console.warn("Kunde inte hämta meddelanden:", e?.message);
+    } finally {
+      _samtalPagar = null;
+    }
+  })();
+  return _samtalPagar;
+}
+function olastaTotalt() {
+  return (MINA_SAMTAL || []).reduce((a, x) => a + (x.olasta || 0), 0);
+}
+
 async function skickaGillande(pid, pa) {
   const r = await fetch(`${API_BASE_URL}/rest/v1/rpc/gilla`, {
     method: "POST",
@@ -5852,13 +6045,15 @@ function hamtaMinaGillanden() {
   const gen = _minaGillandenGen;
   _minaGillandenPagar = (async () => {
     try {
-      const r = await fetch(`${API_BASE_URL}/rest/v1/rpc/mina_gillanden`, {
-        method: "POST",
-        headers: await rpcHeaders(),
-        body: JSON.stringify({ vem: enhetsId() })
-      });
+      const h = await rpcHeaders();
+      const [r, ri] = await Promise.all([
+        fetch(`${API_BASE_URL}/rest/v1/rpc/mina_gillanden`, { method: "POST", headers: h, body: JSON.stringify({ vem: enhetsId() }) }),
+        fetch(`${API_BASE_URL}/rest/v1/rpc/mina_intressen`, { method: "POST", headers: h, body: JSON.stringify({ vem: enhetsId() }) }).catch(() => null),
+      ]);
       if (!r.ok) throw new Error("HTTP " + r.status);
       const rows = await r.json();
+      let intRows = null;
+      try { if (ri && ri.ok) intRows = await ri.json(); } catch {}
       if (!Array.isArray(rows)) throw new Error("oväntat svar");
       if (gen !== _minaGillandenGen) return;   // inaktuellt svar: rör ingenting
 
@@ -5885,6 +6080,17 @@ function hamtaMinaGillanden() {
         if (row.lat != null && row.lon != null) {
           const prev = s.parcelMeta[fid] || {};
           s.parcelMeta[fid] = { area: prev.area ?? null, lat: row.lat, lon: row.lon };
+        }
+      }
+      // Intressen: servern är källan, som för gillanden. Misslyckas den
+      // hämtningen ligger den lokala listan kvar som den var.
+      if (Array.isArray(intRows)) {
+        s.myInterests = {};
+        for (const row of intRows) {
+          const fid = String(row.fid);
+          s.myInterests[fid] = true;
+          if (row.beteckning) { s.parcelNames[fid] = row.beteckning; rememberParcelLabel(fid, row.beteckning); }
+          if (row.lat != null && row.lon != null && !s.parcelMeta[fid]) s.parcelMeta[fid] = { area: null, lat: row.lat, lon: row.lon };
         }
       }
       saveState(s);
@@ -8324,6 +8530,14 @@ window.addEventListener("keydown", ev => { if (currentView === "map" && ev.key =
   // Hann inloggningen inte klart på tre sekunder ritades sidan som utloggad.
   // Rita om när den väl är klar — annars syns varken Min sida eller admin
   // förrän man laddar om.
+  // Olästa meddelanden: en rad när man kommer in, ingen e-post ännu.
+  kontoKlart.then(async () => {
+    if (!KONTO) return;
+    await hamtaMinaSamtal();
+    const n = olastaTotalt();
+    if (n) toast(`Du har ${n} ${n === 1 ? "oläst meddelande" : "olästa meddelanden"} — se Min sida.`);
+  });
+
   if (!hann) {
     kontoKlart.then(() => {
       if (!KONTO) return;

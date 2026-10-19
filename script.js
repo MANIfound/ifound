@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-10-18a";
+const IFOUND_VERSION = "2026-10-19a";
 console.info("[ifound] version " + IFOUND_VERSION);
 
 function toast(msg) {
@@ -167,6 +167,7 @@ function clearSession() {
   MITT_AGARSKAP = undefined;
   ADMIN_AGARSKAP = null;
   ADMIN_ANMALNINGAR = null;
+  ADMIN_DATA = null;
   speglaAgarskap(null);
   aterstallDeladData();
 }
@@ -307,7 +308,7 @@ async function openSamtal(id) {
         <div style="font-size:12.5px;color:var(--ink-muted);">Hämtar…</div>
       </div>
       <div style="font-size:11px;color:var(--ink-muted);line-height:1.5;margin:8px 0 10px;padding:8px 10px;background:var(--surface-2);border-radius:8px;">
-        <i class="ti ti-shield-lock"></i> Betala aldrig handpenning, deposition eller hyra innan ni träffats och du sett kontraktet. Telefonnummer och e-post kan skickas när båda har skrivit.
+        <i class="ti ti-shield-lock"></i> Betala aldrig handpenning, deposition eller hyra innan ni träffats och du sett kontraktet. Telefonnummer och e-post kan skickas när båda har skrivit. Under testperioden kan ifound läsa meddelanden för att stoppa bedrägerier.
       </div>
       <textarea id="samtalText" class="input" placeholder="Skriv ett svar…" style="min-height:80px;"></textarea>
       ${x.roll === "intressent" ? `
@@ -1732,7 +1733,7 @@ function openInterestModal(feature, pid, name) {
       <div style="margin-bottom:16px;">
         <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:6px;">Meddelande till ägaren <span style="font-weight:400;text-transform:none;letter-spacing:0;">(valfritt)</span></label>
         <textarea id="interestMessage" style="width:100%;border:0.5px solid rgba(17,24,39,.12);border-radius:9px;padding:11px 13px;font-size:13px;font-family:var(--font-body);color:var(--ink);outline:none;min-height:100px;resize:vertical;line-height:1.6;background:#fff;" placeholder="Ex: Jag är intresserad av att köpa denna fastighet om ni någonsin funderar på att sälja. Hör gärna av er!"></textarea>
-        <div style="font-size:11px;color:var(--ink-muted);margin-top:5px;line-height:1.5;">Ägaren ser inte vem du är förrän du väljer att visa ditt namn. Telefonnummer och e-post kan skickas när ägaren har svarat.</div>
+        <div style="font-size:11px;color:var(--ink-muted);margin-top:5px;line-height:1.5;">Ägaren ser inte vem du är förrän du väljer att visa ditt namn. Telefonnummer och e-post kan skickas när ägaren har svarat. Under testperioden kan ifound läsa meddelanden för att stoppa bedrägerier.</div>
       </div>
 
       <div style="display:flex;flex-direction:column;gap:10px;">
@@ -7359,6 +7360,31 @@ async function decideClaim(id, decision) {
   renderAdmin();
 }
 
+// Översikt, konton och meddelanden till adminsidan.
+let ADMIN_DATA = null;
+let _adminDataPagar = false;
+let _adminDataFel = false;
+async function hamtaAdminData() {
+  try {
+    const [o, k, m] = await Promise.all([
+      sbKlient().rpc("admin_oversikt"),
+      sbKlient().rpc("admin_konton"),
+      sbKlient().rpc("admin_meddelanden", { antal: 100 }),
+    ]);
+    if (o.error) throw o.error;
+    ADMIN_DATA = {
+      oversikt: o.data,
+      konton: k.error ? [] : (k.data || []),
+      meddelanden: m.error ? [] : (m.data || []),
+    };
+    _adminDataFel = false;
+  } catch (e) {
+    console.warn("Kunde inte hämta admindata:", e?.message);
+    _adminDataFel = true;
+    ADMIN_DATA = {};   // visa felet i stället för att hämta om i en loop
+  }
+}
+
 // Anmälan "det här är mitt hus": avfärda, eller återkalla ägarskapet.
 async function adminHanteraAnmalan(id, atgard) {
   if (atgard === "atgardad" && !confirm("Återkalla ägarskapet? Ägaren förlorar kopplingen till fastigheten och dokumentet raderas.")) return;
@@ -7402,6 +7428,7 @@ async function adminKontrollera(id) {
   if (svar?.bevis) await raderaBevisfil(svar.bevis);
   toast(svar?.ok ? `${a.beteckning}: dokument kontrollerat. Önskepris och till salu kan nu visas.` : "Ansökan finns inte längre.");
   ADMIN_AGARSKAP = null;
+  ADMIN_DATA = null;
   await hamtaAdminAgarskap();
   renderAdmin();
 }
@@ -7416,406 +7443,102 @@ function renderAdmin() {
     });
   }
   const ansokningar = ADMIN_AGARSKAP || [];
-  const users = loadUsers();
-  const state = loadState();
-  const userList = Object.values(users).filter(u => u.email !== "admin@ifound.se");
-  const totalLikes = Object.values(state.likes || {}).reduce((a,b) => a+b, 0);
-  const totalInterests = Object.values(state.interests || {}).reduce((a,b) => a+b, 0);
+  // Översikt, konton och meddelanden kommer från servern (admin.sql).
+  // Hämtas en gång; knappen "Uppdatera" hämtar om.
+  if (ADMIN_DATA === null && !_adminDataPagar) {
+    _adminDataPagar = true;
+    hamtaAdminData().then(() => { _adminDataPagar = false; if (ADMIN_DATA !== null && arAdmin()) renderAdmin(); });
+  }
+  const D = ADMIN_DATA || {};
+  const O = D.oversikt || null;
+  const fmtDag = (t) => t ? new Date(t).toLocaleDateString("sv-SE", { day: "numeric", month: "short", year: "numeric" }) : "—";
+  const fmtTid = (t) => t ? new Date(t).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
+  const laddar = `<div style="font-size:13px;color:var(--ink-muted);padding:22px 0;">${_adminDataFel ? "Kunde inte hämta från servern. Ladda om sidan." : "Hämtar…"}</div>`;
+  const uppdatera = `<button onclick="ADMIN_DATA=null;ADMIN_AGARSKAP=null;renderAdmin();" class="btn-ghost" style="font-size:12px;padding:6px 12px;"><i class="ti ti-refresh"></i> Uppdatera</button>`;
 
-  const mockUsers = [
-    { name:"Anna Lindqvist",  email:"anna@example.se",    joined:"2025-06-12", role:"Ägare",    likes:3,  claims:1, status:"active" },
-    { name:"Marcus Holm",     email:"marcus@example.se",  joined:"2025-06-14", role:"Besökare", likes:7,  claims:0, status:"active" },
-    { name:"Sara Björk",      email:"sara@example.se",    joined:"2025-06-15", role:"Ägare",    likes:2,  claims:1, status:"active" },
-    { name:"Johan Eriksson",  email:"johan@example.se",   joined:"2025-06-17", role:"Besökare", likes:5,  claims:0, status:"active" },
-    { name:"Lena Svensson",   email:"lena@example.se",    joined:"2025-06-18", role:"Ägare",    likes:1,  claims:1, status:"active" },
-    { name:"Erik Strand",     email:"erik@example.se",    joined:"2025-06-18", role:"Besökare", likes:9,  claims:0, status:"blocked" },
-    ...userList.map(u => ({ name:u.name, email:u.email, joined:"2025-06-19", role: state.ownerParcelId ? "Ägare" : "Besökare", likes: Object.keys(state.myLikes||{}).length, claims: state.ownerParcelId ? 1 : 0, status:"active" }))
-  ];
-
-  const mockProps = [
-    { prop:"Pålsjö 4:7",       user:"Anna Lindqvist",  date:"2025-06-12", visible:"Privat",    likes:18, interested:4,  img:"https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=120&q=60" },
-    { prop:"Laröd 3:19",       user:"Sara Björk",      date:"2025-06-15", visible:"Synlig",    likes:41, interested:9,  img:"https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=120&q=60" },
-    { prop:"Fredriksdal 6:1",  user:"Lena Svensson",   date:"2025-06-18", visible:"Till salu", likes:19, interested:6,  img:"https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=120&q=60" },
-    { prop:"Raus Plantage 7:2",user:"Sara Björk",       date:"2025-06-15", visible:"Privat",    likes:6,  interested:2,  img:"https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=120&q=60" },
-    ...(state.ownerParcelId ? [{ prop: state.parcelNames?.[state.ownerParcelId] || state.ownerParcelId, user: userList[0]?.name || "Du", date:"2025-06-19", visible:"Privat", likes: GILLANDE[state.ownerParcelId]?.antal||0, interested: state.interests?.[state.ownerParcelId]||0, img:"https://images.unsplash.com/photo-1523217582562-09d0def993a6?w=120&q=60" }] : [])
-  ];
-
-  const mockActivity = [
-    { icon:"ti-user-plus",  color:"#16a34a", bg:"#F0FDF4", text:"Marcus Holm registrerade sig",           time:"14 min sedan" },
-    { icon:"ti-heart",      color:"#CC2936", bg:"#FDECEA", text:"Ny gillning på Laröd 3:19",              time:"32 min sedan" },
-    { icon:"ti-home-check", color:"#2563eb", bg:"#EFF6FF", text:"Sara Björk claimade Laröd 3:19",         time:"2 h sedan" },
-    { icon:"ti-star",       color:"#7c3aed", bg:"#F5F3FF", text:"Nytt intresse på Fredriksdal 6:1",       time:"3 h sedan" },
-    { icon:"ti-user-plus",  color:"#16a34a", bg:"#F0FDF4", text:"Lena Svensson registrerade sig",         time:"5 h sedan" },
-    { icon:"ti-heart",      color:"#CC2936", bg:"#FDECEA", text:"Ny gillning på Pålsjö 4:7",              time:"Igår" },
-    { icon:"ti-flag",       color:"#dc2626", bg:"#FEF2F2", text:"Innehåll rapporterat — Söder 8:22",      time:"Igår" },
-    { icon:"ti-star",       color:"#7c3aed", bg:"#F5F3FF", text:"Nytt intresse på Pålsjö 4:7",            time:"Igår" },
-  ];
-
-  const tabs = [
-    { id:"overview",    label:"Översikt",       icon:"ti-layout-dashboard" },
-    { id:"claims",      label:"Ägaranspråk",    icon:"ti-id-badge-2" },
-    { id:"users",       label:"Användare",      icon:"ti-users" },
-    { id:"properties",  label:"Fastigheter",    icon:"ti-home-check" },
-    { id:"moderation",  label:"Moderering",     icon:"ti-shield-check" },
-    { id:"insights",    label:"Insikter",       icon:"ti-chart-bar" },
-    { id:"premium",     label:"Premium",        icon:"ti-star" },
-  ];
-
-  const visStyle = (v) => ({
-    "Privat":    "background:var(--surface-2);color:var(--ink-soft);",
-    "Synlig":    "background:#EFF6FF;color:#2563eb;",
-    "Till salu": "background:#F0FDF4;color:#16a34a;",
-    "Uthyrning": "background:#F5F3FF;color:#7c3aed;",
-  }[v] || "background:var(--surface-2);color:var(--ink-soft);");
+  const ruta = (lbl, val, sub, varning) => `
+    <div style="background:#fff;border:0.5px solid ${varning ? "var(--clay)" : "rgba(17,24,39,.08)"};border-radius:13px;padding:16px 18px;">
+      <div style="font-size:11px;color:var(--ink-muted);font-weight:500;">${lbl}</div>
+      <div style="font-size:26px;font-weight:700;color:${varning ? "var(--clay)" : "var(--ink)"};margin-top:4px;line-height:1;font-family:var(--font-display);">${val}</div>
+      ${sub ? `<div style="font-size:11.5px;color:var(--ink-muted);margin-top:5px;">${sub}</div>` : ""}
+    </div>`;
 
   const overviewHtml = `
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px;">
-      ${[
-        { num:mockUsers.length,          lbl:"Användare",         icon:"ti-users",      sub:"+2 denna vecka" },
-        { num:mockProps.length,          lbl:"Claimade",          icon:"ti-home-check", sub:`${mockProps.filter(p=>p.visible==="Synlig"||p.visible==="Till salu").length} synliga` },
-        { num:totalLikes+116,            lbl:"Gillar",            icon:"ti-heart",      sub:"+23 idag" },
-        { num:totalInterests+34,         lbl:"Intresseanmälningar",icon:"ti-star",      sub:"+5 idag" },
-      ].map(s=>`
-        <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;padding:18px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-            <div style="width:38px;height:38px;border-radius:9px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;">
-              <i class="ti ${s.icon}" style="font-size:18px;color:var(--accent);" aria-hidden="true"></i>
-            </div>
-          </div>
-          <div style="font-size:28px;font-weight:700;letter-spacing:-.04em;color:var(--ink);line-height:1;">${s.num}</div>
-          <div style="font-size:12px;color:var(--ink-muted);margin-top:4px;">${s.lbl}</div>
-          <div style="font-size:11px;color:#16a34a;margin-top:6px;font-weight:500;">${s.sub}</div>
-        </div>
-      `).join('')}
-    </div>
-
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
-      <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;overflow:hidden;">
-        <div style="padding:16px 18px;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;justify-content:space-between;align-items:center;">
-          <div style="font-size:13px;font-weight:600;color:var(--ink);">Senaste aktivitet</div>
-          <span style="font-size:11px;color:var(--ink-muted);">Live</span>
-        </div>
-        ${mockActivity.slice(0,6).map(a=>`
-          <div style="display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:0.5px solid rgba(17,24,39,.04);">
-            <div style="width:32px;height:32px;border-radius:8px;background:${a.bg};display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-              <i class="ti ${a.icon}" style="font-size:15px;color:${a.color};" aria-hidden="true"></i>
-            </div>
-            <div style="flex:1;font-size:12px;color:var(--ink-soft);line-height:1.4;">${a.text}</div>
-            <div style="font-size:11px;color:var(--ink-muted);white-space:nowrap;">${a.time}</div>
-          </div>
-        `).join('')}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div>
+        <div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--ink);">Översikt</div>
+        <div style="font-size:12.5px;color:var(--ink-muted);margin-top:2px;">Riktiga siffror från servern.</div>
       </div>
-
-      <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;overflow:hidden;">
-        <div style="padding:16px 18px;border-bottom:0.5px solid rgba(17,24,39,.06);">
-          <div style="font-size:13px;font-weight:600;color:var(--ink);">Hetaste fastigheter</div>
-        </div>
-        ${mockProps.sort((a,b)=>b.likes-a.likes).slice(0,4).map(p=>`
-          <div style="display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:0.5px solid rgba(17,24,39,.04);">
-            <img src="${p.img}" style="width:40px;height:40px;border-radius:8px;object-fit:cover;flex-shrink:0;" />
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:12px;font-weight:600;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.prop}</div>
-              <div style="font-size:11px;color:var(--ink-muted);">${p.likes} gillar · ${p.interested} intresserade</div>
-            </div>
-            <span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:999px;${visStyle(p.visible)}">${p.visible}</span>
-          </div>
-        `).join('')}
-      </div>
+      ${uppdatera}
     </div>
-  `;
+    ${!O ? laddar : `
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:18px;">
+      ${ruta("Konton", O.konton, `${O.nya_7d} nya · ${O.aktiva_7d} inloggade senaste 7 dagarna`)}
+      ${ruta("Gillanden", O.gillanden, `${O.gillanden_7d} senaste 7 dagarna`)}
+      ${ruta("Intressen", O.intressen, "")}
+      ${ruta("Meddelanden", O.meddelanden, `${O.samtal} samtal · ${O.meddelanden_7d} senaste 7 dagarna`)}
+      ${ruta("Bevakade områden", O.bevakningar, "")}
+      ${ruta("Godkända ägare", O.agare, `${O.agare_niva1} med kontrollerat dokument`)}
+      ${ruta("Väntande ansökningar", O.vantande, O.vantande ? `<a href="#" onclick="switchAdminTab('claims');return false;" style="color:var(--clay);">Granska</a>` : "", O.vantande > 0)}
+      ${ruta("Öppna anmälningar", O.oppna_anmalningar, O.oppna_anmalningar ? `<a href="#" onclick="switchAdminTab('claims');return false;" style="color:var(--clay);">Hantera</a>` : "", O.oppna_anmalningar > 0)}
+    </div>`}`;
 
+  const konton = D.konton || null;
   const usersHtml = `
-    <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;overflow:hidden;">
-      <div style="padding:16px 20px;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;align-items:center;justify-content:space-between;">
-        <div style="font-size:13px;font-weight:600;color:var(--ink);">${mockUsers.length} användare</div>
-        <div style="display:flex;gap:8px;">
-          <div style="display:flex;align-items:center;gap:6px;background:var(--page-bg);border:0.5px solid rgba(17,24,39,.08);border-radius:8px;padding:6px 12px;">
-            <i class="ti ti-search" style="font-size:13px;color:var(--ink-muted);" aria-hidden="true"></i>
-            <input placeholder="Sök användare..." style="border:none;background:transparent;font-size:12px;font-family:var(--font-body);color:var(--ink);outline:none;width:140px;" />
-          </div>
-        </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div>
+        <div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--ink);">Användare</div>
+        <div style="font-size:12.5px;color:var(--ink-muted);margin-top:2px;">${konton ? konton.length + " konton" : ""}</div>
       </div>
-      <table style="width:100%;border-collapse:collapse;">
-        <thead>
-          <tr style="background:var(--page-bg);">
-            <th style="text-align:left;padding:10px 20px;font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.06em;">Användare</th>
-            <th style="text-align:left;padding:10px 12px;font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.06em;">Roll</th>
-            <th style="text-align:left;padding:10px 12px;font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.06em;">Gillar</th>
-            <th style="text-align:left;padding:10px 12px;font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.06em;">Registrerad</th>
-            <th style="text-align:left;padding:10px 12px;font-size:11px;font-weight:600;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.06em;">Status</th>
-            <th style="padding:10px 20px 10px 12px;"></th>
-          </tr>
-        </thead>
+      ${uppdatera}
+    </div>
+    ${!konton ? laddar : `
+    <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;overflow:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:12.5px;min-width:760px;">
+        <thead><tr style="text-align:left;color:var(--ink-muted);font-size:11px;">
+          ${["Namn", "E-post", "Skapat", "Senast inloggad", "Fastighet", "Gillar", "Intressen", "Meddelanden", "Områden"].map(h => `<th style="padding:11px 12px;font-weight:600;border-bottom:0.5px solid var(--hairline);">${h}</th>`).join("")}
+        </tr></thead>
         <tbody>
-          ${mockUsers.map(u=>`
-            <tr style="border-top:0.5px solid rgba(17,24,39,.05);">
-              <td style="padding:12px 20px;">
-                <div style="display:flex;align-items:center;gap:10px;">
-                  <div style="width:32px;height:32px;border-radius:50%;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0;">${u.name[0]}</div>
-                  <div>
-                    <div style="font-size:13px;font-weight:600;color:var(--ink);">${u.name}</div>
-                    <div style="font-size:11px;color:var(--ink-muted);">${u.email}</div>
-                  </div>
-                </div>
-              </td>
-              <td style="padding:12px;">
-                <span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:999px;${u.role==='Ägare'?'background:#F0FDF4;color:#16a34a;':'background:var(--surface-2);color:var(--ink-soft);'}">${u.role}</span>
-              </td>
-              <td style="padding:12px;font-size:13px;color:var(--ink-soft);">${u.likes}</td>
-              <td style="padding:12px;font-size:12px;color:var(--ink-muted);">${u.joined}</td>
-              <td style="padding:12px;">
-                <span style="font-size:11px;font-weight:600;padding:3px 8px;border-radius:999px;${u.status==='active'?'background:#F0FDF4;color:#16a34a;':'background:#FEF2F2;color:#dc2626;'}">${u.status==='active'?'Aktiv':'Blockerad'}</span>
-              </td>
-              <td style="padding:12px 20px 12px 12px;">
-                <div style="display:flex;gap:6px;">
-                  <button onclick="adminToast('Visa ${u.name}')" style="padding:5px 10px;border-radius:7px;border:0.5px solid rgba(17,24,39,.12);background:#fff;font-size:11px;font-weight:600;color:var(--ink);cursor:pointer;font-family:var(--font-body);">Visa</button>
-                  <button onclick="adminToast('${u.status==='active'?'Blockerar':'Aktiverar'} ${u.name}')" style="padding:5px 10px;border-radius:7px;border:0.5px solid rgba(17,24,39,.12);background:#fff;font-size:11px;font-weight:600;color:${u.status==='active'?'#dc2626':'#16a34a'};cursor:pointer;font-family:var(--font-body);">${u.status==='active'?'Blockera':'Aktivera'}</button>
-                </div>
-              </td>
-            </tr>
-          `).join('')}
+          ${konton.map(k => `
+            <tr style="border-bottom:0.5px solid var(--hairline);">
+              <td style="padding:10px 12px;font-weight:600;color:var(--ink);">${escapeHtmlBasic(k.namn || "—")}${k.ar_admin ? ` <span style="font-size:10px;background:var(--green-100);color:var(--green-800);border-radius:999px;padding:1px 7px;margin-left:4px;">admin</span>` : ""}</td>
+              <td style="padding:10px 12px;color:var(--ink-soft);">${escapeHtmlBasic(k.email || "")}</td>
+              <td style="padding:10px 12px;color:var(--ink-soft);white-space:nowrap;">${fmtDag(k.skapad)}</td>
+              <td style="padding:10px 12px;color:var(--ink-soft);white-space:nowrap;">${fmtTid(k.senast_inloggad)}</td>
+              <td style="padding:10px 12px;">${k.agarskap_beteckning
+                ? `<span class="beteckning" style="font-size:11px;color:var(--ink);">${escapeHtmlBasic(k.agarskap_beteckning)}</span> <span style="font-size:11px;color:${k.agarskap_status === "verified" ? "var(--green-700)" : k.agarskap_status === "pending" ? "var(--honey)" : "var(--clay)"};">${({ verified: "godkänd", pending: "väntar", rejected: "avslagen" })[k.agarskap_status] || ""}</span>`
+                : `<span style="color:var(--ink-muted);">—</span>`}</td>
+              ${[k.gillanden, k.intressen, k.meddelanden, k.bevakningar].map(n => `<td style="padding:10px 12px;color:var(--ink);font-family:var(--font-data);">${n}</td>`).join("")}
+            </tr>`).join("")}
         </tbody>
       </table>
-    </div>
-  `;
+    </div>`}`;
 
-  const propertiesHtml = `
-    <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;overflow:hidden;">
-      <div style="padding:16px 20px;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;align-items:center;justify-content:space-between;">
-        <div style="font-size:13px;font-weight:600;color:var(--ink);">${mockProps.length} claimade fastigheter</div>
-        <div style="display:flex;gap:6px;">
-          ${["Alla","Privat","Synlig","Till salu"].map(f=>`<button onclick="adminToast('Filtrerar: ${f}')" style="padding:5px 12px;border-radius:999px;border:0.5px solid rgba(17,24,39,.12);background:${f==='Alla'?'#111827':'#fff'};color:${f==='Alla'?'#fff':'#374151'};font-size:11px;font-weight:500;cursor:pointer;font-family:var(--font-body);">${f}</button>`).join('')}
-        </div>
-      </div>
-      ${mockProps.map(p=>`
-        <div style="display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:0.5px solid rgba(17,24,39,.05);">
-          <img src="${p.img}" style="width:56px;height:56px;border-radius:10px;object-fit:cover;flex-shrink:0;" />
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:2px;">${p.prop}</div>
-            <div style="font-size:11px;color:var(--ink-muted);">Ägare: ${p.user} · Claimad ${p.date}</div>
-            <div style="display:flex;gap:10px;margin-top:6px;">
-              <span style="font-size:11px;color:var(--ink-muted);">${p.likes} gillar</span>
-              <span style="font-size:11px;color:var(--ink-muted);">${p.interested} intresserade</span>
-            </div>
-          </div>
-          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
-            <span style="font-size:10px;font-weight:600;padding:3px 9px;border-radius:999px;${visStyle(p.visible)}">${p.visible}</span>
-            <div style="display:flex;gap:6px;">
-              <button onclick="adminToast('Öppnar ${p.prop}')" style="padding:5px 10px;border-radius:7px;border:0.5px solid rgba(17,24,39,.12);background:#fff;font-size:11px;font-weight:600;color:var(--ink);cursor:pointer;font-family:var(--font-body);">Visa</button>
-              <button onclick="adminToast('Ta bort claim: ${p.prop}')" style="padding:5px 10px;border-radius:7px;border:0.5px solid rgba(17,24,39,.12);background:#fff;font-size:11px;font-weight:600;color:#dc2626;cursor:pointer;font-family:var(--font-body);">Ta bort</button>
-            </div>
-          </div>
-        </div>
-      `).join('')}
-    </div>
-  `;
-
-  const pendingClaims = ansokningar.filter(a => a.status === 'pending');
-
-  const pendingClaimsHtml = pendingClaims.length > 0 ? pendingClaims.map(a => { const u = { email: a.email, pendingClaim: { name: escapeHtmlBasic(a.namn), pnr: escapeHtmlBasic(a.pnr_maskerat), prop: escapeHtmlBasic(a.beteckning), visibility: a.synlighet } }; return `
-    <div style="padding:16px 20px;border-bottom:0.5px solid rgba(17,24,39,.05);">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;">
-        <div>
-          <div style="font-size:13px;font-weight:600;color:var(--ink);">${u.pendingClaim.prop}</div>
-          <div style="font-size:11px;color:var(--ink-muted);margin-top:2px;">Inskickad av ${u.pendingClaim.name}</div>
-        </div>
-        <span style="font-size:10px;font-weight:600;background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:3px 9px;flex-shrink:0;margin-left:10px;">Inväntar</span>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">
-        <div style="background:var(--page-bg);border-radius:8px;padding:10px 12px;">
-          <div style="font-size:10px;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:3px;">Namn</div>
-          <div style="font-size:12px;font-weight:600;color:var(--ink);">${u.pendingClaim.name}</div>
-        </div>
-        <div style="background:var(--page-bg);border-radius:8px;padding:10px 12px;">
-          <div style="font-size:10px;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:3px;">Personnummer</div>
-          <div style="font-size:12px;font-weight:600;color:var(--ink);font-family:monospace;">${u.pendingClaim.pnr}</div>
-        </div>
-        <div style="background:var(--page-bg);border-radius:8px;padding:10px 12px;">
-          <div style="font-size:10px;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:3px;">Fastighet</div>
-          <div style="font-size:12px;font-weight:600;color:var(--ink);">${u.pendingClaim.prop}</div>
-        </div>
-        <div style="background:var(--page-bg);border-radius:8px;padding:10px 12px;">
-          <div style="font-size:10px;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:3px;">Synlighet</div>
-          <div style="font-size:12px;font-weight:600;color:var(--ink);">${{private:'Privat',public:'Synlig',sale:'Till salu'}[u.pendingClaim.visibility]||'Privat'}</div>
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;">
-        <button onclick="decideClaim('${a.id}','verified')" style="flex:1;padding:9px;border-radius:9px;border:none;background:#16a34a;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-body);">Godkänn</button>
-        <button onclick="decideClaim('${a.id}','rejected')" style="flex:1;padding:9px;border-radius:9px;border:0.5px solid rgba(17,24,39,.12);background:#fff;color:#dc2626;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-body);">Neka</button>
-      </div>
-    </div>
-  `; }).join('') : '<div style="padding:16px 20px;font-size:13px;color:var(--ink-muted);">Inga väntande ansökningar.</div>';
-
+  const medd = D.meddelanden || null;
   const moderationHtml = `
-    <div style="display:grid;gap:12px;">
-
-      <div style="background:#fff;border:1.5px solid #CC2936;border-radius:14px;overflow:hidden;">
-        <div style="padding:14px 20px;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;align-items:center;justify-content:space-between;background:var(--accent-soft);">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <i class="ti ti-home-check" style="font-size:16px;color:var(--accent);" aria-hidden="true"></i>
-            <div style="font-size:13px;font-weight:600;color:var(--accent);">Claims som väntar verifiering</div>
-          </div>
-          <span style="font-size:11px;font-weight:700;background:var(--accent);color:#fff;border-radius:999px;padding:2px 8px;">${pendingClaims.length}</span>
-        </div>
-        ${pendingClaimsHtml}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div>
+        <div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--ink);">Meddelanden</div>
+        <div style="font-size:12.5px;color:var(--ink-muted);margin-top:2px;">De senaste 100, nyast först.</div>
       </div>
-
-            <!-- Interest messages section -->
-      <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;overflow:hidden;">
-        <div style="padding:14px 20px;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;align-items:center;justify-content:space-between;">
-          <div style="font-size:13px;font-weight:600;color:var(--ink);">Meddelanden från intressenter</div>
-          <div style="font-size:11px;color:var(--ink-muted);">Anonyma tills ägaren svarar</div>
-        </div>
-        ${renderInterestMessages()}
-      </div>
-
-      <div style="background:#FEF2F2;border:0.5px solid rgba(220,38,38,.15);border-radius:14px;padding:18px 20px;">
-        <div style="display:flex;align-items:flex-start;gap:14px;">
-          <div style="width:40px;height:40px;border-radius:10px;background:#FEE2E2;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
-            <i class="ti ti-flag" style="font-size:18px;color:#dc2626;" aria-hidden="true"></i>
-          </div>
-          <div style="flex:1;">
-            <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:4px;">Rapport: Söder 8:22</div>
-            <div style="font-size:12px;color:var(--ink-soft);line-height:1.5;margin-bottom:12px;">Användaren "erik@example.se" rapporterade att beskrivningen är vilseledande. Kontaktuppgifterna stämmer inte överens med fastigheten.</div>
-            <div style="display:flex;gap:8px;">
-              <button onclick="adminToast('Granskar Söder 8:22...')" style="padding:7px 14px;border-radius:8px;border:none;background:#dc2626;color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-body);">Granska</button>
-              <button onclick="adminToast('Rapport avfärdad')" style="padding:7px 14px;border-radius:8px;border:0.5px solid rgba(17,24,39,.12);background:#fff;color:var(--ink-soft);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-body);">Avfärda</button>
-            </div>
-          </div>
-          <div style="font-size:11px;color:var(--ink-muted);">Igår</div>
-        </div>
-      </div>
-
-      <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;overflow:hidden;">
-        <div style="padding:14px 20px;border-bottom:0.5px solid rgba(17,24,39,.06);">
-          <div style="font-size:13px;font-weight:600;color:var(--ink);">Bilder som väntar på granskning</div>
-          <div style="font-size:12px;color:var(--ink-muted);margin-top:2px;">Automatisk granskning är inte aktiverad ännu — kommande funktion</div>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:16px 20px;">
-          ${["https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=160&q=60","https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=160&q=60","https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=160&q=60","https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=160&q=60"].map(img=>`
-            <div style="position:relative;">
-              <img src="${img}" style="width:100%;aspect-ratio:1;object-fit:cover;border-radius:8px;display:block;" />
-              <div style="display:flex;gap:4px;margin-top:6px;">
-                <button onclick="adminToast('Bild godkänd')" style="flex:1;padding:4px;border-radius:6px;border:none;background:#16a34a;color:#fff;font-size:10px;font-weight:600;cursor:pointer;font-family:var(--font-body);">OK</button>
-                <button onclick="adminToast('Bild nekad')" style="flex:1;padding:4px;border-radius:6px;border:none;background:#dc2626;color:#fff;font-size:10px;font-weight:600;cursor:pointer;font-family:var(--font-body);">Neka</button>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-
-      <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;padding:18px 20px;">
-        <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:4px;">Blockerade användare</div>
-        <div style="font-size:12px;color:var(--ink-muted);margin-bottom:14px;">1 blockerat konto</div>
-        <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-top:0.5px solid rgba(17,24,39,.06);">
-          <div style="width:32px;height:32px;border-radius:50%;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--accent);">E</div>
-          <div style="flex:1;">
-            <div style="font-size:13px;font-weight:600;color:var(--ink);">Erik Strand</div>
-            <div style="font-size:11px;color:var(--ink-muted);">erik@example.se · Blockerad 2025-06-18</div>
-          </div>
-          <button onclick="adminToast('Erik Strand aktiverad')" style="padding:6px 12px;border-radius:8px;border:0.5px solid rgba(17,24,39,.12);background:#fff;font-size:12px;font-weight:600;color:#16a34a;cursor:pointer;font-family:var(--font-body);">Aktivera</button>
-        </div>
-      </div>
+      ${uppdatera}
     </div>
-  `;
-
-  const insightsHtml = `
-    <div style="display:grid;gap:16px;">
-      <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;padding:20px;">
-        <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:16px;">Aktivitet senaste 7 dagarna</div>
-        <div style="display:flex;align-items:flex-end;gap:6px;height:100px;">
-          ${[12,19,8,24,31,18,27].map((v,i)=>`
-            <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">
-              <div style="width:100%;background:var(--accent);border-radius:4px 4px 0 0;opacity:${0.4+v/60};" title="${v}" style="height:${v*3}px;"></div>
-              <div style="font-size:10px;color:var(--ink-muted);">${['M','T','O','T','F','L','S'][i]}</div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-        <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;padding:20px;">
-          <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:14px;">Populäraste områden</div>
-          ${[["Pålsjö",42],["Laröd",38],["Raus",24],["Söder",18],["Höganäs",12]].map(([area,pct])=>`
-            <div style="margin-bottom:10px;">
-              <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-                <span style="font-size:12px;color:var(--ink-soft);">${area}</span>
-                <span style="font-size:12px;color:var(--ink-muted);">${pct}%</span>
-              </div>
-              <div style="height:4px;background:var(--surface-2);border-radius:999px;">
-                <div style="height:4px;background:var(--accent);border-radius:999px;width:${pct}%;"></div>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-
-        <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;padding:20px;">
-          <div style="font-size:13px;font-weight:600;color:var(--ink);margin-bottom:14px;">Konvertering</div>
-          ${[["Besökare → Gilla","68%","#16a34a"],["Gilla → Intresse","24%","#2563eb"],["Intresse → Claim","8%","#CC2936"]].map(([label,pct,color])=>`
-            <div style="margin-bottom:14px;">
-              <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
-                <span style="font-size:12px;color:var(--ink-soft);">${label}</span>
-                <span style="font-size:13px;font-weight:700;color:${color};">${pct}</span>
-              </div>
-              <div style="height:4px;background:var(--surface-2);border-radius:999px;">
-                <div style="height:4px;background:${color};border-radius:999px;width:${pct};"></div>
-              </div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
+    <div style="font-size:12px;color:var(--ink-soft);line-height:1.6;background:var(--honey-soft);border-radius:10px;padding:10px 13px;margin-bottom:14px;">
+      Under testperioden kan ifound läsa meddelanden för att upptäcka bedrägeriförsök. Det står för användarna där de skriver. Läs för att skydda, inte för att följa med.
     </div>
-  `;
-
-  const premiumHtml = `
-    <div style="display:grid;gap:16px;">
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
-        ${[
-          { name:"Gratis",   price:"0",   color:"#6B7280", users:mockUsers.length-1, features:["3 bilder","Gillar och statistik","Karta med tomtgräns","Passiv synlighet"] },
-          { name:"Synlig",   price:"49",  color:"#2563eb", users:2, features:["Allt i Gratis","Synlig i flödet","Besökarstatistik","Kontaktformulär","Utvald-badge"] },
-          { name:"Aktiv",    price:"249", color:"#CC2936", users:1, features:["Allt i Synlig","Till salu / uthyrning","Budgivning","Mäklarintegration","Prioritet i flödet"] },
-        ].map(p=>`
-          <div style="background:#fff;border:1.5px solid ${p.color === '#CC2936' ? '#CC2936' : 'rgba(17,24,39,.08)'};border-radius:14px;padding:20px;">
-            <div style="font-size:13px;font-weight:600;color:${p.color};margin-bottom:4px;">${p.name}</div>
-            <div style="font-size:26px;font-weight:700;letter-spacing:-.04em;color:var(--ink);">${p.price} <span style="font-size:13px;font-weight:400;color:var(--ink-muted);">kr/mån</span></div>
-            <div style="font-size:11px;color:var(--ink-muted);margin:8px 0 14px;">${p.users} aktiva användare</div>
-            ${p.features.map(f=>`
-              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-                <i class="ti ti-check" style="font-size:14px;color:#16a34a;" aria-hidden="true"></i>
-                <span style="font-size:12px;color:var(--ink-soft);">${f}</span>
-              </div>
-            `).join('')}
+    ${!medd ? laddar : !medd.length ? `<div style="font-size:13px;color:var(--ink-muted);padding:22px 0;">Inga meddelanden ännu.</div>` : `
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      ${medd.map(m => `
+        <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:12px;padding:11px 14px;">
+          <div style="display:flex;justify-content:space-between;gap:10px;font-size:11.5px;color:var(--ink-muted);">
+            <span><span class="beteckning" style="font-size:11px;color:var(--ink);">${escapeHtmlBasic(m.beteckning || "—")}</span> · ${m.fran === "agare"
+              ? `ägaren (${escapeHtmlBasic(m.agare_email || "—")}) → intressent`
+              : `${escapeHtmlBasic(m.intressent_email || "")} → ${m.agare_email ? "ägaren" : "ingen ägare än"}`}</span>
+            <span style="white-space:nowrap;">${fmtTid(m.skapad)}</span>
           </div>
-        `).join('')}
-      </div>
-
-      <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;overflow:hidden;">
-        <div style="padding:14px 20px;border-bottom:0.5px solid rgba(17,24,39,.06);">
-          <div style="font-size:13px;font-weight:600;color:var(--ink);">Premium-konton</div>
-        </div>
-        ${[
-          { name:"Sara Björk",    email:"sara@example.se",   plan:"Synlig", since:"2025-06-15", mrr:"49 kr" },
-          { name:"Anna Lindqvist",email:"anna@example.se",   plan:"Aktiv",  since:"2025-06-12", mrr:"249 kr" },
-          { name:"Lena Svensson", email:"lena@example.se",   plan:"Synlig", since:"2025-06-18", mrr:"49 kr" },
-        ].map(u=>`
-          <div style="display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:0.5px solid rgba(17,24,39,.05);">
-            <div style="width:32px;height:32px;border-radius:50%;background:var(--accent-soft);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--accent);flex-shrink:0;">${u.name[0]}</div>
-            <div style="flex:1;">
-              <div style="font-size:13px;font-weight:600;color:var(--ink);">${u.name}</div>
-              <div style="font-size:11px;color:var(--ink-muted);">${u.email} · sedan ${u.since}</div>
-            </div>
-            <span style="font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;background:${u.plan==='Aktiv'?'#FDECEA':'#EFF6FF'};color:${u.plan==='Aktiv'?'#CC2936':'#2563eb'};">${u.plan}</span>
-            <div style="font-size:13px;font-weight:600;color:var(--ink);min-width:52px;text-align:right;">${u.mrr}</div>
-            <button onclick="adminToast('Hanterar ${u.name}')" style="padding:5px 10px;border-radius:7px;border:0.5px solid rgba(17,24,39,.12);background:#fff;font-size:11px;font-weight:600;color:var(--ink-soft);cursor:pointer;font-family:var(--font-body);">Hantera</button>
-          </div>
-        `).join('')}
-        <div style="padding:14px 20px;border-top:0.5px solid rgba(17,24,39,.06);display:flex;justify-content:space-between;align-items:center;">
-          <div style="font-size:12px;color:var(--ink-muted);">Total MRR</div>
-          <div style="font-size:16px;font-weight:700;color:var(--ink);">347 kr/mån</div>
-        </div>
-      </div>
-    </div>
-  `;
+          <div style="font-size:13px;color:var(--ink);margin-top:5px;line-height:1.55;white-space:pre-wrap;word-wrap:break-word;">${escapeHtmlBasic(m.innehall)}</div>
+        </div>`).join("")}
+    </div>`}`;
 
   // Ägaranspråk. Innan BankID finns är detta den manuella verifieringen —
   // claimStatus sattes tidigare till 'pending' utan att något kunde godkänna den.
@@ -7886,7 +7609,17 @@ function renderAdmin() {
       }).join("") : `<div style="font-size:13px;color:var(--ink-muted);padding:22px 0;text-align:center;">Inga ansökningar ännu.</div>`}
     </div>`;
 
-  const tabContent = { overview:overviewHtml, claims:claimsHtml, users:usersHtml, properties:propertiesHtml, moderation:moderationHtml, insights:insightsHtml, premium:premiumHtml };
+  // Fastigheter, Insikter och Premium är borttagna 19 okt — de visade bara
+  // påhittade data. De kommer tillbaka när det finns riktiga att visa.
+  const tabs = [
+    { id:"overview",    label:"Översikt",       icon:"ti-layout-dashboard" },
+    { id:"claims",      label:"Ägaranspråk",    icon:"ti-id-badge-2" },
+    { id:"users",       label:"Användare",      icon:"ti-users" },
+    { id:"moderation",  label:"Meddelanden",    icon:"ti-messages" },
+  ];
+  if (!tabs.some(t => t.id === adminTab)) adminTab = "overview";
+  const _att = (O?.vantande || 0) + (O?.oppna_anmalningar || 0);
+  const tabContent = { overview:overviewHtml, claims:claimsHtml, users:usersHtml, moderation:moderationHtml };
 
   app.innerHTML = `
     <div style="min-height:100vh;background:var(--page-bg);">
@@ -7910,7 +7643,7 @@ function renderAdmin() {
               style="width:100%;display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;border:none;background:${adminTab===t.id?'#FDECEA':'transparent'};color:${adminTab===t.id?'#CC2936':'#6B7280'};font-size:13px;font-weight:${adminTab===t.id?'600':'500'};cursor:pointer;font-family:var(--font-body);margin-bottom:2px;text-align:left;">
               <i class="ti ${t.icon}" style="font-size:17px;" aria-hidden="true"></i>
               ${t.label}
-              ${t.id==='moderation'?'<span style="margin-left:auto;font-size:10px;font-weight:700;background:#FEF2F2;color:#dc2626;border-radius:999px;padding:1px 6px;">1</span>':''}
+              ${t.id==='claims' && _att ? `<span style="margin-left:auto;font-size:10px;font-weight:700;background:#FEF2F2;color:#dc2626;border-radius:999px;padding:1px 6px;">${_att}</span>` : ''}
             </button>
           `).join('')}
         </div>

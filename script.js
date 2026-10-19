@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-10-19a";
+const IFOUND_VERSION = "2026-10-19b";
 console.info("[ifound] version " + IFOUND_VERSION);
 
 function toast(msg) {
@@ -141,6 +141,7 @@ function kontoFel(error) {
   if (/already registered|already been registered|already exists/i.test(m)) return "Det finns redan ett konto på den e-posten. Logga in i stället.";
   if (/password should be at least|password is too short|weak password/i.test(m)) return "Lösenordet är för kort eller för enkelt. Använd minst 8 tecken.";
   if (/email not confirmed/i.test(m)) return "Bekräfta din e-post först — kolla inkorgen.";
+  if (/banned/i.test(m)) return "Kontot är avstängt. Kontakta ifound om du tror att det är fel.";
   if (/rate limit|too many/i.test(m)) return "För många försök. Vänta en stund och prova igen.";
   if (/invalid email|unable to validate email/i.test(m)) return "E-postadressen ser inte rätt ut.";
   if (/failed to fetch|network/i.test(m)) return "Kunde inte nå servern. Kontrollera uppkopplingen.";
@@ -7385,6 +7386,119 @@ async function hamtaAdminData() {
   }
 }
 
+// --- Ett enskilt konto: se allt, ändra namn, blockera, ta bort -------------
+async function openAdminAnvandare(uid) {
+  document.getElementById("admin-anv-overlay")?.remove();
+  const overlay = document.createElement("div");
+  overlay.id = "admin-anv-overlay";
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:9000;display:flex;justify-content:center;align-items:flex-start;padding:20px;overflow-y:auto;overscroll-behavior:contain;";
+  overlay.innerHTML = `<div style="background:#fff;border-radius:18px;padding:24px;width:100%;max-width:640px;margin:auto 0;font-family:var(--font-body);"><div style="font-size:13px;color:var(--ink-muted);">Hämtar…</div></div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
+
+  const { data: k, error } = await sbKlient().rpc("admin_anvandare", { uid });
+  if (error || !k) { overlay.firstElementChild.innerHTML = `<div style="color:var(--clay);font-size:13px;">Kunde inte hämta kontot: ${escapeHtmlBasic(error?.message || "")}</div>`; return; }
+
+  const dag = t => t ? new Date(t).toLocaleDateString("sv-SE", { day: "numeric", month: "short", year: "numeric" }) : "—";
+  const tid = t => t ? new Date(t).toLocaleString("sv-SE", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "—";
+  const ar_jag = k.id === KONTO?.id;
+  const sektion = (rubrik, lista, rad, tom) => `
+    <div style="margin-top:16px;">
+      <div style="font-size:12px;font-weight:600;color:var(--ink);margin-bottom:6px;">${rubrik} <span style="color:var(--ink-muted);font-weight:400;">(${lista.length})</span></div>
+      ${lista.length ? `<div style="display:flex;flex-direction:column;gap:5px;max-height:220px;overflow-y:auto;">${lista.map(rad).join("")}</div>`
+        : `<div style="font-size:12px;color:var(--ink-muted);">${tom}</div>`}
+    </div>`;
+  const statusText = { verified: "godkänd", pending: "väntar", rejected: "avslagen/avslutad" };
+
+  overlay.firstElementChild.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+      <div>
+        <div style="font-family:var(--font-display);font-size:20px;font-weight:700;color:var(--ink);">${escapeHtmlBasic(k.namn || "—")}
+          ${k.ar_admin ? `<span style="font-size:10px;background:var(--green-100);color:var(--green-800);border-radius:999px;padding:2px 8px;vertical-align:middle;">admin</span>` : ""}
+          ${k.blockerad ? `<span style="font-size:10px;background:var(--clay);color:#fff;border-radius:999px;padding:2px 8px;vertical-align:middle;">blockerad</span>` : ""}
+        </div>
+        <div style="font-size:12.5px;color:var(--ink-soft);margin-top:3px;">${escapeHtmlBasic(k.email || "")}</div>
+        <div style="font-size:11.5px;color:var(--ink-muted);margin-top:3px;">Skapat ${dag(k.skapad)} · senast inloggad ${tid(k.senast_inloggad)}</div>
+        ${k.blockerad ? `<div style="font-size:12px;color:var(--clay);margin-top:6px;">Blockerad ${dag(k.blockerad_tid)}${k.blockerad_orsak ? ": " + escapeHtmlBasic(k.blockerad_orsak) : ""}</div>` : ""}
+      </div>
+      <button id="aaStang" style="width:32px;height:32px;border-radius:50%;border:none;background:var(--surface-2);cursor:pointer;font-size:16px;color:var(--ink-soft);flex-shrink:0;">✕</button>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;">
+      <button id="aaNamn" class="btn-ghost" style="font-size:12px;padding:7px 12px;"><i class="ti ti-pencil"></i> Ändra namn</button>
+      ${ar_jag ? "" : k.blockerad
+        ? `<button id="aaBlock" class="btn-ghost" style="font-size:12px;padding:7px 12px;"><i class="ti ti-lock-open"></i> Häv blockering</button>`
+        : `<button id="aaBlock" style="font-size:12px;padding:7px 12px;border-radius:10px;border:1px solid var(--clay);background:#fff;color:var(--clay);cursor:pointer;font-family:var(--font-body);font-weight:600;"><i class="ti ti-ban"></i> Blockera</button>`}
+      ${ar_jag ? "" : `<button id="aaTaBort" style="font-size:12px;padding:7px 12px;border-radius:10px;border:none;background:var(--clay);color:#fff;cursor:pointer;font-family:var(--font-body);font-weight:600;"><i class="ti ti-trash"></i> Ta bort kontot</button>`}
+    </div>
+
+    ${sektion("Ägarskap", k.agarskap || [], a => `
+      <div style="font-size:12px;padding:7px 10px;background:var(--surface-2);border-radius:8px;">
+        <span class="beteckning" style="font-size:11px;color:var(--ink);">${escapeHtmlBasic(a.beteckning)}</span>
+        · ${statusText[a.status] || a.status}${a.niva >= 1 ? " · dokument kontrollerat" : ""}
+        ${a.hemstatus === "sale" ? " · till salu" : a.hemstatus === "rent" ? " · uthyrning" : ""}
+        ${a.onskepris ? ` · önskepris ${Number(a.onskepris).toLocaleString("sv-SE")} kr${a.onskepris_synligt ? "" : " (privat)"}` : ""}
+      </div>`, "Ingen fastighet.")}
+
+    ${sektion("Meddelanden kontot skickat", k.meddelanden || [], m => `
+      <div style="font-size:12px;padding:7px 10px;background:var(--surface-2);border-radius:8px;">
+        <div style="color:var(--ink-muted);font-size:11px;"><span class="beteckning" style="font-size:10.5px;">${escapeHtmlBasic(m.beteckning || "—")}</span> · ${m.fran === "agare" ? "som ägare" : "som intressent"} · ${tid(m.skapad)}</div>
+        <div style="color:var(--ink);margin-top:3px;white-space:pre-wrap;word-wrap:break-word;">${escapeHtmlBasic(m.innehall)}</div>
+      </div>`, "Inga meddelanden.")}
+
+    ${sektion("Gillanden", k.gillanden || [], g => `<div style="font-size:12px;"><span class="beteckning" style="font-size:11px;">${escapeHtmlBasic(g.beteckning || "—")}</span> <span style="color:var(--ink-muted);">· ${dag(g.skapad)}</span></div>`, "Inga.")}
+    ${sektion("Intressen", k.intressen || [], g => `<div style="font-size:12px;"><span class="beteckning" style="font-size:11px;">${escapeHtmlBasic(g.beteckning || "—")}</span> <span style="color:var(--ink-muted);">· ${dag(g.skapad)}</span></div>`, "Inga.")}
+    ${sektion("Bevakade områden", k.bevakningar || [], b => `<div style="font-size:12px;">${escapeHtmlBasic(b.namn)} <span style="color:var(--ink-muted);">· ${dag(b.skapad)}</span></div>`, "Inga.")}
+    ${sektion("Anmälningar kontot gjort", k.anmalningar || [], n => `<div style="font-size:12px;">${escapeHtmlBasic(n.status)} · ${dag(n.skapad)}${n.meddelande ? " · " + escapeHtmlBasic(n.meddelande) : ""}</div>`, "Inga.")}
+
+    <div style="font-size:11.5px;color:var(--ink-muted);margin-top:18px;line-height:1.55;padding-top:12px;border-top:1px solid var(--hairline);">
+      Bostadsprofil, bilder och roll ligger ännu i användarens egen webbläsare och syns inte för andra — därför finns de inte här. De kommer hit när de flyttar till servern.
+    </div>`;
+
+  const efter = async (text) => {
+    if (text) toast(text);
+    ADMIN_DATA = null; ADMIN_AGARSKAP = null;
+    overlay.remove();
+    renderAdmin();
+    openAdminAnvandare(uid);
+  };
+  document.getElementById("aaStang").onclick = () => overlay.remove();
+  document.getElementById("aaNamn").onclick = async () => {
+    const nytt = prompt("Nytt namn för kontot:", k.namn || "");
+    if (nytt === null) return;
+    const { error } = await sbKlient().rpc("admin_andra_namn", { uid, nytt });
+    if (error) { toast("Kunde inte ändra: " + error.message); return; }
+    efter("Namnet är ändrat.");
+  };
+  const blockBtn = document.getElementById("aaBlock");
+  if (blockBtn) blockBtn.onclick = async () => {
+    let orsak = "";
+    if (!k.blockerad) {
+      orsak = prompt(`Blockera ${k.email}?\n\nKontot kan inte logga in längre och loggas ut överallt inom en timme. Ägarskapet avslutas, så att ikon och pris försvinner direkt.\n\nSkriv orsaken (sparas som anteckning):`, "");
+      if (orsak === null) return;
+    } else if (!confirm(`Häva blockeringen av ${k.email}? Kontot kan logga in igen. Ägarskapet kommer inte tillbaka av sig självt — personen får ansöka på nytt.`)) return;
+    const { data, error } = await sbKlient().rpc("admin_blockera", { uid, blockera: !k.blockerad, orsak });
+    if (error) { toast("Kunde inte: " + error.message); return; }
+    const svar = Array.isArray(data) ? data[0] : data;
+    for (const f of (svar?.bevis || [])) await raderaBevisfil(f);
+    efter(k.blockerad ? "Blockeringen är hävd." : "Kontot är blockerat.");
+  };
+  const taBort = document.getElementById("aaTaBort");
+  if (taBort) taBort.onclick = async () => {
+    const svar1 = prompt(`Ta bort kontot ${k.email} helt?\n\nKontot, ägarskapet, gillanden, intressen, områden och samtalen där kontot var intressent försvinner. Det går inte att ångra.\n\nSkriv kontots e-postadress för att bekräfta:`, "");
+    if (svar1 === null) return;
+    if (svar1.trim().toLowerCase() !== String(k.email || "").toLowerCase()) { toast("E-postadressen stämde inte. Inget togs bort."); return; }
+    const { data, error } = await sbKlient().rpc("admin_ta_bort_konto", { uid });
+    if (error) { toast("Kunde inte ta bort: " + error.message); return; }
+    const svar = Array.isArray(data) ? data[0] : data;
+    for (const f of (svar?.bevis || [])) await raderaBevisfil(f);
+    toast("Kontot är borttaget.");
+    ADMIN_DATA = null; ADMIN_AGARSKAP = null;
+    overlay.remove();
+    renderAdmin();
+  };
+}
+
 // Anmälan "det här är mitt hus": avfärda, eller återkalla ägarskapet.
 async function adminHanteraAnmalan(id, atgard) {
   if (atgard === "atgardad" && !confirm("Återkalla ägarskapet? Ägaren förlorar kopplingen till fastigheten och dokumentet raderas.")) return;
@@ -7488,7 +7602,7 @@ function renderAdmin() {
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
       <div>
         <div style="font-family:var(--font-display);font-size:22px;font-weight:700;color:var(--ink);">Användare</div>
-        <div style="font-size:12.5px;color:var(--ink-muted);margin-top:2px;">${konton ? konton.length + " konton" : ""}</div>
+        <div style="font-size:12.5px;color:var(--ink-muted);margin-top:2px;">${konton ? konton.length + " konton · klicka på ett konto för att se och hantera det" : ""}</div>
       </div>
       ${uppdatera}
     </div>
@@ -7500,8 +7614,8 @@ function renderAdmin() {
         </tr></thead>
         <tbody>
           ${konton.map(k => `
-            <tr style="border-bottom:0.5px solid var(--hairline);">
-              <td style="padding:10px 12px;font-weight:600;color:var(--ink);">${escapeHtmlBasic(k.namn || "—")}${k.ar_admin ? ` <span style="font-size:10px;background:var(--green-100);color:var(--green-800);border-radius:999px;padding:1px 7px;margin-left:4px;">admin</span>` : ""}</td>
+            <tr onclick="openAdminAnvandare('${escapeHtmlBasic(k.id)}')" style="border-bottom:0.5px solid var(--hairline);cursor:pointer;${k.blockerad ? "background:#FDF1EE;" : ""}" onmouseover="this.style.background='var(--green-50)'" onmouseout="this.style.background='${k.blockerad ? "#FDF1EE" : ""}'">
+              <td style="padding:10px 12px;font-weight:600;color:var(--ink);">${escapeHtmlBasic(k.namn || "—")}${k.ar_admin ? ` <span style="font-size:10px;background:var(--green-100);color:var(--green-800);border-radius:999px;padding:1px 7px;margin-left:4px;">admin</span>` : ""}${k.blockerad ? ` <span style="font-size:10px;background:var(--clay);color:#fff;border-radius:999px;padding:1px 7px;margin-left:4px;">blockerad</span>` : ""}</td>
               <td style="padding:10px 12px;color:var(--ink-soft);">${escapeHtmlBasic(k.email || "")}</td>
               <td style="padding:10px 12px;color:var(--ink-soft);white-space:nowrap;">${fmtDag(k.skapad)}</td>
               <td style="padding:10px 12px;color:var(--ink-soft);white-space:nowrap;">${fmtTid(k.senast_inloggad)}</td>

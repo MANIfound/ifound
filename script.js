@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-10-19b";
+const IFOUND_VERSION = "2026-10-21a";
 console.info("[ifound] version " + IFOUND_VERSION);
 
 function toast(msg) {
@@ -43,6 +43,22 @@ function safeJsonParse(value, fallback = null) {
 // tills de flyttar till servern. Inga lösenord sparas där längre.
 let KONTO = null;   // { id, email, namn, ar_admin }
 let _sb = null;
+
+// Länkar i mejl från servern (glömt lösenord, bekräfta e-post) landar här
+// med besked i adressen. Läses innan supabase-js hinner tömma den.
+const URL_AUTH = (() => {
+  try {
+    const h = new URLSearchParams((location.hash || "").replace(/^#/, ""));
+    const q = new URLSearchParams(location.search || "");
+    const v = k => h.get(k) || q.get(k);
+    return { typ: v("type"), fel: v("error_description") || v("error"), kod: v("error_code") };
+  } catch { return {}; }
+})();
+// Dit länkarna i mejlen ska leda. Okänd adress → servern faller tillbaka på SITE_URL.
+const APP_URL = /^https?:/.test(location.origin) ? location.origin + location.pathname : "https://ifound.se/app";
+function rensaAuthUrl() {
+  try { history.replaceState(history.state, "", location.pathname); } catch {}
+}
 
 function sbKlient() {
   if (!_sb) {
@@ -142,6 +158,8 @@ function kontoFel(error) {
   if (/password should be at least|password is too short|weak password/i.test(m)) return "Lösenordet är för kort eller för enkelt. Använd minst 8 tecken.";
   if (/email not confirmed/i.test(m)) return "Bekräfta din e-post först — kolla inkorgen.";
   if (/banned/i.test(m)) return "Kontot är avstängt. Kontakta ifound om du tror att det är fel.";
+  if (/for security purposes|only request this after/i.test(m)) return "Vänta en minut innan du begär en ny länk.";
+  if (/different from the old password/i.test(m)) return "Välj ett annat lösenord än det gamla.";
   if (/rate limit|too many/i.test(m)) return "För många försök. Vänta en stund och prova igen.";
   if (/invalid email|unable to validate email/i.test(m)) return "E-postadressen ser inte rätt ut.";
   if (/failed to fetch|network/i.test(m)) return "Kunde inte nå servern. Kontrollera uppkopplingen.";
@@ -3550,6 +3568,7 @@ function openAuthModal(tab = 'login') {
         <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:5px;">E-post</label><input id="loginEmail" class="input" type="email" placeholder="din@epost.se" style="width:100%;" /></div>
         <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:5px;">Lösenord</label><input id="loginPass" class="input" type="password" placeholder="••••••••" autocomplete="current-password" style="width:100%;" /></div>
         <button id="loginBtn" class="btn-primary" style="width:100%;justify-content:center;padding:12px;">Logga in</button>
+        <button id="glomtBtn" type="button" style="align-self:center;background:none;border:none;padding:2px;cursor:pointer;font-family:var(--font-body);font-size:12px;color:var(--green-600);text-decoration:underline;">Glömt lösenordet?</button>
       </div>
 
       <div id="regForm" style="display:none;flex-direction:column;gap:12px;">
@@ -3572,6 +3591,9 @@ function openAuthModal(tab = 'login') {
   // Enter i lösenordsfälten skickar formuläret.
   document.getElementById("loginPass").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("loginBtn").click(); });
   document.getElementById("regPass").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("regBtn").click(); });
+
+  document.getElementById("glomtBtn").onclick = () =>
+    openGlomtLosenord(document.getElementById("loginEmail").value.trim().toLowerCase());
 
   document.getElementById("loginBtn").onclick = async () => {
     const btn   = document.getElementById("loginBtn");
@@ -3602,7 +3624,7 @@ function openAuthModal(tab = 'login') {
     if (pass.length < 8) { toast("Lösenordet måste vara minst 8 tecken."); return; }
     btn.disabled = true; btn.textContent = "Skapar konto…";
     const { data, error } = await sbKlient().auth.signUp({
-      email, password: pass, options: { data: { namn: name } },
+      email, password: pass, options: { data: { namn: name }, emailRedirectTo: APP_URL },
     });
     if (error) {
       btn.disabled = false; btn.textContent = "Skapa gratis konto";
@@ -3636,6 +3658,99 @@ function openAuthModal(tab = 'login') {
 function closeAuthModal() {
   const overlay = document.getElementById('auth-modal-overlay');
   if (overlay) overlay.remove();
+}
+
+// Liten ruta i samma stil som inloggningen. closeAuthModal stänger den.
+function enkelAuthRuta(innehall) {
+  closeAuthModal();
+  const overlay = document.createElement('div');
+  overlay.id = 'auth-modal-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(17,24,39,.5);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto;';
+  overlay.innerHTML = `
+    <div class="auth-card" style="background:#fff;border-radius:20px;padding:28px;width:100%;max-width:400px;margin:auto 0;box-shadow:0 24px 64px rgba(0,0,0,.2);font-family:var(--font-body);">
+      <div style="display:flex;justify-content:flex-end;margin:-8px -8px 4px 0;">
+        <button onclick="closeAuthModal()" aria-label="Stäng" style="width:30px;height:30px;border-radius:50%;border:none;background:var(--surface-2);cursor:pointer;font-size:16px;color:var(--ink-soft);">✕</button>
+      </div>
+      <div id="authRutaInnehall">${innehall}</div>
+    </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeAuthModal(); });
+  return overlay;
+}
+
+const AUTH_ETIKETT = 'display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:5px;';
+
+// Glömt lösenordet: servern mejlar en länk som leder tillbaka hit.
+function openGlomtLosenord(epost = "") {
+  enkelAuthRuta(`
+    <h2 style="font-family:var(--font-display);font-size:22px;margin:0 0 8px;color:var(--ink);">Glömt lösenordet</h2>
+    <p style="font-size:14px;line-height:1.5;color:var(--ink-soft);margin:0 0 16px;">Skriv e-posten du loggar in med. Vi skickar en länk där du väljer ett nytt lösenord.</p>
+    <label for="glomtEmail" style="${AUTH_ETIKETT}">E-post</label>
+    <input id="glomtEmail" class="input" type="email" autocomplete="email" placeholder="din@epost.se" style="width:100%;margin-bottom:14px;" />
+    <button id="glomtSkicka" class="btn-primary" style="width:100%;justify-content:center;padding:12px;">Skicka länk</button>
+    <button id="glomtTillbaka" type="button" style="display:block;margin:12px auto 0;background:none;border:none;cursor:pointer;font-family:var(--font-body);font-size:12px;color:var(--green-600);text-decoration:underline;">Tillbaka till inloggningen</button>
+  `);
+  const inp = document.getElementById("glomtEmail");
+  inp.value = epost || "";
+  inp.focus();
+  inp.addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("glomtSkicka").click(); });
+  document.getElementById("glomtTillbaka").onclick = () => openAuthModal('login');
+  document.getElementById("glomtSkicka").onclick = async () => {
+    const btn = document.getElementById("glomtSkicka");
+    const email = inp.value.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast("E-postadressen ser inte rätt ut."); return; }
+    btn.disabled = true; btn.textContent = "Skickar…";
+    const { error } = await sbKlient().auth.resetPasswordForEmail(email, { redirectTo: APP_URL });
+    if (error) {
+      btn.disabled = false; btn.textContent = "Skicka länk";
+      toast(kontoFel(error));
+      return;
+    }
+    // Samma svar oavsett om kontot finns — annars går det att lista vilka som har konto.
+    document.getElementById("authRutaInnehall").innerHTML = `
+      <h2 style="font-family:var(--font-display);font-size:22px;margin:0 0 8px;color:var(--ink);">Kolla din e-post</h2>
+      <p style="font-size:14px;line-height:1.5;color:var(--ink-soft);margin:0 0 16px;">Om det finns ett konto på <strong>${escapeHtmlBasic(email)}</strong> har vi skickat en länk. Den gäller i en timme. Hittar du den inte, titta i skräpposten.</p>
+      <button onclick="closeAuthModal()" class="btn-primary" style="width:100%;justify-content:center;padding:12px;">Stäng</button>`;
+  };
+}
+
+// Länken från mejlet loggar in tillfälligt. Här väljs det nya lösenordet.
+let _nyttLosenordOppet = false;
+function openNyttLosenord() {
+  if (_nyttLosenordOppet && document.getElementById("nyttPass1")) return;
+  _nyttLosenordOppet = true;
+  enkelAuthRuta(`
+    <h2 style="font-family:var(--font-display);font-size:22px;margin:0 0 8px;color:var(--ink);">Välj nytt lösenord</h2>
+    <p style="font-size:14px;line-height:1.5;color:var(--ink-soft);margin:0 0 16px;">${KONTO?.email ? `För <strong>${escapeHtmlBasic(KONTO.email)}</strong>. ` : ""}Minst 8 tecken.</p>
+    <label for="nyttPass1" style="${AUTH_ETIKETT}">Nytt lösenord</label>
+    <input id="nyttPass1" class="input" type="password" autocomplete="new-password" style="width:100%;margin-bottom:12px;" />
+    <label for="nyttPass2" style="${AUTH_ETIKETT}">Samma lösenord igen</label>
+    <input id="nyttPass2" class="input" type="password" autocomplete="new-password" style="width:100%;margin-bottom:14px;" />
+    <button id="nyttSpara" class="btn-primary" style="width:100%;justify-content:center;padding:12px;">Spara lösenordet</button>
+  `);
+  document.getElementById("nyttPass1").focus();
+  document.getElementById("nyttPass2").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("nyttSpara").click(); });
+  document.getElementById("nyttSpara").onclick = async () => {
+    const btn = document.getElementById("nyttSpara");
+    const p1 = document.getElementById("nyttPass1").value;
+    const p2 = document.getElementById("nyttPass2").value;
+    if (p1.length < 8) { toast("Lösenordet måste vara minst 8 tecken."); return; }
+    if (p1 !== p2) { toast("Lösenorden är inte likadana."); return; }
+    btn.disabled = true; btn.textContent = "Sparar…";
+    const { error } = await sbKlient().auth.updateUser({ password: p1 });
+    if (error) {
+      btn.disabled = false; btn.textContent = "Spara lösenordet";
+      toast(/session|jwt|not authenticated|missing/i.test(error.message || "")
+        ? "Länken har gått ut. Begär en ny under Logga in → Glömt lösenordet."
+        : kontoFel(error));
+      return;
+    }
+    _nyttLosenordOppet = false;
+    closeAuthModal();
+    toast("Lösenordet är bytt. Du är inloggad.");
+    await laddaKonto();
+    currentView = arAdmin() ? "admin" : "dashboard"; render();
+  };
 }
 
 
@@ -8362,6 +8477,7 @@ window.addEventListener("keydown", ev => { if (currentView === "map" && ev.key =
   // Inloggning eller utloggning i en annan flik, eller en session som gått ut.
   // Inga anrop till servern direkt i lyssnaren — supabase-js låser sig då.
   sbKlient().auth.onAuthStateChange((event) => {
+    if (event === "PASSWORD_RECOVERY") { setTimeout(openNyttLosenord, 0); return; }
     if (event !== "SIGNED_IN" && event !== "SIGNED_OUT") return;
     setTimeout(async () => {
       const fore = KONTO?.id || null;
@@ -8373,6 +8489,27 @@ window.addEventListener("keydown", ev => { if (currentView === "map" && ev.key =
   const session = loadSession();
   currentView = arAdmin() ? "admin" : session?.email ? "feed" : "welcome";
   render();
+
+  // Kom besökaren hit via en länk i ett mejl?
+  if (URL_AUTH.fel) {
+    rensaAuthUrl();
+    toast(/expired|invalid/i.test(URL_AUTH.kod || URL_AUTH.fel)
+      ? "Länken har gått ut eller redan använts. Begär en ny under Logga in → Glömt lösenordet."
+      : "Länken fungerade inte: " + URL_AUTH.fel);
+  } else if (URL_AUTH.typ === "recovery") {
+    kontoKlart.then(() => {
+      rensaAuthUrl();
+      if (KONTO) openNyttLosenord();
+      else toast("Länken har gått ut eller redan använts. Begär en ny under Logga in → Glömt lösenordet.");
+    });
+  } else if (URL_AUTH.typ === "signup" || URL_AUTH.typ === "email_change") {
+    kontoKlart.then(() => {
+      rensaAuthUrl();
+      if (!KONTO) return;
+      toast(URL_AUTH.typ === "signup" ? "E-posten är bekräftad — välkommen!" : "Din nya e-post är bekräftad.");
+      if (URL_AUTH.typ === "signup") { currentView = arAdmin() ? "admin" : "dashboard"; render(); }
+    });
+  }
 
   // Hann inloggningen inte klart på tre sekunder ritades sidan som utloggad.
   // Rita om när den väl är klar — annars syns varken Min sida eller admin

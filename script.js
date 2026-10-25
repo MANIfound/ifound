@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-10-21a";
+const IFOUND_VERSION = "2026-10-25a";
 console.info("[ifound] version " + IFOUND_VERSION);
 
 function toast(msg) {
@@ -512,7 +512,7 @@ function onboardingSteps(role) {
       desc: "Vi anpassar Min sida efter varför du är här. Går att ändra när som helst." },
     { id: "notify", label: "Aviseringar", icon: "ti-bell",
       done: getProfile().notify !== undefined,
-      desc: "Välj om du vill ha e-post när något händer. Utskicken startar när inloggningen är klar — till dess syns allt på Min sida." },
+      desc: "Välj om du vill ha e-post när något händer. E-postnotiser kommer senare — tills vidare syns allt nytt på Min sida." },
   ];
   const owner = [
     { id: "claim", label: "Koppla din fastighet", icon: "ti-home-check",
@@ -1526,7 +1526,7 @@ function renderRentalOwnerCard(pid) {
     <div class="card rental-card" style="margin-bottom:12px;">
       <div class="card-title">Uthyrning</div>
       <div class="wish-intro">
-        Visa när fastigheten är ledig. Den som är intresserad kan skicka en förfrågan med datum — ni gör upp direkt med varandra, ifound hanterar varken bokning eller betalning.
+        Förbered när fastigheten är ledig. Kalendern syns för andra först när uthyrning öppnas, tillsammans med BankID. ifound kommer aldrig att hantera bokning eller betalning — ni gör upp direkt med varandra.
       </div>
 
       ${isKort ? `
@@ -1551,7 +1551,7 @@ function renderRentalOwnerCard(pid) {
         <span>
           <strong>Visa tillgängligheten för besökare</strong>
           <em>${r.visible
-            ? "Besökare ser kalendern och kan skicka en förfrågan."
+            ? "Sparat för att visas när uthyrning öppnas för andra."
             : "Kalendern är privat. Du ser den själv, men ingen annan."}</em>
         </span>
       </label>
@@ -1624,9 +1624,7 @@ function renderRentalVisitorBlock(pid, name, opts = {}) {
       ${r.note ? `<div class="rental-note">${escapeHtmlBasic(r.note)}</div>` : ""}
       ${isOwner
         ? `<div class="rental-hint">Så här ser besökare din uthyrning. Förfrågningar hanterar du i Min sida.</div>`
-        : `<button class="panel-btn" onclick="openRentalRequestModal('${String(pid).replace(/'/g, "\\'")}','${String(name || "").replace(/'/g, "\\'")}')">
-        <i class="ti ti-send"></i> Skicka förfrågan
-      </button>`}
+        : `<div class="rental-hint">Förfrågningar med datum kommer senare. Vill du nå ägaren nu, markera intresse och skriv ett meddelande.</div>`}
     </div>`;
 }
 
@@ -1746,7 +1744,7 @@ function openInterestModal(feature, pid, name) {
       <div style="background:var(--page-bg);border-radius:12px;padding:14px 16px;margin-bottom:20px;font-size:13px;color:var(--ink-soft);line-height:1.6;">
         ${isParcelClaimed(pid)
           ? `Ägaren finns på ifound och får ditt intresse direkt i appen.`
-          : `Ägaren är <strong style="color:var(--ink);">inte med på ifound ännu</strong> och ser det här först om de går med. I nästa steg kan du välja att uppmärksamma dem med ett vykort hem i brevlådan.`}
+          : `Ägaren är <strong style="color:var(--ink);">inte med på ifound ännu</strong> och ser det här först om de går med.${VYKORT_PA ? " I nästa steg kan du välja att uppmärksamma dem med ett vykort hem i brevlådan." : " Ditt intresse ligger kvar på fastigheten tills dess."}`}
       </div>
 
       <div style="margin-bottom:16px;">
@@ -1873,7 +1871,7 @@ async function saveInterest(pid, name, message) {
   const unclaimed = !isParcelClaimed(pid);
   const pc = getPostcardStatus(pid);
   const loggedIn = !!loadSession()?.email;
-  if (unclaimed && !pc.sent && loggedIn) {
+  if (VYKORT_PA && unclaimed && !pc.sent && loggedIn) {
     setTimeout(() => openPostcardModal(pid, name, true), 220);
     return;
   }
@@ -1892,6 +1890,10 @@ async function saveInterest(pid, name, message) {
 // Pris per vykort (tryck + porto + registerslagning + marginal). Justeras när
 // vi har riktiga kostnader från tryckleverantör och Lantmäteriet-licens.
 const POSTCARD_PRICE_SEK = 49;
+
+// Avstängt 25 okt: vykortet kräver Lantmäteriets ägaruppgifter och betalning,
+// och inget av det finns än. Allt nedan ligger kvar men erbjuds inte.
+const VYKORT_PA = false;
 
 // Karenstid — samma fastighet får inte spammas. Räknas per fastighet, inte per
 // användare, annars kan tio personer trigga tio vykort samma vecka.
@@ -2167,7 +2169,7 @@ function showSubdivisionConfirm(layer) {
       <div class="panel-name" style="font-size:15px;">${propName}</div>
       <div style="margin:12px 0;padding:12px;background:#F0FDF4;border-radius:10px;font-size:13px;color:#166534;line-height:1.6;">
         <i class="ti ti-check" style="color:#16a34a;"></i> <strong>Område markerat</strong>${areaText ? ' — ' + areaText : ''}<br>
-        Skicka ditt intresse till fastighetsägaren?
+        Spara ditt intresse för området? Ägaren ser det inte ännu — den delen bygger vi härnäst.
       </div>
       <div style="display:flex;flex-direction:column;gap:10px;">
         <div>
@@ -2175,7 +2177,7 @@ function showSubdivisionConfirm(layer) {
           <textarea id="subdivisionMsg" class="input" placeholder="Berätta lite om ditt intresse..." style="min-height:70px;font-size:13px;"></textarea>
         </div>
         <button id="sendSubdivisionBtn" class="btn-primary" style="width:100%;justify-content:center;">
-          <i class="ti ti-send"></i> Skicka intresse
+          <i class="ti ti-device-floppy"></i> Spara intresse
         </button>
         <button id="redrawBtn" style="background:transparent;border:none;font-size:12px;color:var(--ink-muted);cursor:pointer;font-family:var(--font-body);">
           Rita om
@@ -2224,9 +2226,9 @@ function sendSubdivisionInterest(feature, layer, message) {
         <div style="width:48px;height:48px;border-radius:50%;background:#F0FDF4;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;">
           <i class="ti ti-check" style="font-size:24px;color:#16a34a;"></i>
         </div>
-        <div style="font-size:16px;font-weight:700;letter-spacing:-.03em;color:var(--ink);margin-bottom:8px;">Intresse skickat!</div>
+        <div style="font-size:16px;font-weight:700;letter-spacing:-.03em;color:var(--ink);margin-bottom:8px;">Intresse sparat</div>
         <div style="font-size:13px;color:var(--ink-soft);line-height:1.6;margin-bottom:20px;">
-          Fastighetsägaren av <strong>${name}</strong> ser ditt intresse för avstyckning. Det markerade området visas på kartan.
+          Området du ritat på <strong>${name}</strong> är sparat hos dig. Ägaren ser det inte ännu. Vill du nå ägaren nu, markera intresse och skriv ett meddelande.
         </div>
         <button onclick="closePanel()" class="btn-primary" style="width:100%;justify-content:center;">Stäng</button>
       </div>
@@ -2234,7 +2236,7 @@ function sendSubdivisionInterest(feature, layer, message) {
     panel.classList.remove("hidden");
   }
 
-  toast("Intresse för avstyckning skickat!");
+  toast("Intresse för avstyckning sparat.");
 }
 
 function stopDraw(clearLayers = true) {
@@ -3274,9 +3276,9 @@ function _renderParcelPanelInner(feature) {
       </div>
       <div style="font-size:12px;color:#9A2530;margin-top:3px;line-height:1.5;">
         ${isBrf ? "Sitter du i styrelsen? Föreningen äger fastigheten och kan claima den — enskilda medlemmar kan inte."
-         : isRental ? "Äger du fastigheten? Claima och se intresset — och få en notis när det kommer nya."
-         : isMulti ? "Äger du fastigheten? Claima och se intresset — och få en notis när det kommer nya."
-         : "Är det din? Claima och se vilka — och få en notis när någon ny gillar."}
+         : isRental ? "Äger du fastigheten? Claima den och följ intresset på Min sida."
+         : isMulti ? "Äger du fastigheten? Claima den och följ intresset på Min sida."
+         : "Är det din? Claima den och följ intresset på Min sida."}
       </div>
       <button id="teaserClaimBtn" style="margin-top:9px;width:100%;padding:8px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-body);">
         Claima fastigheten
@@ -3303,11 +3305,13 @@ function _renderParcelPanelInner(feature) {
           Ägaren vet inte om ditt intresse ännu
         </div>
         <div style="font-size:11px;color:#9A6B45;margin-top:3px;line-height:1.5;">
-          Fastigheten är inte claimad på ifound. Vi kan skicka ett vykort hem till ägaren och berätta att du finns.
+          ${VYKORT_PA
+            ? "Fastigheten är inte claimad på ifound. Vi kan skicka ett vykort hem till ägaren och berätta att du finns."
+            : "Fastigheten är inte claimad på ifound. Ditt intresse ligger kvar och syns för ägaren om hen går med."}
         </div>
-        <button id="postcardBtn" style="margin-top:9px;width:100%;padding:9px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-body);display:flex;align-items:center;justify-content:center;gap:6px;">
+        ${VYKORT_PA ? `<button id="postcardBtn" style="margin-top:9px;width:100%;padding:9px;border-radius:8px;background:var(--accent);color:#fff;border:none;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-body);display:flex;align-items:center;justify-content:center;gap:6px;">
           <i class="ti ti-mail-fast" style="font-size:14px;" aria-hidden="true"></i> Uppmärksamma fastighetsägaren
-        </button>
+        </button>` : ""}
       </div>
     `
   ) : '';
@@ -3325,7 +3329,7 @@ function _renderParcelPanelInner(feature) {
           <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.75);text-transform:uppercase;letter-spacing:.08em;">${myPhoto ? "Din bild" : formLabel}</div>
           <div style="font-size:16px;font-weight:700;color:#fff;letter-spacing:-.03em;">${name}</div>
         </div>
-        ${myPhoto ? `<button onclick="removeMyPhoto('${escName}'); if(window._currentPanelFeature) renderParcelPanel(window._currentPanelFeature);" title="Ta bort din bild" style="position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:50%;border:none;background:rgba(0,0,0,.45);color:#fff;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);"><i class="ti ti-trash"></i></button>` : ""}
+        ${myPhoto ? `<button onclick="removeMyPhoto('${String(pid).replace(/'/g, "\\'")}'); if(window._currentPanelFeature) renderParcelPanel(window._currentPanelFeature);" title="Ta bort din bild" style="position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:50%;border:none;background:rgba(0,0,0,.45);color:#fff;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);"><i class="ti ti-trash"></i></button>` : ""}
       </div>
     ` : `
       <div class="panel-eyebrow">${formLabel}</div>
@@ -3370,11 +3374,8 @@ function _renderParcelPanelInner(feature) {
       <button id="likeBtn"     class="panel-btn ${iLiked      ? "active-like"     : ""}"><i class="ti ti-thumb-up"></i> ${iLiked ? "Gillad" : "Gilla"}</button>
       <button id="interestBtn" class="panel-btn ${iInterested ? "active-interest" : ""}"><i class="ti ti-star"></i> ${isMulti ? (iInterested ? "Intresseanmäld" : "Vill bo här") : (iInterested ? "Intresserad" : "Markera intresse")}</button>
     </div>
-    <div style="margin-top:8px;">
-      <button id="followBtn" class="panel-btn" style="width:100%;${iFollow ? 'background:var(--accent-soft);border-color:var(--accent);color:var(--accent);' : ''}">
-        <i class="ti ${iFollow ? 'ti-bell-check' : 'ti-bell-plus'}"></i> ${iFollow ? "Följer — notis vid nytt" : "Följ fastigheten"}
-      </button>
-    </div>
+    <!-- "Följ fastigheten" dold 25 okt: följningar låg bara lokalt och
+         ingen notis skickades. Kommer tillbaka med e-postnotiserna. -->
     ${(iLiked || iInterested) && !myPhoto ? `
     <div style="margin-top:8px;">
       <input type="file" id="myPhotoInput" accept="image/*" capture="environment" style="display:none;" />
@@ -3387,7 +3388,7 @@ function _renderParcelPanelInner(feature) {
     ${isMulti ? '' : `
     <div style="margin-top:8px;">
       <button id="subdivisionBtn" class="panel-btn" style="width:100%;${state.subdivisionInterests?.[pid] ? 'background:#F0FDF4;border-color:#16a34a;color:#16a34a;' : ''}">
-        <i class="ti ti-cut"></i> ${state.subdivisionInterests?.[pid] ? "Avstyckning — intresse skickat" : "Intresserad av att stycka av tomt"}
+        <i class="ti ti-cut"></i> ${state.subdivisionInterests?.[pid] ? "Avstyckning — intresse sparat" : "Intresserad av att stycka av tomt"}
       </button>
       <div style="text-align:center;margin-top:6px;">
         <button onclick="navigate('buildNew')" style="background:none;border:none;padding:2px;font-size:11px;color:var(--ink-muted);cursor:pointer;font-family:var(--font-body);text-decoration:underline;">
@@ -3437,7 +3438,8 @@ function _renderParcelPanelInner(feature) {
     myPhotoInput.onchange = () => handleMyPhotoPick(pid, name, myPhotoInput);
   }
 
-  document.getElementById("followBtn").onclick = () => {
+  const followBtn = document.getElementById("followBtn");
+  if (followBtn) followBtn.onclick = () => {
     const session = loadSession();
     if (!session?.email) {
       openAuthModal('reg');
@@ -3508,7 +3510,7 @@ function _renderParcelPanelInner(feature) {
   if (subBtn) subBtn.onclick = () => {
     const s = loadState();
     if (s.subdivisionInterests?.[pid]) {
-      toast("Du har redan skickat ett intresse för avstyckning av denna fastighet.");
+      toast("Du har redan sparat ett intresse för avstyckning av den här fastigheten.");
       return;
     }
     closePanel();
@@ -4178,7 +4180,7 @@ function renderWelcome() {
               <ol class="how-steps">
                 <li><span class="how-num">1</span><div><strong>Hitta huset på kartan</strong><span>Klicka på vilken tomt som helst — alla fastigheter finns med, inte bara de till salu.</span></div></li>
                 <li><span class="how-num">2</span><div><strong>Visa ditt intresse anonymt</strong><span>Skriv några rader om varför just det här huset. Ditt namn syns inte förrän du vill.</span></div></li>
-                <li><span class="how-num">3</span><div><strong>Ägaren får veta att du finns</strong><span>Är ägaren inte med på ifound kan vi skicka ett vykort hem i brevlådan.</span></div></li>
+                <li><span class="how-num">3</span><div><strong>Ägaren ser ditt intresse</strong><span>Finns ägaren på ifound ser hen ditt intresse direkt. Annars ligger det kvar tills ägaren går med.</span></div></li>
               </ol>
             </div>
 
@@ -4299,7 +4301,7 @@ function renderWelcome() {
         <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:36px;">
           ${[
             {num:"01", title:"Hitta huset", desc:"Sök adress, scrolla flödet eller öppna kartan och zooma in till det hus du fastnade för."},
-            {num:"02", title:"Visa ditt intresse", desc:"Gilla eller skicka ett anonymt meddelande — även om fastigheten inte är till salu. Inget konto krävs."},
+            {num:"02", title:"Visa ditt intresse", desc:"Gilla huset utan konto, eller skapa ett gratis konto och skriv till ägaren — även om fastigheten inte är till salu. Ditt namn syns inte förrän du vill."},
             {num:"03", title:"Ägaren bestämmer", desc:"Fastighetsägaren ser ditt intresse och väljer om de vill svara, visa upp sin bostad eller sätta ett pris."},
           ].map(s=>`
             <div style="background:#fff;border:0.5px solid rgba(17,24,39,.08);border-radius:14px;padding:20px;">
@@ -4877,14 +4879,22 @@ function renderFeed() {
       ` : ''}
 
       <!-- Claim nudge -->
-      <div class="claim-nudge" onclick="${isLoggedIn ? "navigate('dashboard')" : "openAuthModal('reg')"}">
+      ${(() => {
+        // Ingen påhittad siffra här: den egna fastigheten om den finns,
+        // annars en uppmaning att ansöka.
+        const egen = isLoggedIn && state.ownerParcelId;
+        const bet = egen ? escapeHtmlBasic(state.parcelNames?.[state.ownerParcelId] || "Din fastighet") : "";
+        const klick = egen ? "navigate('dashboard')" : isLoggedIn ? "openClaimModal()" : "openAuthModal('reg')";
+        return `
+      <div class="claim-nudge" onclick="${klick}">
         <div class="claim-nudge-icon"><i class="ti ti-home-check" style="font-size:20px;color:var(--accent);"></i></div>
         <div style="flex:1;">
-          <div class="claim-nudge-title">${isLoggedIn ? '18 gillar ditt hem' : 'Är det ditt hus?'}</div>
-          <div class="claim-nudge-sub">${isLoggedIn ? 'Pålsjö 4:7 — claima för att se vem som är intresserad' : 'Claima din fastighet och se vem som är intresserad'}</div>
+          <div class="claim-nudge-title">${egen ? 'Din fastighet' : 'Är det ditt hus?'}</div>
+          <div class="claim-nudge-sub">${egen ? `<span class="beteckning">${bet}</span> — se gillanden och intresse på Min sida` : isLoggedIn ? 'Välj din fastighet på kartan och se intresset för den' : 'Claima din fastighet och se intresset för den'}</div>
         </div>
         <i class="ti ti-chevron-right" style="color:var(--ink-muted);"></i>
-      </div>
+      </div>`;
+      })()}
 
       <!-- Masonry grid -->
       <div class="masonry-grid" id="masonryGrid">
@@ -5027,6 +5037,32 @@ function renderPropertyView() {
   `;
 }
 
+// Utforska visar ännu exempelhus (PROP_DATA). Ett gillande av dem skulle
+// hamna i den lokala listan och skrivas över av servern vid nästa hämtning,
+// så hjärtat säger som det är i stället. Försvinner när demodatan gör det.
+function feedToggleLike(btn, id) {
+  toast("Det här är ett exempelhus. Gilla riktiga hus på kartan, så hamnar de bland dina sparade objekt.");
+}
+
+function dismissOnboarding() {
+  const s = loadState();
+  s.onboardingDone = true;
+  saveState(s);
+  document.getElementById("onboardingBar")?.remove();
+}
+
+async function shareProperty(name) {
+  const url = APP_URL;
+  const text = `${name} på ifound`;
+  try {
+    if (navigator.share) { await navigator.share({ title: text, url }); return; }
+    await navigator.clipboard.writeText(url);
+    toast("Länken är kopierad.");
+  } catch (e) {
+    if (e?.name !== "AbortError") toast("Kunde inte dela just nu.");
+  }
+}
+
 function propToggleLike(id) {
   const session = loadSession();
   if (!session?.email) { openAuthModal('reg'); toast("Skapa konto för att gilla!"); return; }
@@ -5085,7 +5121,7 @@ function toggleNotifyPref() {
   const cur = getProfile().notify;
   const next = cur === true ? false : true;
   saveProfile({ notify: next });
-  toast(next ? "Sparat. E-post skickas när inloggningen är klar — till dess syns det nya på Min sida." : "Aviseringar av.");
+  toast(next ? "Sparat. E-postnotiser kommer senare — tills vidare syns allt nytt på Min sida." : "Aviseringar av.");
   if (currentView === "dashboard") render();
 }
 
@@ -5347,25 +5383,6 @@ function renderDashboard() {
               <div class="act-row"><div class="act-dot"></div>Välj ägarläge och koppla din fastighet</div>
               <div class="act-row"><div class="act-dot"></div>Se vem som är intresserad av din bostad</div>
             </div>
-            <div class="card" style="margin-bottom:12px;">
-              <div class="card-title">Du följer</div>
-              ${(() => {
-                const follows = Object.keys(state.myFollows || {});
-                const areaFollows = Object.keys(state.areaFollows || {});
-                if (!follows.length && !areaFollows.length) {
-                  return '<div style="font-size:12px;color:var(--ink-muted);line-height:1.6;">Följ fastigheter och områden på kartan så får du en notis när något händer.</div>';
-                }
-                return follows.map(fpid => `
-                  <div class="act-row" style="justify-content:space-between;">
-                    <span style="display:flex;align-items:center;gap:8px;"><i class="ti ti-bell-check" style="font-size:13px;color:var(--accent);"></i>${(state.parcelNames || {})[fpid] || fpid}</span>
-                  </div>
-                `).join('') + areaFollows.map(a => `
-                  <div class="act-row" style="justify-content:space-between;">
-                    <span style="display:flex;align-items:center;gap:8px;"><i class="ti ti-map-pin" style="font-size:13px;color:var(--accent);"></i>${a} <span style="font-size:10px;color:var(--ink-muted);">område</span></span>
-                  </div>
-                `).join('');
-              })()}
-            </div>
             <div class="card">
               <div class="card-title">Snabblänkar</div>
               <button class="quick-btn" onclick="navigate('map')"><i class="ti ti-map-2"></i> Utforska karta</button>
@@ -5507,7 +5524,7 @@ function renderDashboard() {
     // Datum och hyra bor i Uthyrningsdetaljer och sparas med profilknappen.
     // Här sparas bara det som hör till tillgängligheten: synlighet och villkor.
     saveRental(pid, patch);
-    toast(visible ? "Uthyrningen sparad och synlig för besökare." : "Uthyrningen sparad — bara du ser den.");
+    toast(visible ? "Uthyrningen sparad. Den syns för andra när uthyrning öppnas." : "Uthyrningen sparad — bara du ser den.");
     render();
   };
 
@@ -6612,7 +6629,7 @@ function bevakningarKortHtml() {
           Rita ett område du är nyfiken på — ett kvarter, en gata, en by. Här ser du sedan de mest gillade husen där och vad som hänt sedan du var inne senast.
         </div>
         <button onclick="openWatchDraw()" class="btn-primary" style="margin-top:8px;"><i class="ti ti-pencil"></i> Rita ett område</button>`}
-      <div style="font-size:11px;color:var(--ink-muted);margin-top:12px;">Notis via e-post kommer när kontot kopplas till riktig inloggning.</div>
+      <div style="font-size:11px;color:var(--ink-muted);margin-top:12px;">E-postnotiser kommer senare — tills vidare syns allt nytt här.</div>
     </div>`;
 }
 
@@ -7178,9 +7195,11 @@ function showMapAreaCard(areaName, bounds) {
         <button onclick="closeMapAreaCard()" style="width:100%;padding:9px;border-radius:9px;background:var(--accent);color:#fff;border:none;font-size:13px;font-weight:600;font-family:var(--font-body);cursor:pointer;">
           Utforska alla i ${areaName}
         </button>
-        <button id="followAreaBtn" onclick="toggleFollowArea('${areaName.replace(/'/g, "\\'")}')" style="width:100%;padding:8px;border-radius:9px;background:#fff;color:var(--ink-soft);border:0.5px solid rgba(17,24,39,.14);font-size:12px;font-weight:600;font-family:var(--font-body);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
-          <i class="ti ${(loadState().areaFollows || {})[areaName] ? 'ti-bell-check' : 'ti-bell-plus'}" aria-hidden="true"></i>
-          ${(loadState().areaFollows || {})[areaName] ? 'Följer ' + areaName : 'Följ ' + areaName}
+        <button id="followAreaBtn" onclick="bevakaSoktOmrade('${escapeHtmlBasic(String(areaName).replace(/['"\\]/g, ""))}')" style="width:100%;padding:8px;border-radius:9px;background:#fff;color:var(--ink-soft);border:0.5px solid rgba(17,24,39,.14);font-size:12px;font-weight:600;font-family:var(--font-body);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;">
+          <i class="ti ti-eye" aria-hidden="true"></i> Bevaka ${escapeHtmlBasic(areaName)}
+        </button>
+        <button onclick="closeMapAreaCard();startDrawWatch();" style="background:transparent;border:none;font-size:11.5px;color:var(--ink-muted);cursor:pointer;font-family:var(--font-body);text-decoration:underline;">
+          Rita ett eget område i stället
         </button>
       </div>
     </div>
@@ -7190,27 +7209,32 @@ function showMapAreaCard(areaName, bounds) {
   document.body.appendChild(card);
 }
 
-function toggleFollowArea(areaName) {
-  const session = loadSession();
-  if (!session?.email) {
-    openAuthModal('reg');
-    toast("Skapa ett konto för att följa områden och få notiser.");
+// "Följ område" var en lokal dubblett av Bevaka område. Nu sparas det sökta
+// området som en bevakning på servern. Servern avvisar för stora områden
+// (över 25 km²) med ett meddelande skrivet för användaren.
+async function bevakaSoktOmrade(areaName) {
+  const btn = document.getElementById("followAreaBtn");
+  let geom = null;
+  try {
+    const gj = window._areaHighlight?.toGeoJSON();
+    const feats = gj?.type === "FeatureCollection" ? gj.features : gj ? [gj] : [];
+    geom = feats.map(f => f.geometry).find(g => g?.type === "Polygon") || null;
+  } catch {}
+  if (!geom) { toast("Området går inte att bevaka som det är. Rita det i stället."); closeMapAreaCard(); startDrawWatch(); return; }
+  if (btn) btn.disabled = true;
+  try {
+    await bevakningRpc("spara_bevakning", { vem: enhetsId(), rubrik: areaName || "Mitt område", form: JSON.stringify(geom) });
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    console.warn("spara_bevakning:", e.message);
+    toast(e.anvandarText || "Kunde inte bevaka området just nu. Försök igen.");
     return;
   }
-  const s = loadState();
-  s.areaFollows = s.areaFollows || {};
-  const btn = document.getElementById("followAreaBtn");
-  if (s.areaFollows[areaName]) {
-    delete s.areaFollows[areaName];
-    saveState(s);
-    toast("Du följer inte längre " + areaName + ".");
-    if (btn) btn.innerHTML = '<i class="ti ti-bell-plus" aria-hidden="true"></i> Följ ' + areaName;
-  } else {
-    s.areaFollows[areaName] = true;
-    saveState(s);
-    toast("Du följer nu " + areaName + " — du får en notis när något händer i området.");
-    if (btn) btn.innerHTML = '<i class="ti ti-bell-check" aria-hidden="true"></i> Följer ' + areaName;
-  }
+  MINA_BEVAKNINGAR = null;
+  await hamtaBevakningar();
+  drawWatchedAreas();
+  closeMapAreaCard();
+  toast(`${areaName} bevakas. Du ser det på Min sida.`);
 }
 
 function toggleMapAreaCard() {

@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-10-26a";
+const IFOUND_VERSION = "2026-10-26b";
 
 // Mäklardemon (lokala demokonton, påhittade objekt och meddelanden) är dold
 // inför testpersonerna. Koden ligger kvar; true visar den igen.
@@ -4749,10 +4749,28 @@ function renderSaved() {
 }
 
 // Öppna kartan och zooma till en fastighet från en lista
-function openParcelById(pid, name, origin) {
+async function openParcelById(pid, name, origin) {
   // Varifrån man kom, så att panelen kan erbjuda en väg tillbaka. Utan det
   // är enda vägen ur kartan bottenmenyn eller att gissa sig fram.
   window._focusOrigin = origin || currentView || null;
+
+  // Kartan behöver veta var fastigheten ligger för att flytta dit innan den
+  // hämtas (focusPendingParcelFromMeta). Egna gillanden och intressen har
+  // koordinater från servern, men andras hus — t.ex. i ett bevakat områdes
+  // topplista — har det inte. Då frågar vi sök() på beteckningen.
+  const meta = loadState().parcelMeta?.[pid];
+  if (!(meta?.lat && meta?.lon) && name) {
+    try {
+      const traff = (await sokIfound(name)).find(h => String(h.fastighet_id) === String(pid));
+      if (traff?.lat != null && traff?.lon != null) {
+        const s = loadState();
+        s.parcelMeta = s.parcelMeta || {};
+        s.parcelMeta[pid] = { area: s.parcelMeta[pid]?.area ?? null, lat: traff.lat, lon: traff.lon };
+        saveState(s);
+      }
+    } catch (e) { console.warn("[ifound] Kunde inte slå upp fastighetens läge:", e.message); }
+  }
+
   currentView = "map";
   window._pendingParcelFocus = { pid, name };
   render();

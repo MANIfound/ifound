@@ -12,7 +12,11 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-10-25a";
+const IFOUND_VERSION = "2026-10-26a";
+
+// Mäklardemon (lokala demokonton, påhittade objekt och meddelanden) är dold
+// inför testpersonerna. Koden ligger kvar; true visar den igen.
+const MAKLARDEMO_PA = false;
 console.info("[ifound] version " + IFOUND_VERSION);
 
 function toast(msg) {
@@ -172,7 +176,7 @@ function saveUsers(u)       { localStorage.setItem(LS_USERS, JSON.stringify(u));
 function loadSession() {
   if (KONTO) return { email: KONTO.email, id: KONTO.id };
   const lokal = safeJsonParse(localStorage.getItem(LS_SESSION), null);
-  return lokal?.isBroker ? lokal : null;   // bara mäklardemon
+  return lokal?.isBroker && MAKLARDEMO_PA ? lokal : null;   // bara mäklardemon
 }
 function saveSession(s)     { localStorage.setItem(LS_SESSION, JSON.stringify(s)); }   // bara mäklardemon
 function clearSession() {
@@ -3339,7 +3343,7 @@ function _renderParcelPanelInner(feature) {
       <button class="panel-back" onclick="goBackFromFocus()">
         <i class="ti ti-arrow-left"></i> Tillbaka till ${FOCUS_ORIGIN_LABELS[window._focusOrigin]}
       </button>` : ""}
-    <div class="panel-mode">${isBrf ? "Gilla och intresse gäller hela föreningen." : isRental ? `Hyresfastighet${ownerName ? " — " + ownerName : ""}. Intresse gäller hela huset.` : isMulti ? "Flerbostadshus — intresse gäller hela huset." : "Spara intresse och följ objektet."}</div>
+    <div class="panel-mode">${isBrf ? "Gilla och intresse gäller hela föreningen." : isRental ? `Hyresfastighet${ownerName ? " — " + ownerName : ""}. Intresse gäller hela huset.` : isMulti ? "Flerbostadshus — intresse gäller hela huset." : "Gilla eller markera intresse för fastigheten."}</div>
     ${renderRentalVisitorBlock(pid, name, { isOwner })}
     ${ag && !isOwner ? `
     <div style="margin:10px 0 4px;padding:12px 14px;background:var(--green-50);border:0.5px solid rgba(82,109,51,.25);border-radius:11px;">
@@ -4077,7 +4081,7 @@ function renderWelcome() {
           <button class="nav-tab" onclick="currentView='feed';render();">Utforska</button>
           <button class="nav-tab" onclick="currentView='map';render();">Karta</button>
           <button class="nav-tab" onclick="navigate('buildNew')">Bygga nytt hus</button>
-          <button class="nav-tab" onclick="navigate('brokerWelcome')">För mäklare</button>
+          ${MAKLARDEMO_PA ? `<button class="nav-tab" onclick="navigate('brokerWelcome')">För mäklare</button>` : ""}
         </div>
         <div class="nav-right">
           ${isLoggedIn
@@ -4320,7 +4324,7 @@ function renderWelcome() {
           </div>
           <div class="welcome-cta-btns">
             <button onclick="openAuthModal('reg')" style="padding:11px 20px;border-radius:10px;border:none;background:#fff;color:var(--ink);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font-body);white-space:nowrap;">Claima din fastighet</button>
-            <button onclick="navigate('brokerWelcome')" style="padding:11px 20px;border-radius:10px;border:0.5px solid rgba(255,255,255,.25);background:transparent;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font-body);white-space:nowrap;">För mäklare</button>
+            ${MAKLARDEMO_PA ? `<button onclick="navigate('brokerWelcome')" style="padding:11px 20px;border-radius:10px;border:0.5px solid rgba(255,255,255,.25);background:transparent;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font-body);white-space:nowrap;">För mäklare</button>` : ""}
           </div>
         </div>
       </div>
@@ -6251,7 +6255,9 @@ function sparadeObjektIds(state) {
     : Object.keys(st.myLikes || {});
   return {
     liked: new Set(liked),
-    all: [...new Set([...liked, ...Object.keys(st.myInterests || {}), ...Object.keys(st.myFollows || {})])],
+    // Följningar (myFollows) räknas inte längre: knappen är dold sedan 25 okt
+    // och gamla följningar gick inte att ta bort från listan.
+    all: [...new Set([...liked, ...Object.keys(st.myInterests || {})])],
   };
 }
 
@@ -7020,8 +7026,12 @@ async function mapSearch(query, dropdown, input) {
   try { hits = await sokIfound(query); }
   catch (err) { console.warn("[ifound] Sökningen mot egen server misslyckades:", err.message); }
 
-  // Utanför Skåne finns ingen egen data — då får Nominatim ta över.
-  if (!hits.length) return mapSearchNominatim(query, dropdown, input);
+  // Betan täcker bara Skåne. Nominatim tog förut över här, men gav bara
+  // träffar där kartan saknar fastigheter.
+  if (!hits.length) {
+    dropdown.innerHTML = '<div style="padding:12px 16px;font-size:12px;color:var(--ink-muted);line-height:1.5;">Inga träffar. Sökningen täcker Skåne än så länge.</div>';
+    return;
+  }
 
   window._sokTraffar = hits;
   dropdown.innerHTML = hits.map((h, idx) => `
@@ -7041,51 +7051,6 @@ async function mapSearch(query, dropdown, input) {
       if (h) valjSokTraff(h);
     });
   });
-}
-
-async function mapSearchNominatim(query, dropdown, input) {
-  dropdown.style.display = "block";
-  dropdown.innerHTML = '<div style="padding:12px 16px;font-size:12px;color:var(--ink-muted);">Söker...</div>';
-
-  try {
-    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=6&countrycodes=se&accept-language=sv&polygon_geojson=1`;
-    const res = await fetch(url);
-    const results = await res.json();
-
-    if (!results.length) {
-      dropdown.innerHTML = '<div style="padding:12px 16px;font-size:12px;color:var(--ink-muted);">Inga resultat</div>';
-      return;
-    }
-
-    // Store results for click handler
-    window._mapSearchResults = results;
-
-    dropdown.innerHTML = results.map((r, idx) => {
-      const name = r.display_name.split(",").slice(0,2).join(", ");
-      return `<div data-idx="${idx}"
-        style="padding:11px 16px;font-size:13px;color:var(--ink);cursor:pointer;border-bottom:0.5px solid rgba(17,24,39,.06);display:flex;align-items:center;gap:10px;"
-        onmouseover="this.style.background='#F9F6F1'" onmouseout="this.style.background=''">
-        <i class="ti ti-map-pin" style="font-size:14px;color:var(--accent);flex-shrink:0;" aria-hidden="true"></i>
-        <span>${name}</span>
-      </div>`;
-    }).join('');
-
-    // Add click handlers after render
-    dropdown.querySelectorAll('[data-idx]').forEach(el => {
-      el.addEventListener('click', () => {
-        const r = window._mapSearchResults[parseInt(el.dataset.idx)];
-        if (!r) return;
-        mapSelectLocation(
-          r.display_name.split(',').slice(0,2).join(','),
-          r.lat, r.lon,
-          r.boundingbox || null,
-          r.geojson || null
-        );
-      });
-    });
-  } catch {
-    dropdown.innerHTML = '<div style="padding:12px 16px;font-size:12px;color:var(--ink-muted);">Sökning misslyckades</div>';
-  }
 }
 
 function mapSelectLocation(name, lat, lon, bbox, geojson) {
@@ -7952,7 +7917,7 @@ const MOCK_BROKER_LISTINGS = [
 
 function isBroker() {
   const s = loadSession();
-  return !!MOCK_BROKER_ACCOUNTS[s?.email];
+  return MAKLARDEMO_PA && !!MOCK_BROKER_ACCOUNTS[s?.email];
 }
 
 function getBroker() {
@@ -8444,7 +8409,7 @@ function renderView() {
 
   // Anonymous users can access welcome, feed, map, property views
   if (!session?.email) {
-    if (currentView === "brokerWelcome") { renderBrokerWelcome(); return; }
+    if (currentView === "brokerWelcome" && MAKLARDEMO_PA) { renderBrokerWelcome(); return; }
     if (currentView === "feed")   { renderFeed(); return; }
     if (currentView === "map")    { renderMapView(); return; }
     if (currentView === "buildNew") { renderBuildNew(); return; }

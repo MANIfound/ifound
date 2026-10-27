@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-10-26b";
+const IFOUND_VERSION = "2026-10-27a";
 
 // Mäklardemon (lokala demokonton, påhittade objekt och meddelanden) är dold
 // inför testpersonerna. Koden ligger kvar; true visar den igen.
@@ -134,7 +134,7 @@ async function laddaKonto() {
     if (!user) { KONTO = null; return null; }
     let profil = null;
     try {
-      const r = await sbKlient().from("profil").select("namn, ar_admin").eq("id", user.id).maybeSingle();
+      const r = await sbKlient().from("profil").select("namn, ar_admin, roll").eq("id", user.id).maybeSingle();
       profil = r.data || null;
     } catch {}
     KONTO = {
@@ -144,7 +144,9 @@ async function laddaKonto() {
       ar_admin: !!profil?.ar_admin,
     };
     if (KONTO.id !== fore) await flyttaTillKonto();   // ny inloggning, inte en uppdatering
+    speglaRoll(profil ? (profil.roll ?? null) : undefined);
     await hamtaMittAgarskap();
+    MIN_BOSTAD = undefined;   // hämtas när Min sida öppnas
   } catch (e) {
     console.warn("Kunde inte läsa inloggningen:", e?.message);
     KONTO = null;
@@ -188,6 +190,9 @@ function clearSession() {
   // Ägarskapet hör till kontot, inte till webbläsaren. Nästa konto i samma
   // webbläsare ska inte ärva det.
   MITT_AGARSKAP = undefined;
+  MIN_BOSTAD = undefined;
+  // Rollen hör till kontot. Nästa konto i samma webbläsare ska inte ärva den.
+  try { const s = loadState(); if (s.profile) { delete s.profile.role; saveState(s); } } catch {}
   ADMIN_AGARSKAP = null;
   ADMIN_ANMALNINGAR = null;
   ADMIN_DATA = null;
@@ -250,6 +255,11 @@ async function hamtaMittAgarskap() {
     if (error) throw error;
     const row = Array.isArray(data) ? (data[0] || null) : (data || null);
     MITT_AGARSKAP = row;
+    // Ett annat (eller inget) ägarskap än det profilen hämtades för: hämta om.
+    const aktivtId = row && (row.status === "pending" || row.status === "verified") ? row.id : null;
+    if (MIN_BOSTAD !== undefined && (MIN_BOSTAD?.fel || (MIN_BOSTAD?.agarskap_id || null) !== aktivtId)) {
+      MIN_BOSTAD = undefined;
+    }
     return speglaAgarskap(row);
   } catch (e) {
     // Behåll det som fanns. Ingen omritning, ingen loop.
@@ -439,6 +449,175 @@ async function raderaBevisfil(sokvag) {
   }
 }
 
+// =========================
+// BOSTADSPROFIL (4c) — rubrik, beskrivning och bilder på servern
+// =========================
+// Profilen hör till ägarskapet, inte till kontot (beslut 26 okt): den
+// försvinner när ägarskapet avslutas. Andra ser den i kartpanelen när
+// ägarskapet är godkänt och ingen anmälan är öppen. Servern: bostad.sql.
+//
+// MIN_BOSTAD: undefined = inte hämtad, null = ingen fastighet kopplad,
+//   { fel: true } = hämtningen misslyckades (formuläret låses, så att en
+//   tom ruta aldrig skriver över det som finns på servern),
+//   annars { agarskap_id, rubrik, beskrivning, bilder: [{id, sokvag}], dold }.
+// BOSTAD[fid]: det besökare ser — { agarskap_id, rubrik, beskrivning,
+//   bilder: [sokvag] } eller null (ingen profil att visa).
+let MIN_BOSTAD = undefined;
+let _minBostadPagar = false;
+const BOSTAD = {};
+const _bostadHamtad = new Set();
+const BOSTAD_FORRAD = "bostadsbilder";
+const BOSTAD_MAX_BILDER = 3;
+
+function bildUrl(sokvag) {
+  return `${API_BASE_URL}/storage/v1/object/public/${BOSTAD_FORRAD}/` +
+    String(sokvag).split("/").map(encodeURIComponent).join("/");
+}
+
+// Serverns egna felmeddelanden är skrivna på svenska för användaren.
+function svenskFel(error, reserv) {
+  const m = error?.message || "";
+  return /[åäöÅÄÖ]/.test(m) ? m : reserv;
+}
+
+async function hamtaMinBostad() {
+  if (!KONTO) { MIN_BOSTAD = null; return; }
+  try {
+    const { data, error } = await sbKlient().rpc("min_bostad");
+    if (error) throw error;
+    const r = Array.isArray(data) ? (data[0] || null) : (data || null);
+    MIN_BOSTAD = r ? { ...r, bilder: Array.isArray(r.bilder) ? r.bilder : [] } : null;
+  } catch (e) {
+    console.warn("Kunde inte hämta bostadsprofilen:", e?.message);
+    MIN_BOSTAD = { fel: true };
+  }
+}
+
+async function sparaMinBostad(rubrik, beskrivning) {
+  const { error } = await sbKlient().rpc("spara_bostad", { rubrik_in: rubrik, beskrivning_in: beskrivning });
+  if (error) { toast(svenskFel(error, "Kunde inte spara profilen just nu. Försök igen.")); return false; }
+  await hamtaMinBostad();
+  return true;
+}
+
+function dataUrlTillBlob(dataUrl) {
+  const [huvud, b64] = String(dataUrl).split(",");
+  const mime = (huvud.match(/data:([^;]+)/) || [])[1] || "image/jpeg";
+  const bin = atob(b64 || "");
+  const u = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  return new Blob([u], { type: mime });
+}
+
+// Bilden är redan nedskalad och omgjord till JPEG av readImageAsDataUrl,
+// vilket också tar bort platsdata (EXIF) ur originalet.
+async function laddaUppBostadsbild(dataUrl) {
+  if (!KONTO) return false;
+  const sokvag = `${KONTO.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
+  const lager = sbKlient().storage.from(BOSTAD_FORRAD);
+  const up = await lager.upload(sokvag, dataUrlTillBlob(dataUrl), { contentType: "image/jpeg", upsert: false });
+  if (up.error) {
+    console.warn("bilduppladdning:", up.error.message);
+    toast("Kunde inte ladda upp bilden just nu. Försök igen.");
+    return false;
+  }
+  const { error } = await sbKlient().rpc("lagg_till_bild", { sokvag });
+  if (error) {
+    await lager.remove([sokvag]).catch(() => {});
+    toast(svenskFel(error, "Kunde inte spara bilden just nu."));
+    return false;
+  }
+  return true;
+}
+
+async function taBortBostadsbild(id) {
+  const { data: fil, error } = await sbKlient().rpc("ta_bort_bild", { bid: id });
+  if (error) { toast(svenskFel(error, "Kunde inte ta bort bilden just nu.")); return false; }
+  // Misslyckas raderingen ligger filen kvar i städkön, som admin tömmer.
+  if (fil) await sbKlient().storage.from(BOSTAD_FORRAD).remove([fil]).catch(() => {});
+  return true;
+}
+
+// Efter "Byt fastighet": allt i den egna bildmappen hörde till det gamla
+// ägarskapet. Raderna är redan borta på servern.
+async function rensaMinaBostadsbilder() {
+  if (!KONTO) return;
+  try {
+    const lager = sbKlient().storage.from(BOSTAD_FORRAD);
+    const { data } = await lager.list(KONTO.id, { limit: 100 });
+    const filer = (data || []).map(f => `${KONTO.id}/${f.name}`);
+    if (filer.length) await lager.remove(filer);
+  } catch (e) { console.warn("Kunde inte rensa bildmappen:", e?.message); }
+}
+
+// Det besökare ser. Ett anrop per fastighet och sidladdning; misslyckas det
+// försöker vi inte igen förrän nästa laddning (ingen omritningsloop).
+async function hamtaBostad(fid) {
+  _bostadHamtad.add(fid);
+  try {
+    const res = await fetch(`${API_BASE_URL}/rest/v1/rpc/bostad_for`, {
+      method: "POST", headers: await rpcHeaders(), body: JSON.stringify({ vald_fid: fid }),
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const rows = await res.json();
+    const r = Array.isArray(rows) ? (rows[0] || null) : null;
+    BOSTAD[fid] = r ? { ...r, bilder: Array.isArray(r.bilder) ? r.bilder : [] } : null;
+    return true;
+  } catch (e) {
+    console.warn("bostad_for:", e?.message);
+    return false;
+  }
+}
+
+function glomBostad(fid) { delete BOSTAD[fid]; _bostadHamtad.delete(fid); }
+
+async function anmalInnehall(pid, aid, name) {
+  if (!KONTO) {
+    openAuthModal("reg");
+    toast("Skapa ett konto eller logga in för att anmäla.");
+    return;
+  }
+  const text = prompt(`Anmäl innehållet för ${name}.\n\nVad är fel med texten eller bilderna? Profilen döljs medan vi tittar på det.`, "");
+  if (text === null) return;
+  const { error } = await sbKlient().rpc("anmal_innehall", { aid, text_in: text });
+  if (error) { toast(svenskFel(error, "Kunde inte skicka anmälan just nu.")); return; }
+  toast("Tack. Profilen är dold tills vi har tittat på den.");
+  BOSTAD[pid] = null;
+  if (window._currentPanelFeature) renderParcelPanel(window._currentPanelFeature);
+}
+
+// Bilden i full storlek. Klick var som helst stänger.
+function visaBild(url) {
+  document.getElementById("bildVisning")?.remove();
+  const el = document.createElement("div");
+  el.id = "bildVisning";
+  el.style.cssText = "position:fixed;inset:0;z-index:9999;background:rgba(15,20,10,.88);display:flex;align-items:center;justify-content:center;padding:16px;cursor:zoom-out;";
+  el.innerHTML = `<img src="${url}" alt="" style="max-width:100%;max-height:100%;border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.4);" />`;
+  el.onclick = () => el.remove();
+  document.body.appendChild(el);
+}
+
+function bostadBlockHtml(pid, name, bo, isOwner) {
+  if (!bo) return "";
+  const bilder = bo.bilder || [];
+  const esc = s => escapeHtmlBasic(String(s || ""));
+  return `
+    <div class="bostad-block" style="margin:10px 0 4px;padding:12px 14px;background:#fff;border:0.5px solid rgba(82,109,51,.25);border-radius:11px;">
+      <div style="font-size:10.5px;font-weight:600;color:var(--ink-muted);margin-bottom:6px;">Ägaren berättar</div>
+      ${bo.rubrik ? `<div style="font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--ink);line-height:1.3;margin-bottom:6px;">${esc(bo.rubrik)}</div>` : ""}
+      ${bo.beskrivning ? `<div style="font-size:12.5px;color:var(--ink-soft);line-height:1.6;white-space:pre-wrap;">${esc(bo.beskrivning)}</div>` : ""}
+      ${bilder.length ? `
+      <div style="display:grid;grid-template-columns:repeat(${Math.min(bilder.length, 3)},1fr);gap:6px;margin-top:10px;">
+        ${bilder.map(s => `<img src="${bildUrl(s)}" alt="" loading="lazy" onclick="visaBild('${bildUrl(s)}')" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:zoom-in;display:block;" />`).join("")}
+      </div>` : ""}
+      <div style="text-align:right;margin-top:8px;">
+        ${isOwner
+          ? `<button onclick="navigate('dashboard')" style="background:none;border:none;padding:2px;font-size:11px;color:var(--ink-muted);cursor:pointer;font-family:var(--font-body);text-decoration:underline;">Ändra på Min sida</button>`
+          : `<button id="anmalInnehallBtn" style="background:none;border:none;padding:2px;font-size:11px;color:var(--ink-muted);cursor:pointer;font-family:var(--font-body);text-decoration:underline;">Anmäl innehållet</button>`}
+      </div>
+    </div>`;
+}
+
 async function hamtaAdminAgarskap() {
   try {
     const [{ data, error }, anm] = await Promise.all([
@@ -472,8 +651,24 @@ function saveCurrentUser(u) {
   saveUsers(users);
 }
 
+// Bostadsprofilen kommer från servern (MIN_BOSTAD). images är adresser.
+// Den gamla lokala profilen (user.homeProfile) läses bara av lokalBostad(),
+// för att erbjuda flytt av text och bilder som sparats före 27 oktober.
 function getHomeProfile(user) {
-  return user.homeProfile || { title: "", description: "", images: [] };
+  const m = MIN_BOSTAD;
+  if (!m || m.fel) return { title: "", description: "", images: [], bilder: [] };
+  return {
+    title: m.rubrik || "", description: m.beskrivning || "",
+    images: (m.bilder || []).map(b => bildUrl(b.sokvag)),
+    bilder: m.bilder || [],
+  };
+}
+function lokalBostad(user) {
+  const h = user?.homeProfile || {};
+  return {
+    title: h.title || "", description: h.description || "",
+    images: (h.images || []).filter(x => typeof x === "string" && x.startsWith("data:image/")),
+  };
 }
 
 function createDefaultState() {
@@ -545,8 +740,30 @@ function onboardingSteps(role) {
       desc: "Klicka runt bland fastigheterna och gilla det du gillar." }];
 }
 
+// Rollen ligger på kontot (profil.roll). Den lokala kopian i profile.role
+// läses synkront av vyerna. undefined = profilen gick inte att läsa: rör
+// ingenting. En roll som bara finns lokalt (vald före 27 okt) flyttas upp.
+function speglaRoll(serverRoll) {
+  if (serverRoll === undefined) return;
+  const lokal = getProfile().role || null;
+  if (serverRoll) {
+    if (lokal !== serverRoll) saveProfile({ role: serverRoll });
+  } else if (lokal && ROLES[lokal]) {
+    sparaRollPaServern(lokal);
+  }
+}
+
+async function sparaRollPaServern(role) {
+  if (!KONTO) return;
+  try {
+    const { error } = await sbKlient().from("profil").update({ roll: role }).eq("id", KONTO.id);
+    if (error) throw error;
+  } catch (e) { console.warn("Kunde inte spara rollen:", e?.message); }
+}
+
 function setRole(role) {
   saveProfile({ role });
+  sparaRollPaServern(role);
   toast(`Min sida är nu anpassad för dig som ${ROLES[role].label.toLowerCase()}.`);
   closeWelcomeFlow();
   if (currentView === "dashboard" || currentView === "welcomeflow") { currentView = "dashboard"; render(); }
@@ -3265,7 +3482,17 @@ function _renderParcelPanelInner(feature) {
     });
   }
   const claimedProp = ag || null;
-  const panelImg = null;   // demobilderna är borta; ägarens egna bilder kommer senare
+
+  // Ägarens profil (rubrik, beskrivning, bilder). Hämtas bara där det finns
+  // en ägare på ifound; ritas om en gång när svaret kommer.
+  if ((ag || isOwner) && !_bostadHamtad.has(pid)) {
+    hamtaBostad(pid).then(ok => {
+      if (!ok || !BOSTAD[pid]) return;
+      if (window._panelPid === pid && document.getElementById("likeBtn")) renderParcelPanel(feature);
+    });
+  }
+  const bo = (ag || isOwner) ? (BOSTAD[pid] || null) : null;
+  const panelImg = bo?.bilder?.length ? bildUrl(bo.bilder[0]) : null;
 
   // FOMO-teaser: fastigheten har aktivitet men är inte claimad — visa det, och gör claim till nyckeln.
   const isClaimed = !!claimedProp || isOwner;
@@ -3330,7 +3557,7 @@ function _renderParcelPanelInner(feature) {
         <img src="${headerImg}" style="width:100%;height:100%;object-fit:cover;display:block;" />
         <div style="position:absolute;inset:0;background:linear-gradient(to top,rgba(0,0,0,.45) 0%,transparent 58%);"></div>
         <div style="position:absolute;bottom:10px;left:14px;">
-          <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.75);text-transform:uppercase;letter-spacing:.08em;">${myPhoto ? "Din bild" : formLabel}</div>
+          <div style="font-size:10px;font-weight:600;color:rgba(255,255,255,.75);text-transform:uppercase;letter-spacing:.08em;">${myPhoto ? "Din bild" : panelImg ? "Ägarens bild" : formLabel}</div>
           <div style="font-size:16px;font-weight:700;color:#fff;letter-spacing:-.03em;">${name}</div>
         </div>
         ${myPhoto ? `<button onclick="removeMyPhoto('${String(pid).replace(/'/g, "\\'")}'); if(window._currentPanelFeature) renderParcelPanel(window._currentPanelFeature);" title="Ta bort din bild" style="position:absolute;top:10px;right:10px;width:30px;height:30px;border-radius:50%;border:none;background:rgba(0,0,0,.45);color:#fff;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);"><i class="ti ti-trash"></i></button>` : ""}
@@ -3355,6 +3582,7 @@ function _renderParcelPanelInner(feature) {
       </div>
       <div style="font-size:11.5px;color:var(--ink-soft);margin-top:4px;line-height:1.5;">Ägaren ser när någon gillar eller visar intresse för huset.</div>
     </div>` : ""}
+    ${bostadBlockHtml(pid, name, bo, isOwner)}
     ${(() => {
       const own = state.ownerParcelId === pid;
       const wp = own
@@ -3417,6 +3645,8 @@ function _renderParcelPanelInner(feature) {
 
   const anmalBtn = document.getElementById("anmalAgareBtn");
   if (anmalBtn) anmalBtn.onclick = () => anmalAgarskap(pid, name);
+  const anmalInnehallBtn = document.getElementById("anmalInnehallBtn");
+  if (anmalInnehallBtn && bo) anmalInnehallBtn.onclick = () => anmalInnehall(pid, bo.agarskap_id, name);
 
   if (document.getElementById("teaserClaimBtn")) {
     document.getElementById("teaserClaimBtn").onclick = () => {
@@ -5123,7 +5353,11 @@ function runOnboardingStep(id) {
       document.getElementById("wishPriceInput")?.scrollIntoView({ behavior: "smooth", block: "center" });
       document.getElementById("wishPriceInput")?.focus();
       return;
-    case "photo":   return document.getElementById("homeImageInput")?.click();
+    case "photo": {
+      const inp = document.getElementById("homeImageInput");
+      if (inp) return inp.click();
+      return toast(loadState().ownerParcelId ? "Profilen hämtas fortfarande — prova igen om en sekund." : "Koppla din fastighet först.");
+    }
     case "area":    return openWatchDraw();
     case "likes":
     case "explore": return navigate("map");
@@ -5164,6 +5398,13 @@ function renderDashboard() {
   const ownerInterests = ownerId && INTRESSE[ownerId] ? INTRESSE[ownerId].antal : 0;
   const homeProfile = getHomeProfile(user);
   const images = homeProfile.images || [];
+  const bostadKlar = !!ownerId && !!MIN_BOSTAD && !MIN_BOSTAD.fel;
+  const lokal = lokalBostad(user);
+  // Text som bara finns lokalt fylls i som förslag; den sparas först när
+  // ägaren trycker Spara.
+  const forslagRubrik = bostadKlar && !homeProfile.title && !homeProfile.description ? lokal.title : "";
+  const forslagText   = bostadKlar && !homeProfile.title && !homeProfile.description ? lokal.description : "";
+  const lokalaBilder  = bostadKlar && !images.length ? lokal.images.slice(0, BOSTAD_MAX_BILDER) : [];
 
   const houseSvg = `<svg style="position:absolute;inset:0;width:100%;height:100%;" viewBox="0 0 960 280" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg"><rect width="960" height="280" fill="#1a2533"/><rect y="180" width="960" height="100" fill="#2a1a08"/><circle cx="840" cy="50" r="24" fill="#f5e6c8" opacity=".16"/><circle cx="840" cy="50" r="17" fill="#f5e6c8" opacity=".20"/><circle cx="75" cy="35" r="1.1" fill="white" opacity=".55"/><circle cx="200" cy="20" r="1" fill="white" opacity=".5"/><circle cx="360" cy="48" r="1.2" fill="white" opacity=".6"/><circle cx="520" cy="16" r="1" fill="white" opacity=".4"/><circle cx="650" cy="40" r="1.1" fill="white" opacity=".55"/><circle cx="770" cy="26" r="1" fill="white" opacity=".45"/><polygon points="18,182 48,105 78,182" fill="#0d1a0d"/><polygon points="42,182 74,112 106,182" fill="#101f10"/><polygon points="855,182 885,103 915,182" fill="#0d1a0d"/><polygon points="880,182 912,110 944,182" fill="#101f10"/><rect x="345" y="128" width="270" height="148" rx="2" fill="#2C1A0E"/><polygon points="320,133 480,55 640,133" fill="#1a0f06"/><rect x="560" y="64" width="24" height="44" rx="2" fill="#1a0f06"/><rect x="370" y="150" width="50" height="40" rx="3" fill="#3a2510"/><rect x="371" y="151" width="48" height="38" rx="2" fill="#CC2936" opacity=".22"/><line x1="395" y1="151" x2="395" y2="189" stroke="#2a1508" stroke-width="1.5"/><line x1="371" y1="170" x2="419" y2="170" stroke="#2a1508" stroke-width="1.5"/><rect x="437" y="150" width="50" height="40" rx="3" fill="#3a2510"/><rect x="438" y="151" width="48" height="38" rx="2" fill="#e8a060" opacity=".26"/><line x1="462" y1="151" x2="462" y2="189" stroke="#2a1508" stroke-width="1.5"/><line x1="438" y1="170" x2="486" y2="170" stroke="#2a1508" stroke-width="1.5"/><rect x="504" y="150" width="50" height="40" rx="3" fill="#3a2510"/><rect x="505" y="151" width="48" height="38" rx="2" fill="#CC2936" opacity=".16"/><line x1="529" y1="151" x2="529" y2="189" stroke="#2a1508" stroke-width="1.5"/><line x1="505" y1="170" x2="553" y2="170" stroke="#2a1508" stroke-width="1.5"/><rect x="430" y="190" width="40" height="86" rx="2" fill="#1a0f06"/><rect x="431" y="191" width="38" height="84" rx="1.5" fill="#CC2936" opacity=".13"/></svg>`;
 
@@ -5240,9 +5481,9 @@ function renderDashboard() {
         <div class="hero-section">
           ${images.length ? `<img src="${images[0]}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" alt="Bostad" />` : houseSvg}
           <div class="hero-overlay"></div>
-          <button onclick="document.getElementById('homeImageInput').click()" style="position:absolute;top:14px;right:14px;z-index:3;background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.4);color:#fff;border-radius:10px;padding:7px 13px;font-size:12px;font-weight:600;font-family:var(--font-body);cursor:pointer;display:flex;align-items:center;gap:6px;backdrop-filter:blur(8px);">
-            <i class="ti ti-camera"></i> ${images.length ? 'Byt bild' : 'Lägg till bild'}
-          </button>
+          ${bostadKlar && images.length < BOSTAD_MAX_BILDER ? `<button onclick="document.getElementById('homeImageInput').click()" style="position:absolute;top:14px;right:14px;z-index:3;background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.4);color:#fff;border-radius:10px;padding:7px 13px;font-size:12px;font-weight:600;font-family:var(--font-body);cursor:pointer;display:flex;align-items:center;gap:6px;backdrop-filter:blur(8px);">
+            <i class="ti ti-camera"></i> Lägg till bild
+          </button>` : ""}
           <div class="hero-content">
             <div class="status-row">
               <button class="status-pill ${homeStatus === "passive" ? "active-passive" : ""}" id="sp-passive" onclick="setStatus('passive')">Passiv</button>
@@ -5272,19 +5513,37 @@ function renderDashboard() {
         <div class="two-col">
           <div>
             <div class="card">
-              <div class="card-title">Redigera bostadsprofil</div>
-              <div class="field-group" style="margin-bottom:12px;"><label class="label">Rubrik</label><input id="homeTitleInput" class="input" placeholder="Ex. Rymlig villa nära skogen" value="${homeProfile.title || ""}" /></div>
-              <div class="field-group" style="margin-bottom:12px;"><label class="label">Beskrivning</label><textarea id="homeDescriptionInput" class="input">${homeProfile.description || ""}</textarea></div>
-              <div class="field-group" style="margin-bottom:12px;">
-                <label class="label">Bilder (max 3)</label>
-                <div class="img-grid">
-                  ${images.map((src, i) => `<div class="img-filled" style="position:relative;"><img src="${src}" alt="Bild ${i+1}" /><button class="remove-img-btn" data-index="${i}" style="position:absolute;bottom:6px;right:6px;background:rgba(17,24,39,.75);color:#fff;border:none;border-radius:999px;padding:4px 9px;font-size:11px;cursor:pointer;">Ta bort</button></div>`).join("")}
-                  ${images.length < 3 ? `<div class="img-slot" onclick="document.getElementById('homeImageInput').click()"><i class="ti ti-plus"></i>Lägg till</div>` : ""}
-                  ${images.length < 2 ? `<div class="img-slot" onclick="document.getElementById('homeImageInput').click()"><i class="ti ti-plus"></i>Lägg till</div>` : ""}
-                  ${images.length < 1 ? `<div class="img-slot" onclick="document.getElementById('homeImageInput').click()"><i class="ti ti-plus"></i>Lägg till</div>` : ""}
-                </div>
-                <input id="homeImageInput" type="file" accept="image/*" multiple style="display:none;" />
+              <div class="card-title">Bostadsprofil</div>
+              ${!ownerId || MIN_BOSTAD === null ? `
+              <div style="font-size:12.5px;color:var(--ink-soft);line-height:1.6;margin-bottom:4px;">
+                Koppla din fastighet först. Sedan kan du skriva några rader och lägga upp bilder, som visas för den som klickar på huset.
+              </div>` : MIN_BOSTAD === undefined ? `
+              <div style="font-size:12.5px;color:var(--ink-muted);">Hämtar profilen…</div>` : MIN_BOSTAD.fel ? `
+              <div style="font-size:12.5px;color:var(--clay);line-height:1.6;">Kunde inte hämta profilen just nu. Ladda om sidan om en stund.</div>` : `
+              <div style="font-size:12px;line-height:1.55;margin-bottom:12px;padding:9px 11px;border-radius:9px;background:var(--green-50);color:var(--ink-soft);display:flex;gap:8px;align-items:flex-start;">
+                <i class="ti ${MIN_BOSTAD.dold ? "ti-eye-off" : "ti-eye"}" style="font-size:15px;flex-shrink:0;margin-top:1px;"></i>
+                <span>${claimStatus !== "verified"
+                  ? "Syns för andra i kartpanelen när ditt ägarskap är godkänt."
+                  : MIN_BOSTAD.dold
+                    ? "Dold för andra just nu medan en anmälan granskas."
+                    : "Syns för alla som klickar på huset på kartan."}
+                  Skriv inte telefonnummer, e-post eller länkar — den som är intresserad når dig via ifound.</span>
               </div>
+              <div class="field-group" style="margin-bottom:12px;"><label class="label">Rubrik</label><input id="homeTitleInput" class="input" maxlength="80" placeholder="Ex. Rymlig villa nära skogen" value="${escapeHtmlBasic(homeProfile.title || forslagRubrik)}" /></div>
+              <div class="field-group" style="margin-bottom:12px;"><label class="label">Beskrivning</label><textarea id="homeDescriptionInput" class="input" maxlength="1500" placeholder="Vad är speciellt med huset och platsen?">${escapeHtmlBasic(homeProfile.description || forslagText)}</textarea></div>
+              ${forslagRubrik || forslagText ? `<div style="font-size:11px;color:var(--ink-muted);margin:-6px 0 12px;">Texten ovan är din tidigare sparade text. Tryck Spara profil så hamnar den på kontot.</div>` : ""}
+              <div class="field-group" style="margin-bottom:12px;">
+                <label class="label">Bilder (max ${BOSTAD_MAX_BILDER})</label>
+                <div class="img-grid">
+                  ${homeProfile.bilder.map((b, i) => `<div class="img-filled" style="position:relative;"><img src="${bildUrl(b.sokvag)}" alt="Bild ${i+1}" /><button class="remove-img-btn" data-id="${escapeHtmlBasic(b.id)}" style="position:absolute;bottom:6px;right:6px;background:rgba(17,24,39,.75);color:#fff;border:none;border-radius:999px;padding:4px 9px;font-size:11px;cursor:pointer;">Ta bort</button></div>`).join("")}
+                  ${Array.from({ length: Math.max(0, BOSTAD_MAX_BILDER - images.length) }).map(() => `<div class="img-slot" onclick="document.getElementById('homeImageInput').click()"><i class="ti ti-plus"></i>Lägg till</div>`).join("")}
+                </div>
+                ${lokalaBilder.length ? `
+                <button id="flyttaLokalaBilderBtn" class="btn-ghost" style="margin-top:8px;font-size:12px;padding:7px 12px;display:flex;align-items:center;gap:6px;">
+                  <i class="ti ti-cloud-upload"></i> Lägg upp ${lokalaBilder.length === 1 ? "bilden" : `de ${lokalaBilder.length} bilderna`} du sparade tidigare
+                </button>` : ""}
+                <input id="homeImageInput" type="file" accept="image/*" multiple style="display:none;" />
+              </div>`}
               <div class="extra-form${homeStatus === "rent" ? " show" : ""}" id="rent-extra">
                 <div class="card-title" style="font-size:13px;margin-bottom:10px;">Uthyrningsdetaljer</div>
                 ${(() => {
@@ -5331,7 +5590,7 @@ function renderDashboard() {
                   <div class="field-group"><label class="label">Visningsdatum</label><input class="input" type="date" /></div>
                 </div>
               </div>
-              <button class="save-btn" id="saveHomeProfileBtn">Spara profil</button>
+              ${bostadKlar ? `<button class="save-btn" id="saveHomeProfileBtn">Spara profil</button>` : ""}
             </div>
           </div>
           <div>
@@ -5479,6 +5738,8 @@ function renderDashboard() {
     const { data: fil, error } = await sbKlient().rpc("avsluta_agarskap");
     if (error) { toast("Kunde inte avsluta just nu. Försök igen."); return; }
     if (fil) await raderaBevisfil(fil);
+    await rensaMinaBostadsbilder();   // profilen hörde till det gamla ägarskapet
+    if (st0.ownerParcelId) glomBostad(st0.ownerParcelId);
     await hamtaMittAgarskap();
     toast("Klart. Välj din fastighet på kartan.");
     render();
@@ -5557,13 +5818,28 @@ function renderDashboard() {
     wishInput.value = d ? parseInt(d, 10).toLocaleString("sv-SE") : "";
   });
 
-  document.getElementById("saveHomeProfileBtn").onclick = () => {
-    const u = getCurrentUser(); if (!u) return;
-    u.homeProfile = { ...getHomeProfile(u), title: document.getElementById("homeTitleInput").value.trim(), description: document.getElementById("homeDescriptionInput").value.trim() };
-    saveCurrentUser(u);
+  // Bostadsprofilen hämtas när Min sida öppnas med en kopplad fastighet,
+  // och sidan ritas om en gång när svaret kommer (även vid fel — då står
+  // ett felmeddelande i stället för formuläret, och ingen ny hämtning görs).
+  if (ownerId && MIN_BOSTAD === undefined && !_minBostadPagar) {
+    _minBostadPagar = true;
+    hamtaMinBostad().finally(() => {
+      _minBostadPagar = false;
+      if (currentView === "dashboard") render();
+    });
+  }
+
+  const sparaBtn = document.getElementById("saveHomeProfileBtn");
+  if (sparaBtn) sparaBtn.onclick = async () => {
+    const titel = document.getElementById("homeTitleInput")?.value.trim() ?? "";
+    const text  = document.getElementById("homeDescriptionInput")?.value.trim() ?? "";
+    sparaBtn.disabled = true;
+    const ok = await sparaMinBostad(titel, text);
+    sparaBtn.disabled = false;
+    if (!ok) return;   // felet är redan visat; texten ligger kvar i rutorna
 
     // Uthyrningsfälten hör till fastigheten, inte till användarprofilen, och
-    // sparas därför i uthyrningsobjektet. Tidigare kastades de bara bort.
+    // sparas (fortfarande lokalt) i uthyrningsobjektet.
     const pid = loadState().ownerParcelId;
     if (pid) {
       const num = (id) => {
@@ -5578,32 +5854,63 @@ function renderDashboard() {
       const minN = document.getElementById("rentalMinNights");
       if (minN) patch.minNights = num("rentalMinNights");
       saveRental(pid, patch);
+      glomBostad(pid);   // kartpanelen ska visa den nya texten
     }
 
-    toast("Bostadsprofil sparad."); render();
+    toast("Bostadsprofilen är sparad."); render();
   };
 
-  document.getElementById("homeImageInput").addEventListener("change", async (e) => {
-    const files = Array.from(e.target.files || []).slice(0, 3); if (!files.length) return;
-    const u = getCurrentUser(); if (!u) return;
-    const profile = getHomeProfile(u);
-    try {
-      const newImgs = await Promise.all(files.map(readImageAsDataUrl));
-      u.homeProfile = { ...profile, images: [...(profile.images || []), ...newImgs].slice(0, 3) };
-      saveCurrentUser(u); toast("Bild uppladdad."); render();
-    } catch (err) {
-      console.error("Bilduppladdning misslyckades:", err);
-      toast("Kunde inte ladda upp bilden — prova en annan bild.");
+  // Lägger upp bilder i tur och ordning tills det tar stopp (max tre).
+  async function laggUppBilder(dataUrls) {
+    let lagda = 0;
+    for (const d of dataUrls) {
+      if ((MIN_BOSTAD?.bilder?.length || 0) + lagda >= BOSTAD_MAX_BILDER) {
+        toast(`Du kan ha högst ${BOSTAD_MAX_BILDER} bilder.`); break;
+      }
+      if (!(await laddaUppBostadsbild(d))) break;
+      lagda++;
     }
+    await hamtaMinBostad();
+    glomBostad(ownerId);
+    if (lagda) toast(lagda === 1 ? "Bilden är uppladdad." : `${lagda} bilder är uppladdade.`);
+    render();
+    return lagda;
+  }
+
+  document.getElementById("homeImageInput")?.addEventListener("change", async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    toast("Laddar upp…");
+    let urls;
+    try { urls = await Promise.all(files.slice(0, BOSTAD_MAX_BILDER).map(readImageAsDataUrl)); }
+    catch (err) {
+      console.error("Bilden gick inte att läsa:", err);
+      toast("Kunde inte läsa bilden — prova en annan.");
+      return;
+    }
+    await laggUppBilder(urls);
   });
 
+  const flyttaBtn = document.getElementById("flyttaLokalaBilderBtn");
+  if (flyttaBtn) flyttaBtn.onclick = async () => {
+    flyttaBtn.disabled = true;
+    const lagda = await laggUppBilder(lokalaBilder);
+    if (lagda) {
+      // Uppe på servern: de lokala kopiorna behövs inte längre.
+      const u = getCurrentUser();
+      if (u?.homeProfile) { u.homeProfile = { ...u.homeProfile, images: [] }; saveCurrentUser(u); }
+    }
+  };
+
   document.querySelectorAll(".remove-img-btn").forEach(btn => {
-    btn.onclick = () => {
-      const idx = Number(btn.dataset.index);
-      const u = getCurrentUser(); if (!u) return;
-      const p = getHomeProfile(u);
-      p.images = (p.images || []).filter((_, i) => i !== idx);
-      u.homeProfile = p; saveCurrentUser(u); toast("Bild borttagen."); render();
+    btn.onclick = async () => {
+      if (!confirm("Ta bort bilden?")) return;
+      btn.disabled = true;
+      const ok = await taBortBostadsbild(btn.dataset.id);
+      if (!ok) { btn.disabled = false; return; }
+      await hamtaMinBostad();
+      glomBostad(ownerId);
+      toast("Bilden är borttagen."); render();
     };
   });
 
@@ -6179,6 +6486,7 @@ async function anmalAgarskap(pid, name) {
   }
   toast("Tack. Vi granskar anmälan. Pris och status är dolda tills dess.");
   delete AGARE[pid]; _agareHamtat.delete(pid);
+  BOSTAD[pid] = null;   // profilen döljs också medan anmälan är öppen
   if (window._currentPanelFeature) renderParcelPanel(window._currentPanelFeature);
   schemalaggAgareIVy();
 }
@@ -7489,23 +7797,93 @@ let _adminDataPagar = false;
 let _adminDataFel = false;
 async function hamtaAdminData() {
   try {
-    const [o, k, m] = await Promise.all([
+    const [o, k, m, inn] = await Promise.all([
       sbKlient().rpc("admin_oversikt"),
       sbKlient().rpc("admin_konton"),
       sbKlient().rpc("admin_meddelanden", { antal: 100 }),
+      sbKlient().rpc("admin_innehallsanmalningar"),
     ]);
     if (o.error) throw o.error;
     ADMIN_DATA = {
       oversikt: o.data,
       konton: k.error ? [] : (k.data || []),
       meddelanden: m.error ? [] : (m.data || []),
+      innehall: inn.error ? [] : (inn.data || []),
     };
     _adminDataFel = false;
+    if (o.data?.filer_att_radera > 0) tomStadko();   // i bakgrunden, ingen omritning
   } catch (e) {
     console.warn("Kunde inte hämta admindata:", e?.message);
     _adminDataFel = true;
     ADMIN_DATA = {};   // visa felet i stället för att hämta om i en loop
   }
+}
+
+// Städkön (bostad.sql): bildfiler vars rad försvunnit — avslutat eller
+// återkallat ägarskap, borttaget konto, borttagen bild. Admin får radera i
+// alla mappar, så kön töms här. Filer som redan är borta räknas som klara.
+let _stadkoPagar = false;
+async function tomStadko() {
+  if (_stadkoPagar || !arAdmin()) return;
+  _stadkoPagar = true;
+  try {
+    const { data, error } = await sbKlient().rpc("admin_filer_att_radera");
+    if (error) throw error;
+    const filer = (data || []).filter(f => f.forrad === BOSTAD_FORRAD).map(f => f.sokvag);
+    if (!filer.length) return;
+    const { error: e2 } = await sbKlient().storage.from(BOSTAD_FORRAD).remove(filer);
+    if (e2) throw e2;
+    const { data: n } = await sbKlient().rpc("admin_filer_raderade", { sokvagar: filer });
+    console.info(`[ifound] Städkön: ${n ?? filer.length} bildfiler raderade.`);
+  } catch (e) {
+    console.warn("Städkön:", e?.message);
+  } finally { _stadkoPagar = false; }
+}
+
+// Anmält innehåll: avfärda (profilen syns igen) eller ta bort text och bilder.
+async function adminHanteraInnehall(id, atgard) {
+  if (atgard === "atgardad" && !confirm("Ta bort rubrik, beskrivning och alla bilder i profilen? Ägarskapet ligger kvar.")) return;
+  const { data, error } = await sbKlient().rpc("admin_hantera_innehall", { nid: id, atgard });
+  if (error) { toast("Kunde inte spara: " + (error.message || "okänt fel")); return; }
+  const svar = Array.isArray(data) ? data[0] : data;
+  if (svar?.bilder?.length) await sbKlient().storage.from(BOSTAD_FORRAD).remove(svar.bilder).catch(() => {});
+  toast(!svar?.ok ? "Anmälan var redan hanterad." : atgard === "atgardad" ? "Innehållet är borttaget." : "Anmälan avfärdad. Profilen syns igen.");
+  ADMIN_DATA = null;
+  renderAdmin();
+}
+
+// Ta bort text eller en bild direkt, från kontorutan.
+async function adminTaBortInnehall(uid, aid, vad, bid) {
+  if (!confirm(vad === "text" ? "Ta bort rubrik och beskrivning?" : "Ta bort bilden?")) return;
+  const { data: fil, error } = await sbKlient().rpc("admin_ta_bort_innehall", { aid, vad, bid: bid || null });
+  if (error) { toast("Kunde inte ta bort: " + (error.message || "okänt fel")); return; }
+  if (fil) await sbKlient().storage.from(BOSTAD_FORRAD).remove([fil]).catch(() => {});
+  toast(vad === "text" ? "Texten är borttagen." : "Bilden är borttagen.");
+  ADMIN_DATA = null;
+  document.getElementById("admin-anv-overlay")?.remove();
+  renderAdmin();
+  openAdminAnvandare(uid);
+}
+
+// Profilens innehåll som admin ser det, med ta bort-knappar om uid/aid ges.
+function adminBostadHtml(a, uid) {
+  const bilder = a.bilder || [];
+  if (!a.rubrik && !a.beskrivning && !bilder.length) return "";
+  const knapp = (onclick, txt) => `<button onclick="${onclick}" style="padding:4px 9px;border-radius:7px;border:0.5px solid var(--clay);background:#fff;color:var(--clay);font-size:11px;cursor:pointer;font-family:var(--font-body);">${txt}</button>`;
+  return `
+    <div style="margin-top:8px;padding:9px 11px;background:#fff;border:0.5px solid var(--hairline);border-radius:8px;">
+      ${a.rubrik ? `<div style="font-weight:600;color:var(--ink);font-size:12.5px;">${escapeHtmlBasic(a.rubrik)}</div>` : ""}
+      ${a.beskrivning ? `<div style="color:var(--ink-soft);font-size:12px;line-height:1.55;margin-top:3px;white-space:pre-wrap;word-wrap:break-word;">${escapeHtmlBasic(a.beskrivning)}</div>` : ""}
+      ${uid && (a.rubrik || a.beskrivning) ? `<div style="margin-top:6px;">${knapp(`adminTaBortInnehall('${uid}','${a.id}','text')`, "Ta bort texten")}</div>` : ""}
+      ${bilder.length ? `
+      <div style="display:flex;gap:7px;flex-wrap:wrap;margin-top:8px;">
+        ${bilder.map(b => `
+          <div style="width:110px;">
+            <img src="${bildUrl(b.sokvag)}" alt="" onclick="visaBild('${bildUrl(b.sokvag)}')" style="width:110px;height:82px;object-fit:cover;border-radius:6px;display:block;cursor:zoom-in;" />
+            ${uid ? `<div style="margin-top:4px;">${knapp(`adminTaBortInnehall('${uid}','${a.id}','bild','${b.id}')`, "Ta bort")}</div>` : ""}
+          </div>`).join("")}
+      </div>` : ""}
+    </div>`;
 }
 
 // --- Ett enskilt konto: se allt, ändra namn, blockera, ta bort -------------
@@ -7540,7 +7918,7 @@ async function openAdminAnvandare(uid) {
           ${k.blockerad ? `<span style="font-size:10px;background:var(--clay);color:#fff;border-radius:999px;padding:2px 8px;vertical-align:middle;">blockerad</span>` : ""}
         </div>
         <div style="font-size:12.5px;color:var(--ink-soft);margin-top:3px;">${escapeHtmlBasic(k.email || "")}</div>
-        <div style="font-size:11.5px;color:var(--ink-muted);margin-top:3px;">Skapat ${dag(k.skapad)} · senast inloggad ${tid(k.senast_inloggad)}</div>
+        <div style="font-size:11.5px;color:var(--ink-muted);margin-top:3px;">Skapat ${dag(k.skapad)} · senast inloggad ${tid(k.senast_inloggad)}${k.roll && ROLES[k.roll] ? ` · roll: ${ROLES[k.roll].label.toLowerCase()}` : ""}</div>
         ${k.blockerad ? `<div style="font-size:12px;color:var(--clay);margin-top:6px;">Blockerad ${dag(k.blockerad_tid)}${k.blockerad_orsak ? ": " + escapeHtmlBasic(k.blockerad_orsak) : ""}</div>` : ""}
       </div>
       <button id="aaStang" style="width:32px;height:32px;border-radius:50%;border:none;background:var(--surface-2);cursor:pointer;font-size:16px;color:var(--ink-soft);flex-shrink:0;">✕</button>
@@ -7560,6 +7938,8 @@ async function openAdminAnvandare(uid) {
         · ${statusText[a.status] || a.status}${a.niva >= 1 ? " · dokument kontrollerat" : ""}
         ${a.hemstatus === "sale" ? " · till salu" : a.hemstatus === "rent" ? " · uthyrning" : ""}
         ${a.onskepris ? ` · önskepris ${Number(a.onskepris).toLocaleString("sv-SE")} kr${a.onskepris_synligt ? "" : " (privat)"}` : ""}
+        ${a.oppna_innehallsanmalningar > 0 ? ` · <strong style="color:var(--clay);">innehållet är anmält</strong>` : ""}
+        ${adminBostadHtml(a, k.id)}
       </div>`, "Ingen fastighet.")}
 
     ${sektion("Meddelanden kontot skickat", k.meddelanden || [], m => `
@@ -7572,10 +7952,7 @@ async function openAdminAnvandare(uid) {
     ${sektion("Intressen", k.intressen || [], g => `<div style="font-size:12px;"><span class="beteckning" style="font-size:11px;">${escapeHtmlBasic(g.beteckning || "—")}</span> <span style="color:var(--ink-muted);">· ${dag(g.skapad)}</span></div>`, "Inga.")}
     ${sektion("Bevakade områden", k.bevakningar || [], b => `<div style="font-size:12px;">${escapeHtmlBasic(b.namn)} <span style="color:var(--ink-muted);">· ${dag(b.skapad)}</span></div>`, "Inga.")}
     ${sektion("Anmälningar kontot gjort", k.anmalningar || [], n => `<div style="font-size:12px;">${escapeHtmlBasic(n.status)} · ${dag(n.skapad)}${n.meddelande ? " · " + escapeHtmlBasic(n.meddelande) : ""}</div>`, "Inga.")}
-
-    <div style="font-size:11.5px;color:var(--ink-muted);margin-top:18px;line-height:1.55;padding-top:12px;border-top:1px solid var(--hairline);">
-      Bostadsprofil, bilder och roll ligger ännu i användarens egen webbläsare och syns inte för andra — därför finns de inte här. De kommer hit när de flyttar till servern.
-    </div>`;
+`;
 
   const efter = async (text) => {
     if (text) toast(text);
@@ -7717,6 +8094,8 @@ function renderAdmin() {
       ${ruta("Godkända ägare", O.agare, `${O.agare_niva1} med kontrollerat dokument`)}
       ${ruta("Väntande ansökningar", O.vantande, O.vantande ? `<a href="#" onclick="switchAdminTab('claims');return false;" style="color:var(--clay);">Granska</a>` : "", O.vantande > 0)}
       ${ruta("Öppna anmälningar", O.oppna_anmalningar, O.oppna_anmalningar ? `<a href="#" onclick="switchAdminTab('claims');return false;" style="color:var(--clay);">Hantera</a>` : "", O.oppna_anmalningar > 0)}
+      ${ruta("Bostadsprofiler", O.profiler ?? 0, "godkända ägare med text eller bilder")}
+      ${ruta("Anmält innehåll", O.oppna_innehallsanmalningar ?? 0, O.oppna_innehallsanmalningar ? `<a href="#" onclick="switchAdminTab('claims');return false;" style="color:var(--clay);">Granska</a>` : "", O.oppna_innehallsanmalningar > 0)}
     </div>`}`;
 
   const konton = D.konton || null;
@@ -7796,7 +8175,26 @@ function renderAdmin() {
           </div>
         </div>`).join("")}
     </div>` : "";
-  const claimsHtml = anmalningarHtml + `
+  const oppnaInnehall = (D.innehall || []).filter(n => n.status === "oppen");
+  const innehallHtml = oppnaInnehall.length ? `
+    <div class="card" style="margin-bottom:14px;border:1.5px solid var(--clay);">
+      <div class="card-title" style="color:var(--clay);">Anmält innehåll — text och bilder (${oppnaInnehall.length})</div>
+      <div style="font-size:12.5px;color:var(--ink-soft);line-height:1.6;margin-bottom:14px;">
+        Profilen är dold för besökare tills du hanterat anmälan. Avfärda om innehållet är okej; annars tas text och bilder bort (ägarskapet ligger kvar).
+      </div>
+      ${oppnaInnehall.map(n => `
+        <div style="border:1px solid var(--hairline);border-radius:12px;padding:13px 15px;margin-bottom:9px;">
+          <div class="beteckning" style="font-size:13px;color:var(--ink);">${escapeHtmlBasic(n.beteckning || n.fastighet_id)}</div>
+          <div style="font-size:12px;color:var(--ink-muted);margin-top:4px;">Anmäld av ${escapeHtmlBasic(n.anmalare_email || "")} · ägare: <a href="#" onclick="openAdminAnvandare('${escapeHtmlBasic(n.agare_id)}');return false;" style="color:var(--ink-soft);">${escapeHtmlBasic(n.agare_email || "—")}</a> · ${new Date(n.skapad).toLocaleDateString("sv-SE")}</div>
+          ${n.meddelande ? `<div style="font-size:12.5px;color:var(--ink);margin-top:8px;padding:8px 11px;background:var(--surface-2);border-radius:8px;line-height:1.55;">${escapeHtmlBasic(n.meddelande)}</div>` : ""}
+          ${adminBostadHtml({ rubrik: n.rubrik, beskrivning: n.beskrivning, bilder: n.bilder })}
+          <div style="display:flex;gap:7px;margin-top:10px;flex-wrap:wrap;">
+            <button onclick="adminHanteraInnehall('${n.id}','avfardad')" style="padding:7px 12px;border-radius:9px;border:0.5px solid var(--hairline);background:var(--surface);font-size:12.5px;cursor:pointer;font-family:var(--font-body);">Avfärda — innehållet är okej</button>
+            <button onclick="adminHanteraInnehall('${n.id}','atgardad')" style="padding:7px 12px;border-radius:9px;border:none;background:var(--clay);color:#fff;font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--font-body);">Ta bort text och bilder</button>
+          </div>
+        </div>`).join("")}
+    </div>` : "";
+  const claimsHtml = anmalningarHtml + innehallHtml + `
     <div class="card">
       <div class="card-title">Ägaranspråk att granska</div>
       <div style="font-size:12.5px;color:var(--ink-soft);line-height:1.65;margin-bottom:16px;">
@@ -7854,7 +8252,7 @@ function renderAdmin() {
     { id:"moderation",  label:"Meddelanden",    icon:"ti-messages" },
   ];
   if (!tabs.some(t => t.id === adminTab)) adminTab = "overview";
-  const _att = (O?.vantande || 0) + (O?.oppna_anmalningar || 0);
+  const _att = (O?.vantande || 0) + (O?.oppna_anmalningar || 0) + (O?.oppna_innehallsanmalningar || 0);
   const tabContent = { overview:overviewHtml, claims:claimsHtml, users:usersHtml, moderation:moderationHtml };
 
   app.innerHTML = `

@@ -1,54 +1,62 @@
+/* Typsnitt: Hanken Grotesk i allt (riktning A, 28 okt 2026). @import måste
+   stå först i filen. */
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap');
+
 /* =========================================================
    IFOUND — designtokens
-   Riktning: "Häck & lera". Grönt, men medvetet GULDRAGET (oliv/mossa)
-   i stället för Hemnets svala blådragna pine — annan del av färgrymden,
-   inte en ljusare variant av samma sak.
-   Grönt används som YTA, inte som accent på cream. Det är den enskilt
-   största skillnaden mot hur sidan såg ut tidigare.
+   Riktning A, "Ljust och fritt" (vald 27 okt 2026, se designytan
+   "ifound — ny visuell riktning"). Vit och ljusgrå botten, klarröd
+   signal, svart för mörka ytor. Bilderna ska bära färgen.
+
+   Variablerna heter fortfarande --green-* eftersom hundratals ställen i
+   script.js och här använder dem. Namnet är historiskt; värdet är rött.
+   Byt namn först när färgerna satt sig.
    ========================================================= */
 :root {
-  /* Grönskalan */
-  --green-900: #1F2A16;   /* sidhuvud, hero, mörka ytor */
-  --green-800: #2C3B1E;
-  --green-700: #3F5528;   /* hover på primärknapp */
-  --green-600: #526D33;   /* PRIMÄR — knappar, länkar, aktivt läge */
-  --green-300: #A8BC82;   /* dekor på mörk botten */
-  --green-100: #DFE7CE;   /* mjuk tonplatta */
-  --green-50:  #EFF3E6;
+  /* Röd skala (heter green-* av historiska skäl, se ovan) */
+  --green-900: #141414;   /* mörka ytor: hero, mörka kort — svart, inte rött */
+  --green-800: #A30D1F;   /* djupröd: text på rodnad */
+  --green-700: #B80F24;   /* hover på primärknapp */
+  --green-600: #E3132C;   /* PRIMÄR — ifound-röd: knappar, länkar, aktivt läge */
+  --green-300: #FF5A6B;   /* röd som syns på svart botten (siffror, länkar) */
+  --green-100: #FFE8EB;   /* rodnad: mjuk tonplatta */
+  --green-50:  #FFF4F5;
 
-  /* Varm sekundär — sparsamt, för värme och gillamarkeringar */
+  /* Sekundär för intresse och ägare — sparsamt */
   --honey:     #D99A3E;
   --honey-soft:#F7E9CE;
-  --clay:      #B5573C;   /* enbart varningar och fel */
+  --clay:      #C2410C;   /* varningar och fel — orange, så de inte förväxlas med rött */
 
-  /* Neutraler: grönstickiga, INTE cream */
-  --page-bg:   #EDF0E7;
+  /* Neutraler: rena gråtoner, ingen färgstick */
+  --page-bg:   #F6F6F4;
   --surface:   #FFFFFF;
-  --surface-2: #F6F8F1;
-  --ink:       #1F2A16;
-  --ink-soft:  #4F5B44;
-  --ink-muted: #8A9480;
-  --hairline:  rgba(31,42,22,.12);
+  --surface-2: #F3F3F1;
+  --ink:       #141414;
+  --ink-soft:  #4A4A4A;
+  --ink-muted: #6B6B6B;
+  --hairline:  rgba(20,20,20,.10);
 
   /* Alias för äldre kod */
   --accent:       var(--green-600);
   --accent-hover: var(--green-700);
   --accent-soft:  var(--green-100);
   --accent-text:  var(--green-800);
-  --header-bg:    var(--green-900);
-  --header-text:  #FFFFFF;
-  --header-muted: rgba(255,255,255,.62);
-  --header-hover: rgba(255,255,255,.10);
+  /* Sidhuvudet är ljust i riktning A */
+  --header-bg:    #FFFFFF;
+  --header-text:  #141414;
+  --header-muted: rgba(20,20,20,.62);
+  --header-hover: rgba(20,20,20,.06);
   --surface-alt:  var(--surface-2);
 
-  /* Typografi: tre roller i stället för Inter i allt */
-  --font-display: 'Familjen Grotesk', 'Inter', sans-serif;   /* svensk grotesk */
-  --font-body:    'Inter', sans-serif;
-  --font-data:    'DM Mono', ui-monospace, monospace;        /* beteckningar, areal */
+  /* En familj i allt */
+  --font-display: 'Hanken Grotesk', system-ui, sans-serif;
+  --font-body:    'Hanken Grotesk', system-ui, sans-serif;
+  --font-data:    'Hanken Grotesk', system-ui, sans-serif;   /* beteckningar: versal, spärrad (se .beteckning) */
 
-  /* Valvet — signaturformen. Används på portaler och bildkort. */
+  /* Valvet — signaturformen. Ligger kvar tills startsidan görs om. */
   --arch: 999px 999px 14px 14px;
   --gutter: 20px;
+  --radius-pill: 999px;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -59,27 +67,27 @@ html, body, #app { width: 100%; height: 100%; font-family: var(--font-body); col
 .toast { position: fixed; right: 20px; bottom: 20px; background: var(--ink); color: #fff; padding: 13px 18px; border-radius: 10px; font-size: 13px; font-weight: 500; max-width: 340px; box-shadow: 0 20px 60px rgba(17,24,39,.14); z-index: 9999; animation: slideUp .22s ease; }
 @keyframes slideUp { from { transform: translateY(12px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
-.btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--accent); color: #fff; border: none; border-radius: 10px; padding: 10px 18px; font-family: var(--font-body); font-size: 13px; font-weight: 600; cursor: pointer; letter-spacing: -.01em; }
+.btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius-pill); padding: 11px 20px; font-family: var(--font-body); font-size: 14px; font-weight: 700; cursor: pointer; letter-spacing: -.01em; }
 .btn-primary:hover { background: var(--accent-hover); }
-.btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: transparent; color: var(--ink); border: 0.5px solid rgba(17,24,39,.15); border-radius: 10px; padding: 10px 18px; font-family: var(--font-body); font-size: 13px; font-weight: 500; cursor: pointer; letter-spacing: -.01em; }
-.btn-ghost:hover { background: rgba(17,24,39,.04); }
+.btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background: var(--surface-2); color: var(--ink); border: none; border-radius: var(--radius-pill); padding: 11px 20px; font-family: var(--font-body); font-size: 14px; font-weight: 600; cursor: pointer; letter-spacing: -.01em; }
+.btn-ghost:hover { background: #E9E9E6; }
 
 .field-group { display: flex; flex-direction: column; gap: 5px; }
 .label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--ink-soft); }
-.input { width: 100%; background: #fff; border: 0.5px solid rgba(17,24,39,.12); border-radius: 9px; padding: 10px 13px; font-family: var(--font-body); font-size: 13px; color: var(--ink); outline: none; letter-spacing: -.01em; }
+.input { width: 100%; background: #fff; border: 1px solid rgba(20,20,20,.14); border-radius: 12px; padding: 11px 14px; font-family: var(--font-body); font-size: 15px; color: var(--ink); outline: none; letter-spacing: -.01em; }
 .input:focus { border-color: var(--accent); }
 .input::placeholder { color: var(--ink-muted); }
 textarea.input { min-height: 100px; resize: vertical; line-height: 1.6; }
 
 /* WELCOME */
 .welcome-page { min-height: 100vh; display: grid; grid-template-rows: 56px 1fr; }
-.welcome-nav { display: flex; align-items: center; justify-content: space-between; padding: 0 32px; background: var(--header-bg); border-bottom: none; position: sticky; top: 0; z-index: 50; }
+.welcome-nav { display: flex; align-items: center; justify-content: space-between; padding: 0 32px; background: var(--header-bg); border-bottom: 1px solid var(--hairline); position: sticky; top: 0; z-index: 50; }
 .welcome-nav .logo-text { color: var(--header-text); }
-.welcome-nav .logo-text em { color: var(--green-300); }
-.welcome-nav .btn-ghost { color: var(--header-text); border-color: rgba(255,255,255,.26); }
+.welcome-nav .logo-text em { color: inherit; }
+.welcome-nav .btn-ghost { color: var(--header-text); border-color: transparent; }
 .logo { display: flex; align-items: center; gap: 9px; }
 .logo-text { font-family: var(--font-display); font-size: 20px; font-weight: 700; letter-spacing: -.04em; color: var(--ink); }
-.logo-text em { font-style: normal; color: var(--accent); }
+.logo-text em { font-style: normal; color: inherit; }
 .nav-badge { font-size: 11px; font-weight: 600; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 3px 10px; }
 .welcome-body { display: grid; grid-template-columns: 1fr 420px; min-height: 0; }
 .welcome-left { background: var(--ink); padding: 64px 56px; display: flex; flex-direction: column; justify-content: center; background-image: linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px); background-size: 40px 40px; }
@@ -108,13 +116,13 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.6; }
   display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
   padding: 0 24px; background: var(--header-bg);
   border-bottom: none; position: sticky; top: 0; z-index: 50;
-  box-shadow: 0 1px 0 rgba(0,0,0,.12), 0 4px 18px rgba(17,24,39,.10);
+  box-shadow: 0 1px 0 var(--hairline);
 }
 .nav-left { display: flex; align-items: center; gap: 14px; justify-self: start; min-width: 0; }
 .nav-right { display: flex; align-items: center; gap: 8px; justify-self: end; }
 .nav-greeting {
   font-size: 13px; color: var(--header-muted); padding-left: 14px;
-  border-left: 0.5px solid rgba(255,255,255,.18); letter-spacing: -.01em;
+  border-left: 1px solid var(--hairline); letter-spacing: -.01em;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .nav-center { display: flex; gap: 3px; justify-self: center; }
@@ -126,18 +134,17 @@ textarea.input { min-height: 100px; resize: vertical; line-height: 1.6; }
   transition: background .14s ease, color .14s ease;
 }
 .nav-tab:hover { background: var(--header-hover); color: var(--header-text); }
-.nav-tab.active { background: rgba(255,255,255,.13); color: var(--header-text); font-weight: 600; }
+.nav-tab.active { background: var(--green-100); color: var(--green-800); font-weight: 700; }
 
 /* Logotyp och knappar måste vända sig mot mörk bakgrund */
 .dashboard-nav .logo { cursor: pointer; }
 .dashboard-nav .logo-text { color: var(--header-text); }
-.dashboard-nav .logo-text em { color: var(--green-300); }
-.dashboard-nav .btn-ghost { color: var(--header-text); border-color: rgba(255,255,255,.26); }
-.dashboard-nav .btn-ghost:hover { background: rgba(255,255,255,.10); }
-.dashboard-nav .nav-badge { color: var(--green-300); background: rgba(255,255,255,.10); }
-/* Logotypsymbolen är röd i markup — ljusa upp den mot mörk bakgrund */
-.dashboard-nav .logo svg [fill="#CC2936"],
-.welcome-nav .logo svg [fill="#CC2936"] { fill: var(--green-300); }
+.dashboard-nav .logo-text em { color: inherit; }
+.dashboard-nav .btn-ghost { color: var(--header-text); border-color: transparent; }
+.dashboard-nav .btn-ghost:hover { background: var(--header-hover); }
+.dashboard-nav .nav-badge { color: var(--green-800); background: var(--green-100); }
+/* Logotypsymbolen är röd i markup och står nu på ljus botten — ingen
+   omfärgning behövs längre. */
 .dashboard-body { max-width: 1040px; margin: 0 auto; padding: 28px 20px 80px; }
 .page-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
 .page-title { font-size: 32px; font-weight: 700; letter-spacing: -.05em; color: var(--ink); margin-top: 6px; line-height: 1.05; }
@@ -961,8 +968,8 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
 .hero-chips > :last-child { margin-right: 40px; }
 .chip-solid {
   display: inline-flex; align-items: center; gap: 6px;
-  background: var(--green-300); color: var(--green-900);
-  border-color: transparent; font-weight: 600;
+  background: #FFFFFF; color: var(--green-900);
+  border-color: transparent; font-weight: 700;
 }
 
 /* Sidopanelen: på mobil ligger den under sökrutan som en enkel lista */
@@ -1006,10 +1013,10 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
 .arch {
   background: var(--surface); border-radius: var(--arch);
   overflow: hidden; cursor: pointer;
-  box-shadow: 0 6px 24px rgba(31,42,22,.10);
+  box-shadow: 0 6px 24px rgba(20,20,20,.10);
   transition: transform .18s ease, box-shadow .18s ease;
 }
-.arch:hover { transform: translateY(-4px); box-shadow: 0 14px 36px rgba(31,42,22,.16); }
+.arch:hover { transform: translateY(-4px); box-shadow: 0 14px 36px rgba(20,20,20,.16); }
 .arch-top {
   height: 74px; background: var(--green-100);
   display: flex; align-items: flex-end; justify-content: center; padding-bottom: 13px;
@@ -1108,8 +1115,8 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
 .bn-icon-el   { background: var(--honey-soft); color: #A8752A; }
 .bn-icon-va   { background: #DCEAF0; color: #2E6379; }
 .bn-icon-mark { background: var(--green-100); color: var(--green-700); }
-.bn-step-hl .bn-step-num { background: var(--green-600); border-color: var(--green-600); box-shadow: 0 4px 14px rgba(82,109,51,.30); }
-.bn-step-hl .bn-step-body { border-color: rgba(82,109,51,.28); background: var(--green-50); }
+.bn-step-hl .bn-step-num { background: var(--green-600); border-color: var(--green-600); box-shadow: 0 4px 14px rgba(227,19,44,.30); }
+.bn-step-hl .bn-step-body { border-color: rgba(227,19,44,.28); background: var(--green-50); }
 .bn-step-hl .bn-step-time { background: var(--green-100); color: var(--green-800); }
 .bn-tips li i { color: var(--green-600); }
 .bn-pitfall { background: var(--honey-soft); border-color: rgba(217,154,62,.30); }
@@ -1118,7 +1125,7 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
 /* Vykortet */
 .postcard-preview { background: var(--surface-2); }
 .postcard-preview::before { background: repeating-linear-gradient(180deg, var(--green-600) 0 9px, var(--honey) 9px 18px); }
-.postcard-stamp { background: var(--green-100); border-color: rgba(82,109,51,.40); color: var(--green-700); }
+.postcard-stamp { background: var(--green-100); border-color: rgba(227,19,44,.40); color: var(--green-700); }
 .postcard-eyebrow { font-family: var(--font-data); color: var(--green-700); }
 .postcard-headline { font-family: var(--font-display); }
 .postcard-footer { color: var(--green-600); }
@@ -1157,7 +1164,7 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
   border-color: rgba(255,255,255,.36);
 }
 .type-pills-hero .type-pill.active {
-  background: var(--green-300);
+  background: #FFFFFF;
   color: var(--green-900);
   border-color: transparent;
   font-weight: 600;
@@ -1377,7 +1384,7 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
    Är det angivet är det ofta det första besökaren vill veta. */
 .wish-banner {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  background: var(--green-100); border: 1px solid rgba(82,109,51,.28);
+  background: var(--green-100); border: 1px solid rgba(227,19,44,.28);
   border-radius: 12px; padding: 12px 15px; margin-top: 12px;
 }
 .wish-banner i { font-size: 19px; color: var(--green-700); flex-shrink: 0; }
@@ -1405,7 +1412,7 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
    ========================================================= */
 .wf-overlay {
   position: fixed; inset: 0; z-index: 9500;
-  background: rgba(31,42,22,.55); backdrop-filter: blur(3px);
+  background: rgba(20,20,20,.55); backdrop-filter: blur(3px);
   display: flex; align-items: center; justify-content: center; padding: 20px;
 }
 .wf-card {
@@ -1457,7 +1464,7 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
 .setup-card {
   background: var(--surface); border: 1px solid var(--hairline);
   border-radius: 18px; padding: 20px; margin: 20px 0 8px;
-  box-shadow: 0 4px 18px rgba(31,42,22,.05);
+  box-shadow: 0 4px 18px rgba(20,20,20,.05);
 }
 .setup-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .setup-title { font-family: var(--font-display); font-size: 17px; font-weight: 700; color: var(--ink); }
@@ -1588,7 +1595,7 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
   border-radius: 14px; padding: 12px; cursor: pointer; text-align: left;
   font-family: var(--font-body); transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease;
 }
-.saved-card:hover { border-color: var(--green-600); transform: translateY(-2px); box-shadow: 0 8px 22px rgba(31,42,22,.08); }
+.saved-card:hover { border-color: var(--green-600); transform: translateY(-2px); box-shadow: 0 8px 22px rgba(20,20,20,.08); }
 .saved-thumb {
   width: 74px; height: 74px; border-radius: 11px; flex-shrink: 0; overflow: hidden;
   position: relative; background: var(--green-100);
@@ -1613,9 +1620,9 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
   gap: 6px;
   margin: 10px 0 2px;
   padding: 6px 12px 6px 9px;
-  background: var(--green-50, #F1F5EC);
+  background: var(--green-50, #FFF4F5);
   color: var(--green-600);
-  border: 0.5px solid rgba(82,109,51,.22);
+  border: 0.5px solid rgba(227,19,44,.22);
   border-radius: 999px;
   font-family: var(--font-body);
   font-size: 12px;
@@ -1623,7 +1630,7 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
   letter-spacing: -.01em;
   cursor: pointer;
 }
-.panel-back:hover { background: var(--green-100, #E4EBDA); border-color: var(--green-600); }
+.panel-back:hover { background: var(--green-100, #FFE8EB); border-color: var(--green-600); }
 .panel-back i { font-size: 14px; }
 
 .saved-meta-row { display: flex; align-items: baseline; gap: 8px; margin: 3px 0 2px; flex-wrap: wrap; }
@@ -1660,7 +1667,7 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
    ========================= */
 .rental-hint { font-size: 12px; color: var(--ink-soft); margin: 12px 0 6px; }
 .rental-summary { font-size: 12.5px; color: var(--ink-soft); margin-top: 10px; }
-.rental-note { font-size: 12.5px; color: var(--ink); background: var(--green-50, #F1F5EC); border-radius: 9px; padding: 9px 12px; margin-top: 8px; line-height: 1.5; }
+.rental-note { font-size: 12.5px; color: var(--ink); background: var(--green-50, #FFF4F5); border-radius: 9px; padding: 9px 12px; margin-top: 8px; line-height: 1.5; }
 
 /* Kalendern. Måndagsstart. Dagsiffror i mono eftersom de är data, inte text. */
 .cal-wrap { margin-top: 8px; }
@@ -1683,7 +1690,7 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
 }
 .cal-blank { border: none; }
 .cal-editable { cursor: pointer; border-color: rgba(17,24,39,.10); }
-.cal-editable:hover { border-color: var(--green-600); background: var(--green-50, #F1F5EC); }
+.cal-editable:hover { border-color: var(--green-600); background: var(--green-50, #FFF4F5); }
 /* Ledig dag i honungsfärgen — samma accent som ägarsidan använder i övrigt. */
 .cal-avail { background: var(--honey, #D99A3E); color: #fff; border-color: var(--honey, #D99A3E); font-weight: 600; }
 .cal-avail.cal-editable:hover { background: #C4862F; border-color: #C4862F; }
@@ -1700,7 +1707,7 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
 .rental-reqs-title { font-size: 12px; font-weight: 600; color: var(--ink); margin-bottom: 8px; display: flex; align-items: center; gap: 7px; }
 .rental-badge { background: var(--honey, #D99A3E); color: #fff; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 999px; }
 .rental-req { padding: 9px 11px; border-radius: 9px; background: var(--page-bg); margin-bottom: 6px; }
-.rental-req.is-new { background: var(--green-50, #F1F5EC); }
+.rental-req.is-new { background: var(--green-50, #FFF4F5); }
 .rental-req-dates { font-family: var(--font-data); font-size: 12px; font-weight: 600; color: var(--ink); }
 .rental-req-msg { font-size: 12.5px; color: var(--ink-soft); margin-top: 3px; line-height: 1.5; }
 .rental-req-meta { font-size: 11px; color: var(--ink-muted, #9AA29A); margin-top: 4px; }

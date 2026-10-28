@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-10-27a";
+const IFOUND_VERSION = "2026-10-28a";
 
 // Mäklardemon (lokala demokonton, påhittade objekt och meddelanden) är dold
 // inför testpersonerna. Koden ligger kvar; true visar den igen.
@@ -602,7 +602,7 @@ function bostadBlockHtml(pid, name, bo, isOwner) {
   const bilder = bo.bilder || [];
   const esc = s => escapeHtmlBasic(String(s || ""));
   return `
-    <div class="bostad-block" style="margin:10px 0 4px;padding:12px 14px;background:#fff;border:0.5px solid rgba(82,109,51,.25);border-radius:11px;">
+    <div class="bostad-block" style="margin:10px 0 4px;padding:12px 14px;background:#fff;border:1px solid var(--hairline);border-radius:16px;">
       <div style="font-size:10.5px;font-weight:600;color:var(--ink-muted);margin-bottom:6px;">Ägaren berättar</div>
       ${bo.rubrik ? `<div style="font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--ink);line-height:1.3;margin-bottom:6px;">${esc(bo.rubrik)}</div>` : ""}
       ${bo.beskrivning ? `<div style="font-size:12.5px;color:var(--ink-soft);line-height:1.6;white-space:pre-wrap;">${esc(bo.beskrivning)}</div>` : ""}
@@ -1155,8 +1155,8 @@ function ensureMapMounted() {
 // och fokusmarkeringen försvann så fort musen passerade fastigheten.
 // =========================
 const PARCEL_STYLE_BASE        = { color: "rgba(255,255,255,0.75)", weight: 1, fillOpacity: 0.001, fillColor: "#ffffff" };
-const PARCEL_STYLE_HOVER       = { color: "#CC2936", weight: 2, fillOpacity: 0.06,  fillColor: "#ffffff" };
-const PARCEL_STYLE_CLICK       = { color: "#CC2936", weight: 2, fillOpacity: 0.001, fillColor: "#ffffff" };
+const PARCEL_STYLE_HOVER       = { color: "#E3132C", weight: 2, fillOpacity: 0.06,  fillColor: "#ffffff" };
+const PARCEL_STYLE_CLICK       = { color: "#E3132C", weight: 2, fillOpacity: 0.001, fillColor: "#ffffff" };
 const PARCEL_STYLE_FOCUS       = { color: "#D99A3E", weight: 3, fillOpacity: 0.10,  fillColor: "#D99A3E" };
 const PARCEL_STYLE_FOCUS_HOVER = { color: "#D99A3E", weight: 4, fillOpacity: 0.18,  fillColor: "#D99A3E" };
 
@@ -2291,9 +2291,9 @@ function startDrawSubdivision(feature) {
         allowIntersection: false,
         showArea: false, // leaflet-draw 1.0.4: showArea:true kraschar rektangelritning (readableArea)
         shapeOptions: {
-          color: '#CC2936',
+          color: '#E3132C',
           weight: 2,
-          fillColor: '#CC2936',
+          fillColor: '#E3132C',
           fillOpacity: 0.15,
         },
         guideLayers: [],
@@ -2301,9 +2301,9 @@ function startDrawSubdivision(feature) {
       },
       rectangle: {
         shapeOptions: {
-          color: '#CC2936',
+          color: '#E3132C',
           weight: 2,
-          fillColor: '#CC2936',
+          fillColor: '#E3132C',
           fillOpacity: 0.15,
         },
       },
@@ -2698,7 +2698,7 @@ function openTypePicker(pid, name) {
 
   const overlay = document.createElement("div");
   overlay.id = "type-picker-overlay";
-  overlay.style.cssText = "position:fixed;inset:0;background:rgba(31,42,22,.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;";
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(20,20,20,.5);z-index:9000;display:flex;align-items:center;justify-content:center;padding:20px;";
   overlay.innerHTML = `
     <div style="background:#fff;border-radius:18px;padding:24px;width:100%;max-width:380px;font-family:var(--font-body);box-shadow:0 24px 64px rgba(0,0,0,.2);">
       <div style="font-family:var(--font-display);font-size:18px;font-weight:700;color:var(--ink);margin-bottom:5px;">Vad är det här för fastighet?</div>
@@ -3498,7 +3498,7 @@ function _renderParcelPanelInner(feature) {
   const isClaimed = !!claimedProp || isOwner;
   const hasActivity = likes > 0 || interests > 0;
   const teaserHtml = (!isClaimed && hasActivity) ? `
-    <div style="margin-bottom:12px;padding:12px 14px;background:var(--accent-soft);border:0.5px solid rgba(204,41,54,.25);border-radius:11px;">
+    <div style="margin-bottom:12px;padding:12px 14px;background:var(--accent-soft);border:0.5px solid rgba(227,19,44,.25);border-radius:11px;">
       <div style="font-size:13px;font-weight:600;color:var(--accent);line-height:1.5;">
         <i class="ti ti-flame" style="font-size:14px;" aria-hidden="true"></i>
         ${isMulti
@@ -3573,7 +3573,7 @@ function _renderParcelPanelInner(feature) {
     <div class="panel-mode">${isBrf ? "Gilla och intresse gäller hela föreningen." : isRental ? `Hyresfastighet${ownerName ? " — " + ownerName : ""}. Intresse gäller hela huset.` : isMulti ? "Flerbostadshus — intresse gäller hela huset." : "Gilla eller markera intresse för fastigheten."}</div>
     ${renderRentalVisitorBlock(pid, name, { isOwner })}
     ${ag && !isOwner ? `
-    <div style="margin:10px 0 4px;padding:12px 14px;background:var(--green-50);border:0.5px solid rgba(82,109,51,.25);border-radius:11px;">
+    <div style="margin:10px 0 4px;padding:12px 14px;background:var(--surface-2);border:none;border-radius:16px;">
       <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
         <div style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--green-800);">
           <i class="ti ti-home-check" style="font-size:16px;"></i> Ägaren finns på ifound
@@ -3786,7 +3786,7 @@ function openAuthModal(tab = 'login') {
     <div class="auth-card" style="background:#fff;border-radius:20px;padding:28px;width:100%;max-width:400px;box-shadow:0 24px 64px rgba(0,0,0,.2);font-family:var(--font-body);">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
         <div style="display:flex;align-items:center;gap:8px;">
-          <svg width="16" height="20" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
+          <svg width="16" height="20" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#E3132C"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#E3132C"/></svg>
           <span style="font-size:17px;font-weight:700;letter-spacing:-.04em;color:var(--ink);">i<em style="font-style:normal;color:var(--accent);">found</em></span>
         </div>
         <button onclick="closeAuthModal()" style="width:30px;height:30px;border-radius:50%;border:none;background:var(--surface-2);cursor:pointer;font-size:16px;color:var(--ink-soft);display:flex;align-items:center;justify-content:center;">✕</button>
@@ -4077,9 +4077,9 @@ async function showAreaSearch(query) {
     if (place.geojson) {
       L.geoJSON(place.geojson, {
         style: {
-          color: '#CC2936',
+          color: '#E3132C',
           weight: 2.5,
-          fillColor: '#CC2936',
+          fillColor: '#E3132C',
           fillOpacity: 0.08,
           dashArray: '6,4',
         }
@@ -4087,9 +4087,9 @@ async function showAreaSearch(query) {
     } else {
       // Fallback: draw bbox rectangle
       L.rectangle(bounds, {
-        color: '#CC2936',
+        color: '#E3132C',
         weight: 2,
-        fillColor: '#CC2936',
+        fillColor: '#E3132C',
         fillOpacity: 0.06,
         dashArray: '6,4',
       }).addTo(areaMap);
@@ -4127,7 +4127,7 @@ async function showAreaSearch(query) {
                 currentView = 'map';
                 render();
               });
-              layer.on('mouseover', () => layer.setStyle({ color:'#CC2936', weight:2, fillOpacity:0.08 }));
+              layer.on('mouseover', () => layer.setStyle({ color:'#E3132C', weight:2, fillOpacity:0.08 }));
               layer.on('mouseout', () => layer.setStyle({ color:'rgba(255,255,255,0.7)', weight:1, fillOpacity:0.01 }));
             }
           }).addTo(areaMap);
@@ -4164,7 +4164,7 @@ async function showAreaSearch(query) {
                 <i class="ti ti-chevron-right" style="font-size:14px;color:#DDD;" aria-hidden="true"></i>
               </div>
             `).join('')}
-            <button onclick="closeAreaSearch();currentView='feed';render();" style="width:100%;padding:10px;border-radius:10px;border:1.5px solid #CC2936;background:transparent;color:var(--accent);font-size:13px;font-weight:600;font-family:var(--font-body);cursor:pointer;margin-top:4px;">
+            <button onclick="closeAreaSearch();currentView='feed';render();" style="width:100%;padding:10px;border-radius:10px;border:1.5px solid #E3132C;background:transparent;color:var(--accent);font-size:13px;font-weight:600;font-family:var(--font-body);cursor:pointer;margin-top:4px;">
               Se alla fastigheter i ${name}
             </button>
           `;
@@ -4179,7 +4179,7 @@ async function showAreaSearch(query) {
       if (resultsEl) {
         resultsEl.innerHTML = `
           <div style="font-size:12px;color:#999;margin-bottom:12px;">Öppna kartan för att se alla tomter</div>
-          <button onclick="closeAreaSearch();currentView='map';render();" style="width:100%;padding:10px;border-radius:10px;border:1.5px solid #CC2936;background:transparent;color:var(--accent);font-size:13px;font-weight:600;font-family:var(--font-body);cursor:pointer;">
+          <button onclick="closeAreaSearch();currentView='map';render();" style="width:100%;padding:10px;border-radius:10px;border:1.5px solid #E3132C;background:transparent;color:var(--accent);font-size:13px;font-weight:600;font-family:var(--font-body);cursor:pointer;">
             Visa ${name} på kartan
           </button>
         `;
@@ -4206,7 +4206,7 @@ function landingLike(btn) {
     return;
   }
   const isLiked = btn.style.color === 'rgb(194, 98, 42)';
-  btn.style.color = isLiked ? '#9CA3AF' : '#CC2936';
+  btn.style.color = isLiked ? '#9CA3AF' : '#E3132C';
   btn.textContent = isLiked ? '♡' : '♥';
   toast(isLiked ? 'Gillning borttagen' : 'Gillad!');
 }
@@ -4301,7 +4301,7 @@ function renderWelcome() {
       <nav class="dashboard-nav">
         <div class="nav-left">
           <div class="logo" style="cursor:default;">
-            <svg width="17" height="21" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
+            <svg width="17" height="21" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#E3132C"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#E3132C"/></svg>
             <span class="logo-text">i<em>found</em></span>
           </div>
           ${isLoggedIn ? `<div class="nav-greeting">Hej, ${user?.name || ""}!</div>` : ''}
@@ -4516,7 +4516,7 @@ function renderWelcome() {
             <div onclick="currentView='feed';render();" style="break-inside:avoid;margin-bottom:10px;border-radius:12px;overflow:hidden;cursor:pointer;background:#fff;border:0.5px solid rgba(17,24,39,.07);position:relative;">
               <div style="position:relative;">
                 <img src="${p.img}" style="width:100%;height:${p.h}px;object-fit:cover;display:block;" alt="${p.name}" loading="lazy" />
-                ${p.badge ? `<div style="position:absolute;top:8px;left:8px;font-size:10px;font-weight:600;padding:3px 8px;border-radius:999px;background:rgba(204,41,54,.88);color:#fff;">${p.badgeTxt}</div>` : ''}
+                ${p.badge ? `<div style="position:absolute;top:8px;left:8px;font-size:10px;font-weight:600;padding:3px 8px;border-radius:999px;background:rgba(227,19,44,.88);color:#fff;">${p.badgeTxt}</div>` : ''}
                 <button onclick="event.stopPropagation();landingLike(this)" style="position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.92);border:none;cursor:pointer;font-size:14px;color:var(--ink-muted);">♡</button>
               </div>
               <div style="padding:9px 11px 11px;">
@@ -4747,7 +4747,7 @@ function renderBuildNew() {
       <nav class="dashboard-nav">
         <div class="nav-left">
           <div class="logo" onclick="navigate('welcome')" style="cursor:pointer;">
-            <svg width="17" height="21" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
+            <svg width="17" height="21" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#E3132C"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#E3132C"/></svg>
             <span class="logo-text">i<em>found</em></span>
           </div>
           ${isLoggedIn ? `<div class="nav-greeting">Hej, ${user?.name || ""}!</div>` : ''}
@@ -4931,7 +4931,7 @@ function renderSaved() {
       <nav class="dashboard-nav">
         <div class="nav-left">
           <div class="logo" onclick="navigate('welcome')" style="cursor:pointer;">
-            <svg width="17" height="21" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
+            <svg width="17" height="21" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#E3132C"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#E3132C"/></svg>
             <span class="logo-text">i<em>found</em></span>
           </div>
         </div>
@@ -5057,7 +5057,7 @@ function renderFeed() {
       <nav class="dashboard-nav">
         <div class="nav-left">
           <div class="logo" onclick="navigate('welcome')" style="cursor:pointer;">
-            <svg width="18" height="23" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
+            <svg width="18" height="23" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#E3132C"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#E3132C"/></svg>
             <span class="logo-text">i<em>found</em></span>
           </div>
         </div>
@@ -5086,7 +5086,7 @@ function renderFeed() {
             {icon:"ti-home-check", label:"Claima",   desc:"Är det ditt hus? Gå med!"},
           ].map((s,i) => `
             <div style="display:flex;align-items:center;gap:8px;padding:0 14px;border-right:${i<3?'0.5px solid rgba(255,255,255,.08)':'none'};flex-shrink:0;">
-              <div style="width:28px;height:28px;border-radius:7px;background:rgba(204,41,54,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <div style="width:28px;height:28px;border-radius:7px;background:rgba(227,19,44,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                 <i class="ti ${s.icon}" style="font-size:14px;color:var(--accent);"></i>
               </div>
               <div>
@@ -5281,7 +5281,7 @@ function renderPropertyView() {
         <button id="propLikeBtn" onclick="propToggleLike(${prop.id})" style="flex:1;padding:13px;border-radius:12px;font-size:14px;font-weight:600;font-family:var(--font-body);cursor:pointer;border:1.5px solid ${iLiked?'#2563eb':'rgba(17,24,39,.12)'};background:${iLiked?'#EFF6FF':'#fff'};color:${iLiked?'#2563eb':'#111827'};display:flex;align-items:center;justify-content:center;gap:8px;">
           <i class="ti ti-thumb-up"></i> ${iLiked ? 'Gillad' : 'Gilla'}
         </button>
-        <button id="propInterestBtn" onclick="propToggleInterest(${prop.id})" style="flex:1;padding:13px;border-radius:12px;font-size:14px;font-weight:600;font-family:var(--font-body);cursor:pointer;border:1.5px solid ${iInterested?'#CC2936':'rgba(17,24,39,.12)'};background:${iInterested?'#FDECEA':'#fff'};color:${iInterested?'#CC2936':'#111827'};display:flex;align-items:center;justify-content:center;gap:8px;">
+        <button id="propInterestBtn" onclick="propToggleInterest(${prop.id})" style="flex:1;padding:13px;border-radius:12px;font-size:14px;font-weight:600;font-family:var(--font-body);cursor:pointer;border:1.5px solid ${iInterested?'#E3132C':'rgba(17,24,39,.12)'};background:${iInterested?'#FDECEA':'#fff'};color:${iInterested?'#E3132C':'#111827'};display:flex;align-items:center;justify-content:center;gap:8px;">
           <i class="ti ti-star"></i> ${iInterested ? 'Intresserad' : 'Visa intresse'}
         </button>
       </div>
@@ -5406,14 +5406,14 @@ function renderDashboard() {
   const forslagText   = bostadKlar && !homeProfile.title && !homeProfile.description ? lokal.description : "";
   const lokalaBilder  = bostadKlar && !images.length ? lokal.images.slice(0, BOSTAD_MAX_BILDER) : [];
 
-  const houseSvg = `<svg style="position:absolute;inset:0;width:100%;height:100%;" viewBox="0 0 960 280" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg"><rect width="960" height="280" fill="#1a2533"/><rect y="180" width="960" height="100" fill="#2a1a08"/><circle cx="840" cy="50" r="24" fill="#f5e6c8" opacity=".16"/><circle cx="840" cy="50" r="17" fill="#f5e6c8" opacity=".20"/><circle cx="75" cy="35" r="1.1" fill="white" opacity=".55"/><circle cx="200" cy="20" r="1" fill="white" opacity=".5"/><circle cx="360" cy="48" r="1.2" fill="white" opacity=".6"/><circle cx="520" cy="16" r="1" fill="white" opacity=".4"/><circle cx="650" cy="40" r="1.1" fill="white" opacity=".55"/><circle cx="770" cy="26" r="1" fill="white" opacity=".45"/><polygon points="18,182 48,105 78,182" fill="#0d1a0d"/><polygon points="42,182 74,112 106,182" fill="#101f10"/><polygon points="855,182 885,103 915,182" fill="#0d1a0d"/><polygon points="880,182 912,110 944,182" fill="#101f10"/><rect x="345" y="128" width="270" height="148" rx="2" fill="#2C1A0E"/><polygon points="320,133 480,55 640,133" fill="#1a0f06"/><rect x="560" y="64" width="24" height="44" rx="2" fill="#1a0f06"/><rect x="370" y="150" width="50" height="40" rx="3" fill="#3a2510"/><rect x="371" y="151" width="48" height="38" rx="2" fill="#CC2936" opacity=".22"/><line x1="395" y1="151" x2="395" y2="189" stroke="#2a1508" stroke-width="1.5"/><line x1="371" y1="170" x2="419" y2="170" stroke="#2a1508" stroke-width="1.5"/><rect x="437" y="150" width="50" height="40" rx="3" fill="#3a2510"/><rect x="438" y="151" width="48" height="38" rx="2" fill="#e8a060" opacity=".26"/><line x1="462" y1="151" x2="462" y2="189" stroke="#2a1508" stroke-width="1.5"/><line x1="438" y1="170" x2="486" y2="170" stroke="#2a1508" stroke-width="1.5"/><rect x="504" y="150" width="50" height="40" rx="3" fill="#3a2510"/><rect x="505" y="151" width="48" height="38" rx="2" fill="#CC2936" opacity=".16"/><line x1="529" y1="151" x2="529" y2="189" stroke="#2a1508" stroke-width="1.5"/><line x1="505" y1="170" x2="553" y2="170" stroke="#2a1508" stroke-width="1.5"/><rect x="430" y="190" width="40" height="86" rx="2" fill="#1a0f06"/><rect x="431" y="191" width="38" height="84" rx="1.5" fill="#CC2936" opacity=".13"/></svg>`;
+  const houseSvg = `<svg style="position:absolute;inset:0;width:100%;height:100%;" viewBox="0 0 960 280" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg"><rect width="960" height="280" fill="#1a2533"/><rect y="180" width="960" height="100" fill="#2a1a08"/><circle cx="840" cy="50" r="24" fill="#f5e6c8" opacity=".16"/><circle cx="840" cy="50" r="17" fill="#f5e6c8" opacity=".20"/><circle cx="75" cy="35" r="1.1" fill="white" opacity=".55"/><circle cx="200" cy="20" r="1" fill="white" opacity=".5"/><circle cx="360" cy="48" r="1.2" fill="white" opacity=".6"/><circle cx="520" cy="16" r="1" fill="white" opacity=".4"/><circle cx="650" cy="40" r="1.1" fill="white" opacity=".55"/><circle cx="770" cy="26" r="1" fill="white" opacity=".45"/><polygon points="18,182 48,105 78,182" fill="#0d1a0d"/><polygon points="42,182 74,112 106,182" fill="#101f10"/><polygon points="855,182 885,103 915,182" fill="#0d1a0d"/><polygon points="880,182 912,110 944,182" fill="#101f10"/><rect x="345" y="128" width="270" height="148" rx="2" fill="#2C1A0E"/><polygon points="320,133 480,55 640,133" fill="#1a0f06"/><rect x="560" y="64" width="24" height="44" rx="2" fill="#1a0f06"/><rect x="370" y="150" width="50" height="40" rx="3" fill="#3a2510"/><rect x="371" y="151" width="48" height="38" rx="2" fill="#E3132C" opacity=".22"/><line x1="395" y1="151" x2="395" y2="189" stroke="#2a1508" stroke-width="1.5"/><line x1="371" y1="170" x2="419" y2="170" stroke="#2a1508" stroke-width="1.5"/><rect x="437" y="150" width="50" height="40" rx="3" fill="#3a2510"/><rect x="438" y="151" width="48" height="38" rx="2" fill="#e8a060" opacity=".26"/><line x1="462" y1="151" x2="462" y2="189" stroke="#2a1508" stroke-width="1.5"/><line x1="438" y1="170" x2="486" y2="170" stroke="#2a1508" stroke-width="1.5"/><rect x="504" y="150" width="50" height="40" rx="3" fill="#3a2510"/><rect x="505" y="151" width="48" height="38" rx="2" fill="#E3132C" opacity=".16"/><line x1="529" y1="151" x2="529" y2="189" stroke="#2a1508" stroke-width="1.5"/><line x1="505" y1="170" x2="553" y2="170" stroke="#2a1508" stroke-width="1.5"/><rect x="430" y="190" width="40" height="86" rx="2" fill="#1a0f06"/><rect x="431" y="191" width="38" height="84" rx="1.5" fill="#E3132C" opacity=".13"/></svg>`;
 
   app.innerHTML = `
     <div class="dashboard-page">
       <nav class="dashboard-nav">
         <div class="nav-left">
           <div class="logo" onclick="navigate('welcome')" style="cursor:pointer;">
-            <svg width="18" height="23" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
+            <svg width="18" height="23" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#E3132C"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#E3132C"/></svg>
             <span class="logo-text">i<em>found</em></span>
           </div>
           <div class="nav-greeting">Hej, ${user?.name || ""}!</div>
@@ -5955,7 +5955,7 @@ function renderMapView() {
       <nav class="dashboard-nav">
         <div class="nav-left">
           <div class="logo" onclick="navigate('welcome')" style="cursor:pointer;">
-            <svg width="18" height="23" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
+            <svg width="18" height="23" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#E3132C"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#E3132C"/></svg>
             <span class="logo-text">i<em>found</em></span>
           </div>
           ${isLoggedIn ? `<div class="nav-greeting">Hej, ${getCurrentUser()?.name || ""}!</div>` : ''}
@@ -6069,7 +6069,7 @@ function renderMapView() {
         map.setView([lat, lng], 16);
         if (locateMarker) { try { locateMarker.remove(); } catch {} }
         locateMarker = L.circleMarker([lat, lng], {
-          radius: 10, weight: 3, color: "#CC2936", fillColor: "#CC2936", fillOpacity: 0.9
+          radius: 10, weight: 3, color: "#E3132C", fillColor: "#E3132C", fillOpacity: 0.9
         }).addTo(map);
         toast("Visar fastigheter nära dig.");
         btn.innerHTML = '<i class="ti ti-current-location" aria-hidden="true"></i> Nära mig';
@@ -6135,10 +6135,10 @@ function createMarkerIcon(status) {
     </svg>`,
 
     sale: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 64 78">
-      <path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/>
+      <path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#E3132C"/>
       <polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/>
       <rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/>
-      <rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/>
+      <rect x="27" y="37" width="10" height="12" rx="1" fill="#E3132C"/>
     </svg>`,
 
     rent: `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="38" viewBox="0 0 30 38">
@@ -6149,10 +6149,10 @@ function createMarkerIcon(status) {
     </svg>`,
 
     broker_sale: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 64 78">
-      <path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/>
+      <path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#E3132C"/>
       <polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/>
       <rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/>
-      <rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/>
+      <rect x="27" y="37" width="10" height="12" rx="1" fill="#E3132C"/>
     </svg>`,
   };
 
@@ -6229,7 +6229,7 @@ function addClaimedMarkers() {
     const marker = L.marker([prop.lat, prop.lon], { icon, zIndexOffset: 1000 });
 
     const statusLabel = { passive: 'Passiv', sale: 'Till salu', rent: 'Uthyrning' }[prop.status] || 'Passiv';
-    const statusColor = { passive: '#6B7280', sale: '#CC2936', rent: '#2563eb' }[prop.status] || '#6B7280';
+    const statusColor = { passive: '#6B7280', sale: '#E3132C', rent: '#2563eb' }[prop.status] || '#6B7280';
 
     // Find matching PROP_DATA entry for image
     // Inga demobilder: en riktig fastighet får aldrig visas med någon annans hus.
@@ -6243,7 +6243,7 @@ function addClaimedMarkers() {
           </div>
         ` : `
           <div style="margin:-1px -1px 0;height:80px;background:linear-gradient(135deg,#1a2533,#2a1a08);border-radius:12px 12px 0 0;display:flex;align-items:center;justify-content:center;">
-            <svg width="32" height="40" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936" opacity=".6"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".8"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".8"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936" opacity=".6"/></svg>
+            <svg width="32" height="40" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#E3132C" opacity=".6"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".8"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".8"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#E3132C" opacity=".6"/></svg>
           </div>
         `}
         <div style="padding:12px 14px 14px;">
@@ -6725,7 +6725,7 @@ function drawWatchedAreas() {
       // Skarp kontur: heldragen linje, full täckning, raka hörn. Den mörka
       // kanten är smal och tät så att den ramar in i stället för att skugga.
       L.geoJSON(geo, { pane: "bevakningPane", interactive: false,
-        style: { color: "#1F2A16", weight: 9, opacity: 1, lineJoin: "miter", fill: false } }).addTo(_bevakningLager);
+        style: { color: "#141414", weight: 9, opacity: 1, lineJoin: "miter", fill: false } }).addTo(_bevakningLager);
       // Fyllningen är ett mönster av sneda streck (se bevakningMonster).
       L.geoJSON(geo, { pane: "bevakningPane", interactive: false,
         style: { color: "#D99A3E", weight: 5, opacity: 1, lineJoin: "miter",
@@ -7402,11 +7402,11 @@ function mapSelectLocation(name, lat, lon, bbox, geojson) {
     if (window._areaHighlight) { window._areaHighlight.remove(); window._areaHighlight = null; }
     if (geojson) {
       window._areaHighlight = L.geoJSON(geojson, {
-        style: { color: '#CC2936', weight: 2.5, fillColor: '#CC2936', fillOpacity: 0.07, dashArray: '6,4', interactive: false }
+        style: { color: '#E3132C', weight: 2.5, fillColor: '#E3132C', fillOpacity: 0.07, dashArray: '6,4', interactive: false }
       }).addTo(map);
     } else {
       window._areaHighlight = L.rectangle(bounds, {
-        color: '#CC2936', weight: 2, fillColor: '#CC2936', fillOpacity: 0.06, dashArray: '6,4', interactive: false
+        color: '#E3132C', weight: 2, fillColor: '#E3132C', fillOpacity: 0.06, dashArray: '6,4', interactive: false
       }).addTo(map);
     }
 
@@ -7622,8 +7622,8 @@ function openClaimModal(fastighet) {
           { id:'vis-public',  val:'public',  label:'Synlig', desc:'Din profil och bilder syns för besökare.' },
           { id:'vis-sale',    val:'sale',    label:'Till salu eller uthyrning', desc:'Visa pris och ta emot intresse direkt.' },
         ].map((o,i) => `
-          <div id="vo-${o.val}" onclick="selectClaimVis('${o.val}')" style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:11px;border:1.5px solid ${i===0?'#CC2936':'rgba(17,24,39,.08)'};background:${i===0?'rgba(204,41,54,.03)':'#fff'};cursor:pointer;">
-            <div id="radio-${o.val}" style="width:18px;height:18px;border-radius:50%;border:2px solid ${i===0?'#CC2936':'rgba(17,24,39,.18)'};flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;background:${i===0?'#CC2936':'transparent'};">
+          <div id="vo-${o.val}" onclick="selectClaimVis('${o.val}')" style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:11px;border:1.5px solid ${i===0?'#E3132C':'rgba(17,24,39,.08)'};background:${i===0?'rgba(227,19,44,.03)':'#fff'};cursor:pointer;">
+            <div id="radio-${o.val}" style="width:18px;height:18px;border-radius:50%;border:2px solid ${i===0?'#E3132C':'rgba(17,24,39,.18)'};flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;background:${i===0?'#E3132C':'transparent'};">
               ${i===0?'<div style="width:6px;height:6px;border-radius:50%;background:#fff;"></div>':''}
             </div>
             <div>
@@ -7676,10 +7676,10 @@ function selectClaimVis(val) {
     const radio = document.getElementById('radio-' + v);
     if (!el || !radio) return;
     if (v === val) {
-      el.style.borderColor = '#CC2936';
-      el.style.background = 'rgba(204,41,54,.03)';
-      radio.style.borderColor = '#CC2936';
-      radio.style.background = '#CC2936';
+      el.style.borderColor = '#E3132C';
+      el.style.background = 'rgba(227,19,44,.03)';
+      radio.style.borderColor = '#E3132C';
+      radio.style.background = '#E3132C';
       radio.innerHTML = '<div style="width:6px;height:6px;border-radius:50%;background:#fff;"></div>';
     } else {
       el.style.borderColor = 'rgba(17,24,39,.08)';
@@ -8259,9 +8259,9 @@ function renderAdmin() {
     <div style="min-height:100vh;background:var(--page-bg);">
       <nav style="height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:var(--ink);border-bottom:0.5px solid rgba(255,255,255,.08);position:sticky;top:0;z-index:50;">
         <div style="display:flex;align-items:center;gap:10px;">
-          <svg width="18" height="23" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
+          <svg width="18" height="23" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#E3132C"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#E3132C"/></svg>
           <span style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:#fff;font-family:var(--font-body);">i<em style="font-style:normal;color:var(--accent);">found</em></span>
-          <span style="font-size:10px;font-weight:700;background:rgba(204,41,54,.25);color:var(--accent);border-radius:999px;padding:3px 9px;letter-spacing:.08em;">ADMIN</span>
+          <span style="font-size:10px;font-weight:700;background:rgba(227,19,44,.25);color:var(--accent);border-radius:999px;padding:3px 9px;letter-spacing:.08em;">ADMIN</span>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:12px;color:rgba(255,255,255,.4);">${escapeHtmlBasic(KONTO?.email || "")}</span>
@@ -8274,7 +8274,7 @@ function renderAdmin() {
         <div style="width:200px;min-height:calc(100vh - 56px);background:#fff;border-right:0.5px solid rgba(17,24,39,.08);padding:16px 10px;flex-shrink:0;">
           ${tabs.map(t=>`
             <button id="tab-${t.id}" onclick="switchAdminTab('${t.id}')"
-              style="width:100%;display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;border:none;background:${adminTab===t.id?'#FDECEA':'transparent'};color:${adminTab===t.id?'#CC2936':'#6B7280'};font-size:13px;font-weight:${adminTab===t.id?'600':'500'};cursor:pointer;font-family:var(--font-body);margin-bottom:2px;text-align:left;">
+              style="width:100%;display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;border:none;background:${adminTab===t.id?'#FDECEA':'transparent'};color:${adminTab===t.id?'#E3132C':'#6B7280'};font-size:13px;font-weight:${adminTab===t.id?'600':'500'};cursor:pointer;font-family:var(--font-body);margin-bottom:2px;text-align:left;">
               <i class="ti ${t.icon}" style="font-size:17px;" aria-hidden="true"></i>
               ${t.label}
               ${t.id==='claims' && _att ? `<span style="margin-left:auto;font-size:10px;font-weight:700;background:#FEF2F2;color:#dc2626;border-radius:999px;padding:1px 6px;">${_att}</span>` : ''}
@@ -8301,7 +8301,7 @@ function switchAdminTab(tab) {
   document.querySelectorAll('[id^="tab-"]').forEach(btn => {
     const id = btn.id.replace('tab-','');
     btn.style.background = id === tab ? '#FDECEA' : 'transparent';
-    btn.style.color = id === tab ? '#CC2936' : '#6B7280';
+    btn.style.color = id === tab ? '#E3132C' : '#6B7280';
     btn.style.fontWeight = id === tab ? '600' : '500';
   });
 }
@@ -8356,10 +8356,10 @@ function switchBrokerTab(tab) {
   const fLogin = document.getElementById('bLoginForm');
   const fReg   = document.getElementById('bRegForm');
   if (!tLogin) return;
-  tLogin.style.background = isLogin  ? '#CC2936' : 'transparent';
+  tLogin.style.background = isLogin  ? '#E3132C' : 'transparent';
   tLogin.style.color      = isLogin  ? '#fff' : 'rgba(255,255,255,.5)';
   tLogin.style.fontWeight = isLogin  ? '600' : '500';
-  tReg.style.background   = !isLogin ? '#CC2936' : 'transparent';
+  tReg.style.background   = !isLogin ? '#E3132C' : 'transparent';
   tReg.style.color        = !isLogin ? '#fff' : 'rgba(255,255,255,.5)';
   tReg.style.fontWeight   = !isLogin ? '600' : '500';
   fLogin.style.display    = isLogin  ? 'flex' : 'none';
@@ -8373,10 +8373,10 @@ function renderBrokerWelcome() {
         <div style="width:100%;max-width:400px;">
           <div style="text-align:center;margin-bottom:32px;">
             <div style="display:inline-flex;align-items:center;gap:9px;margin-bottom:20px;">
-              <svg width="22" height="27" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
+              <svg width="22" height="27" viewBox="0 0 64 78" fill="none"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#E3132C"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#E3132C"/></svg>
               <span style="font-size:22px;font-weight:700;letter-spacing:-.04em;color:#fff;">i<em style="font-style:normal;color:var(--accent);">found</em></span>
             </div>
-            <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(204,41,54,.15);border:1px solid rgba(204,41,54,.3);color:var(--accent);border-radius:999px;padding:4px 12px;font-size:11px;font-weight:600;letter-spacing:.06em;margin-bottom:16px;">
+            <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(227,19,44,.15);border:1px solid rgba(227,19,44,.3);color:var(--accent);border-radius:999px;padding:4px 12px;font-size:11px;font-weight:600;letter-spacing:.06em;margin-bottom:16px;">
               <i class="ti ti-building" style="font-size:12px;" aria-hidden="true"></i> MÄKLARPORTAL
             </div>
             <div style="font-size:24px;font-weight:700;letter-spacing:-.04em;color:#fff;margin-bottom:8px;">Logga in</div>
@@ -8497,9 +8497,9 @@ function renderBrokerDashboard() {
     <div style="min-height:100vh;background:#0F1117;font-family:var(--font-body);">
       <nav style="height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 24px;background:rgba(255,255,255,.03);border-bottom:0.5px solid rgba(255,255,255,.08);position:sticky;top:0;z-index:50;">
         <div style="display:flex;align-items:center;gap:10px;">
-          <svg width="18" height="23" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#CC2936"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#CC2936"/></svg>
+          <svg width="18" height="23" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#E3132C"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#E3132C"/></svg>
           <span style="font-size:18px;font-weight:700;letter-spacing:-.04em;color:#fff;">i<em style="font-style:normal;color:var(--accent);">found</em></span>
-          <span style="font-size:10px;font-weight:700;background:rgba(204,41,54,.2);color:var(--accent);border-radius:999px;padding:3px 9px;letter-spacing:.08em;">MÄKLARE</span>
+          <span style="font-size:10px;font-weight:700;background:rgba(227,19,44,.2);color:var(--accent);border-radius:999px;padding:3px 9px;letter-spacing:.08em;">MÄKLARE</span>
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
           <button onclick="navigate('feed')" style="font-size:12px;color:rgba(255,255,255,.45);background:transparent;border:none;cursor:pointer;font-family:var(--font-body);display:flex;align-items:center;gap:5px;">
@@ -8509,7 +8509,7 @@ function renderBrokerDashboard() {
             <i class="ti ti-map-2" style="font-size:14px;" aria-hidden="true"></i> Karta
           </button>
           <div style="width:1px;height:20px;background:rgba(255,255,255,.1);"></div>
-          <div style="width:32px;height:32px;border-radius:50%;background:rgba(204,41,54,.2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--accent);">${broker.logo}</div>
+          <div style="width:32px;height:32px;border-radius:50%;background:rgba(227,19,44,.2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--accent);">${broker.logo}</div>
           <button onclick="clearSession();navigate('brokerWelcome');" style="font-size:12px;color:rgba(255,255,255,.35);background:transparent;border:none;cursor:pointer;font-family:var(--font-body);">Logga ut</button>
         </div>
       </nav>
@@ -8531,7 +8531,7 @@ function renderBrokerDashboard() {
             { num: totalMessages,  lbl: "Meddelanden",    icon: "ti-message" },
           ].map(s => `
             <div style="background:rgba(255,255,255,.04);border:0.5px solid rgba(255,255,255,.08);border-radius:14px;padding:16px;">
-              <div style="width:36px;height:36px;border-radius:9px;background:rgba(204,41,54,.15);display:flex;align-items:center;justify-content:center;margin-bottom:10px;">
+              <div style="width:36px;height:36px;border-radius:9px;background:rgba(227,19,44,.15);display:flex;align-items:center;justify-content:center;margin-bottom:10px;">
                 <i class="ti ${s.icon}" style="font-size:17px;color:var(--accent);" aria-hidden="true"></i>
               </div>
               <div style="font-size:26px;font-weight:700;letter-spacing:-.04em;color:#fff;line-height:1;">${s.num}</div>
@@ -8584,7 +8584,7 @@ function renderBrokerDashboard() {
             { obj:"Kungsörsgatan 7", msg:"Är taket nytt? Vi är intresserade men vill veta mer om renoveringsbehovet.", time:"2 dagar sedan" },
           ].map((m,i,arr) => `
             <div style="display:flex;gap:14px;padding:14px 18px;border-bottom:${i<arr.length-1?'0.5px solid rgba(255,255,255,.06)':'none'};">
-              <div style="width:36px;height:36px;border-radius:50%;background:rgba(204,41,54,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <div style="width:36px;height:36px;border-radius:50%;background:rgba(227,19,44,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                 <i class="ti ti-user" style="font-size:16px;color:var(--accent);" aria-hidden="true"></i>
               </div>
               <div style="flex:1;min-width:0;">
@@ -8680,7 +8680,7 @@ function renderBrokerAddListing() {
             <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:4px;">Planritning</div>
             <div style="font-size:12px;color:rgba(255,255,255,.35);margin-bottom:14px;">Ladda upp planritning som PDF eller bild.</div>
             <label id="planLabel" style="display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.04);border:1.5px dashed rgba(255,255,255,.15);border-radius:10px;padding:16px;cursor:pointer;">
-              <div style="width:40px;height:40px;border-radius:9px;background:rgba(204,41,54,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <div style="width:40px;height:40px;border-radius:9px;background:rgba(227,19,44,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
                 <i class="ti ti-file-upload" style="font-size:19px;color:var(--accent);" aria-hidden="true"></i>
               </div>
               <div>
@@ -8713,7 +8713,7 @@ function renderBrokerAddListing() {
           <div style="background:rgba(255,255,255,.04);border:0.5px solid rgba(255,255,255,.08);border-radius:14px;padding:20px;">
             <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:14px;">Ansvarig mäklare</div>
             <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;padding:14px;background:rgba(255,255,255,.04);border-radius:10px;border:0.5px solid rgba(255,255,255,.08);">
-              <div style="width:44px;height:44px;border-radius:50%;background:rgba(204,41,54,.2);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--accent);flex-shrink:0;">${broker.logo}</div>
+              <div style="width:44px;height:44px;border-radius:50%;background:rgba(227,19,44,.2);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:var(--accent);flex-shrink:0;">${broker.logo}</div>
               <div style="flex:1;">
                 <div style="font-size:14px;font-weight:600;color:#fff;">${broker.name}</div>
                 <div style="font-size:12px;color:rgba(255,255,255,.4);">${broker.firm}</div>
@@ -8743,8 +8743,8 @@ function renderBrokerAddListing() {
                 {val:"active", lbl:"Till salu",   desc:"Visar pris, visningsdatum och kontaktformulär."},
                 {val:"passive",lbl:"Passiv",       desc:"Syns på kartan utan att aktivt marknadsföra."},
               ].map((o,i) => `
-                <div onclick="brokerSelVis(this,'${o.val}')" data-vis="${o.val}" style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:10px;border:1.5px solid ${i===0?'#CC2936':'rgba(255,255,255,.1)'};background:${i===0?'rgba(204,41,54,.08)':'transparent'};cursor:pointer;">
-                  <div style="width:17px;height:17px;border-radius:50%;border:2px solid ${i===0?'#CC2936':'rgba(255,255,255,.2)'};flex-shrink:0;margin-top:1px;background:${i===0?'#CC2936':'transparent'};display:flex;align-items:center;justify-content:center;">
+                <div onclick="brokerSelVis(this,'${o.val}')" data-vis="${o.val}" style="display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:10px;border:1.5px solid ${i===0?'#E3132C':'rgba(255,255,255,.1)'};background:${i===0?'rgba(227,19,44,.08)':'transparent'};cursor:pointer;">
+                  <div style="width:17px;height:17px;border-radius:50%;border:2px solid ${i===0?'#E3132C':'rgba(255,255,255,.2)'};flex-shrink:0;margin-top:1px;background:${i===0?'#E3132C':'transparent'};display:flex;align-items:center;justify-content:center;">
                     ${i===0?'<div style="width:5px;height:5px;border-radius:50%;background:#fff;"></div>':''}
                   </div>
                   <div>
@@ -8788,10 +8788,10 @@ function brokerSelVis(el, val) {
     const radio = opt.querySelector('div');
     if (radio) { radio.style.borderColor = 'rgba(255,255,255,.2)'; radio.style.background = 'transparent'; radio.innerHTML = ''; }
   });
-  el.style.borderColor = '#CC2936';
-  el.style.background = 'rgba(204,41,54,.08)';
+  el.style.borderColor = '#E3132C';
+  el.style.background = 'rgba(227,19,44,.08)';
   const radio = el.querySelector('div');
-  if (radio) { radio.style.borderColor = '#CC2936'; radio.style.background = '#CC2936'; radio.innerHTML = '<div style="width:5px;height:5px;border-radius:50%;background:#fff;"></div>'; }
+  if (radio) { radio.style.borderColor = '#E3132C'; radio.style.background = '#E3132C'; radio.innerHTML = '<div style="width:5px;height:5px;border-radius:50%;background:#fff;"></div>'; }
 }
 
 function brokerViewMessages(id) {

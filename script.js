@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-11-14e";
+const IFOUND_VERSION = "2026-11-14f";
 
 // Mäklardemon (lokala demokonton, påhittade objekt och meddelanden) är dold
 // inför testpersonerna. Koden ligger kvar; true visar den igen.
@@ -598,6 +598,104 @@ function visaBild(url) {
 }
 
 // =========================
+// INFORUTOR (14 nov 2026)
+// =========================
+// En ruta efter varje handling: vad det betyder, vem som ser det och vad
+// som händer nu. Gilla-rutan visas första gången (och för utloggade några
+// gånger till, med erbjudande om konto). Intresse-rutan visas varje gång,
+// eftersom den är bekräftelsen. Texterna är platshållare tills
+// kommunikationsansvarig satt orden.
+const INFO_SEDD_NYCKEL = "ifound_inforutor_v1";
+function infoSedd(k) { try { return !!JSON.parse(localStorage.getItem(INFO_SEDD_NYCKEL) || "{}")[k]; } catch { return false; } }
+function markeraInfoSedd(k) {
+  try { const o = JSON.parse(localStorage.getItem(INFO_SEDD_NYCKEL) || "{}"); o[k] = true; localStorage.setItem(INFO_SEDD_NYCKEL, JSON.stringify(o)); } catch {}
+}
+
+function visaInforuta({ ikon = "ti-info-circle", rubrik, punkter = [], cta = null, ok = "Jag förstår" }) {
+  document.getElementById("inforuta")?.remove();
+  const el = document.createElement("div");
+  el.id = "inforuta";
+  el.className = "inforuta-bakgrund";
+  el.innerHTML = `
+    <div class="inforuta" role="dialog" aria-modal="true" aria-labelledby="inforutaRubrik">
+      <button class="inforuta-stang" aria-label="Stäng"><i class="ti ti-x" aria-hidden="true"></i></button>
+      <span class="inforuta-ikon"><i class="ti ${ikon}" aria-hidden="true"></i></span>
+      <h2 id="inforutaRubrik">${rubrik}</h2>
+      <ul>${punkter.map(p => `<li>${p}</li>`).join("")}</ul>
+      ${cta ? `<button class="btn-primary inforuta-knapp" id="inforutaCta">${cta.text}</button>` : ""}
+      <button class="${cta ? "btn-ghost" : "btn-primary"} inforuta-knapp" id="inforutaOk">${cta ? (cta.inte || "Inte nu") : ok}</button>
+    </div>`;
+  const stang = () => el.remove();
+  el.addEventListener("click", e => { if (e.target === el) stang(); });
+  el.querySelector(".inforuta-stang").onclick = stang;
+  el.querySelector("#inforutaOk").onclick = stang;
+  if (cta) el.querySelector("#inforutaCta").onclick = () => { stang(); cta.gor(); };
+  document.body.appendChild(el);
+  el.querySelector("#inforutaOk").focus();
+}
+
+const KONTO_TEXT_GILLA = "Skapa ett gratis konto så sparas dina gillade hus — i mobilen och på datorn — och du får veta om ägaren sätter ett pris eller svarar.";
+
+// Efter ett gillande. antalGillade = hur många hus personen gillat nu.
+function efterGillande(name) {
+  const inloggad = !!loadSession()?.email;
+  const antal = Object.keys(loadState().myLikes || {}).length;
+  const forsta = !infoSedd("gilla");
+  // Utloggad: vid första, tredje och tionde gillandet. Inloggad: bara första.
+  const visa = inloggad ? forsta : (forsta || antal === 3 || antal === 10);
+  if (!visa) { toast("Huset är gillat."); return; }
+  markeraInfoSedd("gilla");
+  visaInforuta({
+    ikon: "ti-heart",
+    rubrik: `Du har gillat ${escapeHtmlBasic(name)}`,
+    punkter: [
+      "<strong>Ägaren ser att någon gillar huset</strong> — men inte vem du är.",
+      "Fler gillanden gör att ägaren märker att huset är eftertraktat.",
+      inloggad
+        ? "Huset sparas bland dina favoriter på Min sida."
+        : "Huset sparas i den här webbläsaren. Med ett konto finns det kvar överallt.",
+      "Vill du mer än att gilla? <strong>Visa intresse</strong> — då vet ägaren att du på allvar skulle vilja bo här.",
+    ],
+    cta: inloggad ? null : { text: "Skapa konto och spara mina hus", inte: "Fortsätt utan konto", gor: () => openAuthModal("reg", KONTO_TEXT_GILLA) },
+  });
+}
+
+// Efter skickat intresse — alltid, eftersom det är bekräftelsen.
+function efterIntresse(pid, name, medMeddelande) {
+  const agare = isParcelClaimed(pid);
+  const inloggad = !!loadSession()?.email;
+  visaInforuta({
+    ikon: "ti-star",
+    rubrik: agare ? "Ditt intresse är skickat" : "Ditt intresse är sparat",
+    punkter: [
+      agare
+        ? "<strong>Ägaren ser det direkt</strong> i sin inkorg på ifound."
+        : "<strong>Ägaren är inte med på ifound än.</strong> Intresset ligger kvar på huset och syns när ägaren går med.",
+      medMeddelande
+        ? "Ditt meddelande är skickat. Svarar ägaren hittar du svaret under Meddelanden på Min sida."
+        : "Du kan skriva några rader till ägaren när som helst från husets sida.",
+      "Ditt namn syns inte för ägaren. När ni skriver till varandra kan du själv välja <em>Visa mitt förnamn</em>.",
+      "Ingenting är bindande — varken för dig eller ägaren.",
+    ],
+    cta: inloggad ? null : { text: "Skapa konto så du får svar", inte: "Inte nu", gor: () => openAuthModal("reg", "Skapa ett gratis konto så kan ägaren svara dig, och du ser svaret på Min sida.") },
+    ok: "Klart",
+  });
+}
+
+// "Vad är skillnaden?" under knapparna i panelen.
+function visaSkillnadGillaIntresse() {
+  visaInforuta({
+    ikon: "ti-help-circle",
+    rubrik: "Gilla eller visa intresse?",
+    punkter: [
+      "<strong>Gilla</strong> — jag tycker om huset. Ägaren ser att någon gillar det, men inte vem. Kräver inget konto.",
+      "<strong>Visa intresse</strong> — jag skulle på allvar kunna tänka mig att bo här. Du kan skriva till ägaren, och ägaren kan svara dig.",
+      "Ingenting är bindande, och ditt namn syns inte förrän du själv väljer det.",
+    ],
+  });
+}
+
+// =========================
 // FAKTA OM HUSET (14 nov 2026)
 // =========================
 // Strukturerade uppgifter i bostadsprofilen. Allt är frivilligt. Servern
@@ -918,8 +1016,8 @@ function ritaHusSida() {
     s.myLikes = s.myLikes || {}; s.parcelNames = s.parcelNames || {}; s.parcelNames[pid] = name;
     if (pa) s.myLikes[pid] = true; else delete s.myLikes[pid];
     saveState(s);
-    toast(pa ? "Huset är gillat. Ägaren ser det." : "Gillning borttagen.");
     ritaHusSida();
+    if (pa) efterGillande(name); else toast("Gillning borttagen.");
     if (window._panelPid === pid && window._currentPanelFeature) { try { redrawLayer(); renderParcelPanel(window._currentPanelFeature); } catch {} }
   };
   const ai = el.querySelector("#husAnmalInnehall");
@@ -2430,9 +2528,7 @@ async function saveInterest(pid, name, message) {
     return;
   }
 
-  toast(message
-    ? (isParcelClaimed(pid) ? "Intresse och meddelande skickat till ägaren! Svaret kommer på Min sida." : "Intresse och meddelande sparat. Ägaren ser det när hen går med på ifound.")
-    : "Intresse markerat!");
+  efterIntresse(pid, name, !!message);
 }
 
 // =========================
@@ -3941,6 +4037,7 @@ function _renderParcelPanelInner(feature) {
       <button id="likeBtn"     class="panel-btn ${iLiked      ? "active-like"     : ""}"><i class="ti ti-thumb-up"></i> ${iLiked ? "Gillad" : "Gilla"}</button>
       <button id="interestBtn" class="panel-btn ${iInterested ? "active-interest" : ""}"><i class="ti ti-star"></i> ${isMulti ? (iInterested ? "Intresseanmäld" : "Vill bo här") : (iInterested ? "Intresserad" : "Markera intresse")}</button>
     </div>
+    <div style="text-align:center;margin:-2px 0 8px;"><button onclick="visaSkillnadGillaIntresse()" style="background:none;border:none;padding:4px;cursor:pointer;font-family:var(--font-body);font-size:12px;color:var(--ink-muted);text-decoration:underline;">Vad är skillnaden mellan gilla och intresse?</button></div>
     <!-- "Följ fastigheten" dold 25 okt: följningar låg bara lokalt och
          ingen notis skickades. Kommer tillbaka med e-postnotiserna. -->
     ${(iLiked || iInterested) && !myPhoto ? `
@@ -4058,8 +4155,8 @@ function _renderParcelPanelInner(feature) {
     s.parcelNames = s.parcelNames || {}; s.parcelNames[pid] = name;
     if (pa) s.myLikes[pid] = true; else delete s.myLikes[pid];
     saveState(s);
-    toast(pa ? "Fastigheten är gillad." : "Gillning borttagen.");
     redrawLayer(); renderParcelPanel(feature);
+    if (pa) efterGillande(name); else toast("Gillning borttagen.");
   };
 
   document.getElementById("interestBtn").onclick = async () => {
@@ -4111,7 +4208,7 @@ function switchTab(tab) {
   fReg.style.display   = !isLogin ? 'flex' : 'none';
 }
 
-function openAuthModal(tab = 'login') {
+function openAuthModal(tab = 'login', regText = null) {
   const existing = document.getElementById('auth-modal-overlay');
   if (existing) existing.remove();
 
@@ -4146,7 +4243,7 @@ function openAuthModal(tab = 'login') {
 
       <div id="regForm" style="display:none;flex-direction:column;gap:12px;">
         <div style="background:var(--accent-soft);border-radius:10px;padding:10px 14px;font-size:12px;color:#7F1D1D;line-height:1.5;">
-          Gratis konto — spara dina favoriter och visa intresse för fastigheter.
+          ${regText || "Gratis konto — spara dina favoriter och visa intresse för fastigheter."}
         </div>
         <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:5px;">Namn</label><input id="regName" class="input" placeholder="Ditt namn" style="width:100%;" /></div>
         <div><label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:5px;">E-post</label><input id="regEmail" class="input" type="email" placeholder="din@epost.se" style="width:100%;" /></div>

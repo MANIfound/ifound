@@ -1976,3 +1976,39 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
 }
 .panel .bostad-bilder img { aspect-ratio: auto !important; height: 64px; }
 .panel .bostad-bilder { margin-top: 8px !important; }
+
+/* =========================
+   INFORUTOR (14 nov 2026)
+   ========================= */
+.inforuta-bakgrund {
+  position: fixed; inset: 0; z-index: 9600;
+  background: rgba(20,20,20,.45);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  animation: fadeIn .15s ease;
+}
+.inforuta {
+  position: relative; width: 100%; max-width: 420px;
+  background: #fff; border-radius: 22px; padding: 24px 22px 18px;
+  font-family: var(--font-body); color: var(--ink);
+  box-shadow: 0 24px 64px rgba(0,0,0,.22);
+}
+.inforuta-stang {
+  position: absolute; top: 12px; right: 12px; width: 40px; height: 40px;
+  border-radius: 50%; border: none; background: var(--surface-2); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; font-size: 18px; color: var(--ink-soft);
+}
+.inforuta-ikon {
+  width: 48px; height: 48px; border-radius: 50%; background: var(--green-100); color: var(--green-600);
+  display: flex; align-items: center; justify-content: center; font-size: 24px;
+}
+.inforuta h2 { font-family: var(--font-display); font-size: 21px; font-weight: 800; letter-spacing: -.02em; margin: 12px 40px 10px 0; line-height: 1.2; }
+.inforuta ul { list-style: none; padding: 0; margin: 0 0 16px; display: grid; gap: 9px; }
+.inforuta li { font-size: 15px; line-height: 1.5; color: var(--ink-soft); padding-left: 18px; position: relative; }
+.inforuta li::before { content: ""; position: absolute; left: 0; top: .62em; width: 7px; height: 7px; border-radius: 50%; background: var(--green-600); }
+.inforuta li strong { color: var(--ink); }
+.inforuta-knapp { width: 100%; min-height: 50px; font-size: 16px; margin-top: 8px; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 620px) {
+  .inforuta-bakgrund { align-items: flex-end; padding: 0; }
+  .inforuta { max-width: none; border-radius: 22px 22px 0 0; padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); animation: sheetUp .25s ease; }
+}

@@ -1876,3 +1876,62 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
 @media (max-width: 380px) {
   .fakta-grid, .fakta-rutnat { grid-template-columns: 1fr; }
 }
+
+/* =========================
+   HUSETS SIDA — varmare (14 nov 2026, kväll)
+   Huvudbilden bär sidan med namnet ovanpå, "Ägaren berättar" som ett
+   brev, och på dator två spalter: bilden till vänster, texten till höger.
+   ========================= */
+.hus-hero {
+  position: relative; height: 360px; margin: 0;
+  background: var(--green-900); overflow: hidden;
+}
+.hus-hero > img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: zoom-in; }
+.hus-hero::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.66) 100%);
+}
+.hus-hero-tom { background: var(--green-100); height: 240px; }
+.hus-hero-tom::after { background: linear-gradient(180deg, rgba(255,232,235,0) 30%, rgba(255,232,235,1) 100%); }
+.hus-hero-symbol { position: absolute; inset: 0 0 70px; display: flex; align-items: center; justify-content: center; opacity: .9; }
+.hus-hero-text { position: absolute; left: 16px; right: 16px; bottom: 18px; z-index: 1; color: #fff; }
+.hus-hero-tom .hus-hero-text { color: var(--ink); }
+.hus-hero .hus-etikett { margin: 0; color: rgba(255,255,255,.9); font-size: 14px; }
+.hus-hero-tom .hus-etikett { color: var(--green-600); }
+.hus-hero .hus-namn { color: inherit; margin-top: 2px; }
+.hus-hero .hus-fakta { color: rgba(255,255,255,.88); margin-top: 4px; }
+.hus-hero-tom .hus-fakta { color: var(--ink-soft); }
+.hus-tumnaglar { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; padding: 8px 16px 0; max-width: 640px; margin: 0 auto; }
+.hus-tumnaglar img { width: 100%; height: 120px; object-fit: cover; border-radius: 14px; cursor: zoom-in; display: block; }
+.hus-inga-bilder { max-width: 640px; margin: 10px auto 0; padding: 0 16px; font-size: 13px; color: var(--ink-muted); }
+
+.hus-berattar {
+  margin-top: 18px; padding: 18px 18px 20px; border-radius: 20px;
+  background: var(--green-50); border: 1px solid var(--green-100);
+}
+.hus-berattar-huvud { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.hus-berattar-ikon {
+  width: 44px; height: 44px; border-radius: 50%; background: var(--green-600); color: #fff;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.hus-berattar-ikon i { font-size: 22px; }
+.hus-berattar-huvud strong { display: block; font-size: 15px; font-weight: 800; }
+.hus-berattar-huvud span { display: block; font-size: 13px; color: var(--ink-muted); }
+.hus-berattar h2 { font-size: 22px; }
+.hus-berattar p { color: var(--ink); }
+.hus-berattar-tom { background: var(--surface-2); border-color: transparent; }
+.hus-berattar-tom .hus-berattar-ikon { background: var(--ink-muted); }
+
+@media (min-width: 900px) {
+  .hus-sida { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-rows: auto 1fr; }
+  .hus-topp { grid-column: 1 / -1; }
+  .hus-sida { align-items: start; grid-template-rows: auto auto 1fr; }
+  .hus-hero { grid-column: 1; grid-row: 2 / span 2; position: sticky; top: 65px; height: calc(100vh - 65px); }
+  .hus-hero-tom { height: calc(100vh - 65px); }
+  .hus-hero-text { left: 32px; right: 32px; bottom: 32px; }
+  .hus-hero .hus-namn { font-size: 48px; }
+  .hus-tumnaglar, .hus-inga-bilder { grid-column: 2; }
+  .hus-tumnaglar { padding: 20px 32px 0; max-width: none; margin: 0; }
+  .hus-inga-bilder { padding: 20px 32px 0; max-width: none; margin: 0; }
+  .hus-inner { grid-column: 2; max-width: 620px; margin: 0; padding: 20px 32px 48px; }
+}

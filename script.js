@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-11-14c";
+const IFOUND_VERSION = "2026-11-14d";
 
 // Mäklardemon (lokala demokonton, påhittade objekt och meddelanden) är dold
 // inför testpersonerna. Koden ligger kvar; true visar den igen.
@@ -830,14 +830,24 @@ function ritaHusSida() {
     : ag?.onskepris || null;
   const fakta = [adress, typ, area ? `${Number(area).toLocaleString("sv-SE")} m²` : ""].filter(Boolean).join(" · ");
 
-  const galleri = bilder.length ? `
-    <div class="hus-galleri hus-galleri-${Math.min(bilder.length, 3)}">
-      ${bilder.slice(0, 3).map((b, n) => `<img src="${bildUrl(b)}" alt="Bild ${n + 1} på ${esc(name)}" onclick="visaBild('${bildUrl(b)}')" />`).join("")}
-    </div>` : `
-    <div class="hus-galleri-tom">
-      ${HUS_FALLBILD}
-      <div>${egen ? "Lägg upp bilder på Min sida, så ser de som gillar huset dem här." : "Ägaren har inte lagt upp bilder än."}</div>
-    </div>`;
+  // Huvudbilden bär sidan: namnet och adressen ligger ovanpå den, som en
+  // välkomstskylt. Fler bilder ligger som en rad under.
+  const hero = `
+    <div class="hus-hero ${bilder.length ? "" : "hus-hero-tom"}">
+      ${bilder.length
+        ? `<img src="${bildUrl(bilder[0])}" alt="${esc(name)}" onclick="visaBild('${bildUrl(bilder[0])}')" />`
+        : `<div class="hus-hero-symbol">${HUS_FALLBILD}</div>`}
+      <div class="hus-hero-text">
+        <div class="hus-etikett">${egen ? "Så ser andra ditt hus" : "Välkommen till"}</div>
+        <h1 class="hus-namn">${esc(name)}</h1>
+        ${fakta ? `<div class="hus-fakta">${esc(fakta)}</div>` : ""}
+      </div>
+    </div>
+    ${bilder.length > 1 ? `
+    <div class="hus-tumnaglar">
+      ${bilder.slice(1, 3).map((b, n) => `<img src="${bildUrl(b)}" alt="Bild ${n + 2} på ${esc(name)}" onclick="visaBild('${bildUrl(b)}')" />`).join("")}
+    </div>` : ""}
+    ${!bilder.length ? `<div class="hus-inga-bilder">${egen ? "Lägg upp bilder på Min sida, så ser de som gillar huset dem här." : "Ägaren har inte lagt upp bilder än."}</div>` : ""}`;
 
   const fomo = likes > 0
     ? `<strong>${likes} ${likes === 1 ? "person har" : "personer har"} gillat huset</strong>${intr > 0 ? `<span>${intr} har visat intresse</span>` : ""}`
@@ -852,12 +862,8 @@ function ritaHusSida() {
     <div class="hus-topp">
       <button class="hus-tillbaka" id="husTillbaka"><i class="ti ti-arrow-left" aria-hidden="true"></i> Tillbaka till kartan</button>
     </div>
+    ${hero}
     <div class="hus-inner">
-      ${galleri}
-      <div class="hus-etikett">Husets sida${egen ? " · så ser andra ditt hus" : ""}</div>
-      <h1 class="hus-namn">${esc(name)}</h1>
-      ${fakta ? `<div class="hus-fakta">${esc(fakta)}</div>` : ""}
-
       <div class="hus-fomo"><i class="ti ti-heart-filled" aria-hidden="true"></i><div>${fomo}</div></div>
 
       ${pris ? `
@@ -867,13 +873,16 @@ function ritaHusSida() {
         <div class="hus-pris-not">Huset är inte till salu — men ägaren har angett vad hen skulle kunna tänka sig.</div>
       </div>` : ""}
 
-      <div class="hus-berattar">
-        <div class="hus-berattar-etikett">Ägaren berättar</div>
+      <div class="hus-berattar ${!bo?.rubrik && !bo?.beskrivning ? "hus-berattar-tom" : ""}">
+        <div class="hus-berattar-huvud">
+          <span class="hus-berattar-ikon"><i class="ti ti-home-heart" aria-hidden="true"></i></span>
+          <div><strong>Ägaren berättar</strong><span>Ägaren finns på ifound</span></div>
+        </div>
         ${bo?.rubrik ? `<h2>${esc(bo.rubrik)}</h2>` : ""}
         ${bo?.beskrivning ? `<p>${esc(bo.beskrivning)}</p>` : ""}
         ${!bo?.rubrik && !bo?.beskrivning ? `<p class="hus-tom">${egen
-          ? "Du har inte skrivit något om huset än. Gör det på Min sida."
-          : "Ägaren finns på ifound och ser när någon gillar huset eller skriver. Hen har inte skrivit något här än."}</p>` : ""}
+          ? "Du har inte skrivit något om huset än. Berätta vad som gör det speciellt — gör det på Min sida."
+          : "Ägaren har inte skrivit något här än, men ser när någon gillar huset eller skriver."}</p>` : ""}
       </div>
 
       ${faktaVisningHtml(bo?.fakta) || (egen ? `<div class="hus-fakta-sektion"><h2 class="hus-sektion-rubrik">Fakta om huset</h2><p class="hus-tom">Fyll i byggår, uppvärmning, trädgård med mera på Min sida, så ser besökarna det här.</p></div>` : "")}
@@ -933,6 +942,7 @@ function bostadBlockHtml(pid, name, bo, isOwner) {
       <div style="display:grid;grid-template-columns:repeat(${Math.min(bilder.length, 3)},1fr);gap:6px;margin-top:10px;">
         ${bilder.map(s => `<img src="${bildUrl(s)}" alt="" loading="lazy" onclick="visaBild('${bildUrl(s)}')" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:zoom-in;display:block;" />`).join("")}
       </div>` : ""}
+      ${!isOwner ? `<button class="btn-primary" style="width:100%;margin-top:12px;" onclick="openHusSida('${String(pid).replace(/[^A-Za-z0-9-]/g, "")}', '${String(name).replace(/['"\\<>]/g, "")}', window._currentPanelFeature)"><i class="ti ti-home" aria-hidden="true"></i> Besök husets sida</button>` : ""}
       <div style="text-align:right;margin-top:8px;">
         ${isOwner
           ? `<button onclick="navigate('dashboard')" style="background:none;border:none;padding:2px;font-size:11px;color:var(--ink-muted);cursor:pointer;font-family:var(--font-body);text-decoration:underline;">Ändra på Min sida</button>`
@@ -3904,7 +3914,7 @@ function _renderParcelPanelInner(feature) {
         ${ag.hemstatus === "sale" ? `<span style="font-size:11px;font-weight:600;background:var(--green-600);color:#fff;border-radius:999px;padding:3px 10px;">Till salu</span>` : ""}
       </div>
       <div style="font-size:11.5px;color:var(--ink-soft);margin-top:4px;line-height:1.5;">Ägaren ser när någon gillar eller visar intresse för huset.</div>
-      <button id="besokHusBtn" class="btn-primary" style="width:100%;margin-top:10px;"><i class="ti ti-home" aria-hidden="true"></i> Besök husets sida</button>
+      ${bo ? "" : `<button id="besokHusBtn" class="btn-primary" style="width:100%;margin-top:10px;"><i class="ti ti-home" aria-hidden="true"></i> Besök husets sida</button>`}
     </div>` : isOwner ? `
     <button id="besokHusBtn" class="btn-ghost" style="width:100%;margin:10px 0 4px;"><i class="ti ti-eye" aria-hidden="true"></i> Se husets sida som andra ser den</button>` : ""}
     ${bostadBlockHtml(pid, name, bo, isOwner)}

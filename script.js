@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-11-14f";
+const IFOUND_VERSION = "2026-11-14g";
 
 // Mäklardemon (lokala demokonton, påhittade objekt och meddelanden) är dold
 // inför testpersonerna. Koden ligger kvar; true visar den igen.
@@ -634,64 +634,58 @@ function visaInforuta({ ikon = "ti-info-circle", rubrik, punkter = [], cta = nul
   el.querySelector("#inforutaOk").focus();
 }
 
-const KONTO_TEXT_GILLA = "Skapa ett gratis konto så sparas dina gillade hus — i mobilen och på datorn — och du får veta om ägaren sätter ett pris eller svarar.";
+const KONTO_TEXT_GILLA = "Skapa ett gratis konto så sparas dina gillade hus.";
+const GILLA_RAKNARE = "ifound_gilla_utloggad_v1";
 
-// Efter ett gillande. antalGillade = hur många hus personen gillat nu.
+// Efter ett gillande. Utloggad: rutan visas vid första gillandet och sedan
+// var tredje (1, 4, 7 …). Inloggad: bara första gången, annars en toast.
 function efterGillande(name) {
   const inloggad = !!loadSession()?.email;
-  const antal = Object.keys(loadState().myLikes || {}).length;
-  const forsta = !infoSedd("gilla");
-  // Utloggad: vid första, tredje och tionde gillandet. Inloggad: bara första.
-  const visa = inloggad ? forsta : (forsta || antal === 3 || antal === 10);
+  let visa;
+  if (inloggad) {
+    visa = !infoSedd("gilla_inloggad");
+    if (visa) markeraInfoSedd("gilla_inloggad");
+  } else {
+    let n = 0;
+    try { n = (parseInt(localStorage.getItem(GILLA_RAKNARE), 10) || 0) + 1; localStorage.setItem(GILLA_RAKNARE, String(n)); } catch {}
+    visa = n === 0 || (n - 1) % 3 === 0;
+  }
   if (!visa) { toast("Huset är gillat."); return; }
-  markeraInfoSedd("gilla");
   visaInforuta({
     ikon: "ti-heart",
-    rubrik: `Du har gillat ${escapeHtmlBasic(name)}`,
-    punkter: [
-      "<strong>Ägaren ser att någon gillar huset</strong> — men inte vem du är.",
-      "Fler gillanden gör att ägaren märker att huset är eftertraktat.",
-      inloggad
-        ? "Huset sparas bland dina favoriter på Min sida."
-        : "Huset sparas i den här webbläsaren. Med ett konto finns det kvar överallt.",
-      "Vill du mer än att gilla? <strong>Visa intresse</strong> — då vet ägaren att du på allvar skulle vilja bo här.",
-    ],
-    cta: inloggad ? null : { text: "Skapa konto och spara mina hus", inte: "Fortsätt utan konto", gor: () => openAuthModal("reg", KONTO_TEXT_GILLA) },
+    rubrik: `Du gillar ${escapeHtmlBasic(name)}`,
+    punkter: inloggad
+      ? ["Ägaren får se att någon har gillat huset.", "Huset finns nu under Sparade på Min sida."]
+      : ["Ägaren får se att någon har gillat huset.", "Vill du ha kvar dina gillade hus? Skapa ett konto – det är gratis."],
+    cta: inloggad ? null : { text: "Skapa konto", inte: "Inte nu", gor: () => openAuthModal("reg", KONTO_TEXT_GILLA) },
+    ok: "Okej",
   });
 }
 
 // Efter skickat intresse — alltid, eftersom det är bekräftelsen.
 function efterIntresse(pid, name, medMeddelande) {
   const agare = isParcelClaimed(pid);
-  const inloggad = !!loadSession()?.email;
   visaInforuta({
     ikon: "ti-star",
-    rubrik: agare ? "Ditt intresse är skickat" : "Ditt intresse är sparat",
-    punkter: [
-      agare
-        ? "<strong>Ägaren ser det direkt</strong> i sin inkorg på ifound."
-        : "<strong>Ägaren är inte med på ifound än.</strong> Intresset ligger kvar på huset och syns när ägaren går med.",
-      medMeddelande
-        ? "Ditt meddelande är skickat. Svarar ägaren hittar du svaret under Meddelanden på Min sida."
-        : "Du kan skriva några rader till ägaren när som helst från husets sida.",
-      "Ditt namn syns inte för ägaren. När ni skriver till varandra kan du själv välja <em>Visa mitt förnamn</em>.",
-      "Ingenting är bindande — varken för dig eller ägaren.",
-    ],
-    cta: inloggad ? null : { text: "Skapa konto så du får svar", inte: "Inte nu", gor: () => openAuthModal("reg", "Skapa ett gratis konto så kan ägaren svara dig, och du ser svaret på Min sida.") },
-    ok: "Klart",
+    rubrik: agare ? "Ägaren har fått ditt intresse" : "Ditt intresse är sparat",
+    punkter: agare
+      ? ["Ägaren ser att någon på riktigt vill bo i huset. Ditt namn syns inte.", "Om ägaren svarar hittar du svaret på Min sida."]
+      : ["Ägaren finns inte på ifound än. När ägaren går med får hen se att du är intresserad.", "Ditt namn syns inte."],
+    ok: "Okej",
   });
 }
 
-// "Vad är skillnaden?" under knapparna i panelen.
+// "Gilla eller intresse – vad är skillnaden?" under knapparna i panelen.
 function visaSkillnadGillaIntresse() {
   visaInforuta({
     ikon: "ti-help-circle",
     rubrik: "Gilla eller visa intresse?",
     punkter: [
-      "<strong>Gilla</strong> — jag tycker om huset. Ägaren ser att någon gillar det, men inte vem. Kräver inget konto.",
-      "<strong>Visa intresse</strong> — jag skulle på allvar kunna tänka mig att bo här. Du kan skriva till ägaren, och ägaren kan svara dig.",
-      "Ingenting är bindande, och ditt namn syns inte förrän du själv väljer det.",
+      "<strong>Gilla</strong> – \"Snyggt hus!\" Ägaren ser att någon gillar det.",
+      "<strong>Visa intresse</strong> – \"Jag skulle vilja bo här.\" Du kan skriva till ägaren, och ägaren kan svara dig.",
+      "Inget av dem är bindande. Ditt namn syns inte.",
     ],
+    ok: "Okej",
   });
 }
 
@@ -4037,7 +4031,7 @@ function _renderParcelPanelInner(feature) {
       <button id="likeBtn"     class="panel-btn ${iLiked      ? "active-like"     : ""}"><i class="ti ti-thumb-up"></i> ${iLiked ? "Gillad" : "Gilla"}</button>
       <button id="interestBtn" class="panel-btn ${iInterested ? "active-interest" : ""}"><i class="ti ti-star"></i> ${isMulti ? (iInterested ? "Intresseanmäld" : "Vill bo här") : (iInterested ? "Intresserad" : "Markera intresse")}</button>
     </div>
-    <div style="text-align:center;margin:-2px 0 8px;"><button onclick="visaSkillnadGillaIntresse()" style="background:none;border:none;padding:4px;cursor:pointer;font-family:var(--font-body);font-size:12px;color:var(--ink-muted);text-decoration:underline;">Vad är skillnaden mellan gilla och intresse?</button></div>
+    <div style="text-align:center;margin:-2px 0 8px;"><button onclick="visaSkillnadGillaIntresse()" style="background:none;border:none;padding:4px;cursor:pointer;font-family:var(--font-body);font-size:12px;color:var(--ink-muted);text-decoration:underline;">Gilla eller intresse – vad är skillnaden?</button></div>
     <!-- "Följ fastigheten" dold 25 okt: följningar låg bara lokalt och
          ingen notis skickades. Kommer tillbaka med e-postnotiserna. -->
     ${(iLiked || iInterested) && !myPhoto ? `

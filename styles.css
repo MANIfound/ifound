@@ -1935,3 +1935,44 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
   .hus-inga-bilder { padding: 20px 32px 0; max-width: none; margin: 0; }
   .hus-inner { grid-column: 2; max-width: 620px; margin: 0; padding: 20px 32px 48px; }
 }
+
+/* =========================
+   KARTPANELEN — anpassad efter skärmen (14 nov 2026, kväll)
+   Panelen växte med "Ägaren berättar", bilder och fakta. Den får aldrig
+   bli högre än skärmen, scrollar inuti, och är tätare.
+   ========================= */
+@media (min-width: 621px) {
+  .panel {
+    top: auto; bottom: 14px;
+    /* Under sidhuvudet och kartans sökfält, som ligger överst till vänster */
+    max-height: calc(100vh - 150px);
+    max-height: calc(100dvh - 150px);
+    overflow-y: auto; overscroll-behavior: contain;
+    width: min(380px, calc(100vw - 28px));
+    padding: 16px 16px 14px;
+    scrollbar-width: thin;
+  }
+}
+@media (max-width: 620px) {
+  .panel { max-height: 72vh; max-height: 72dvh; overscroll-behavior: contain; }
+}
+@media (max-height: 640px) and (min-width: 621px) {
+  .panel { max-height: calc(100vh - 140px); max-height: calc(100dvh - 140px); }
+}
+
+/* Tätare innehåll */
+.panel .panel-mode { margin-bottom: 8px; }
+.panel .panel-meta { gap: 4px; margin-bottom: 10px; }
+.panel .panel-meta-row { padding: 6px 10px; }
+.panel .panel-actions { margin-bottom: 8px; }
+.panel .panel-stat { padding: 8px; }
+.panel .panel-stat-value { font-size: 18px; }
+.panel .wish-banner { padding: 10px 12px; margin-top: 8px; }
+.panel .wish-banner-amount { font-size: 18px; }
+.panel .wish-banner-note { font-size: 11.5px; margin: 4px 0 8px; }
+.panel .bostad-block { padding: 10px 12px !important; margin: 8px 0 4px !important; }
+.panel .bostad-text {
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.panel .bostad-bilder img { aspect-ratio: auto !important; height: 64px; }
+.panel .bostad-bilder { margin-top: 8px !important; }

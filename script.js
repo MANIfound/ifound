@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-11-14d";
+const IFOUND_VERSION = "2026-11-14e";
 
 // Mäklardemon (lokala demokonton, påhittade objekt och meddelanden) är dold
 // inför testpersonerna. Koden ligger kvar; true visar den igen.
@@ -936,10 +936,10 @@ function bostadBlockHtml(pid, name, bo, isOwner) {
     <div class="bostad-block" style="margin:10px 0 4px;padding:12px 14px;background:#fff;border:1px solid var(--hairline);border-radius:16px;">
       <div style="font-size:10.5px;font-weight:600;color:var(--ink-muted);margin-bottom:6px;">Ägaren berättar</div>
       ${bo.rubrik ? `<div style="font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--ink);line-height:1.3;margin-bottom:6px;">${esc(bo.rubrik)}</div>` : ""}
-      ${bo.beskrivning ? `<div style="font-size:12.5px;color:var(--ink-soft);line-height:1.6;white-space:pre-wrap;">${esc(bo.beskrivning)}</div>` : ""}
+      ${bo.beskrivning ? `<div class="bostad-text" style="font-size:12.5px;color:var(--ink-soft);line-height:1.6;white-space:pre-wrap;">${esc(bo.beskrivning)}</div>` : ""}
       ${faktaSammanfattning(bo.fakta) ? `<div style="font-size:12.5px;font-weight:600;color:var(--ink);margin-top:8px;">${esc(faktaSammanfattning(bo.fakta))}</div>` : ""}
       ${bilder.length ? `
-      <div style="display:grid;grid-template-columns:repeat(${Math.min(bilder.length, 3)},1fr);gap:6px;margin-top:10px;">
+      <div class="bostad-bilder" style="display:grid;grid-template-columns:repeat(${Math.min(bilder.length, 3)},1fr);gap:6px;margin-top:10px;">
         ${bilder.map(s => `<img src="${bildUrl(s)}" alt="" loading="lazy" onclick="visaBild('${bildUrl(s)}')" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:zoom-in;display:block;" />`).join("")}
       </div>` : ""}
       ${!isOwner ? `<button class="btn-primary" style="width:100%;margin-top:12px;" onclick="openHusSida('${String(pid).replace(/[^A-Za-z0-9-]/g, "")}', '${String(name).replace(/['"\\<>]/g, "")}', window._currentPanelFeature)"><i class="ti ti-home" aria-hidden="true"></i> Besök husets sida</button>` : ""}

@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-10-28a";
+const IFOUND_VERSION = "2026-11-14a";
 
 // Mäklardemon (lokala demokonton, påhittade objekt och meddelanden) är dold
 // inför testpersonerna. Koden ligger kvar; true visar den igen.
@@ -6126,45 +6126,45 @@ function renderMapView() {
 
 let markerLayer = null;
 
-function createMarkerIcon(status) {
-  // SVG icons for each status
-  const icons = {
-    passive: `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="34" viewBox="0 0 28 36">
-      <path d="M14 0C6.3 0 0 6.3 0 14C0 24.5 14 36 14 36S28 24.5 28 14C28 6.3 21.7 0 14 0Z" fill="#6B7280"/>
-      <circle cx="14" cy="14" r="6" fill="white" opacity="0.9"/>
-    </svg>`,
+// Kartnålar för fastigheter med ägare på ifound (14 nov 2026).
+// Alla är ifound-röda. Har ägaren ett synligt önskepris får nålen en
+// prislapp med beloppet, så att den syns när man spanar över ett område.
+const NAL_PASSIV = `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="38" viewBox="0 0 30 38" aria-hidden="true">
+  <path d="M15 1C7.3 1 1 7.3 1 15C1 26 15 37 15 37S29 26 29 15C29 7.3 22.7 1 15 1Z" fill="#E3132C" stroke="#FFFFFF" stroke-width="2"/>
+  <circle cx="15" cy="15" r="5.5" fill="#FFFFFF"/>
+</svg>`;
+const NAL_HUS = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 64 78" aria-hidden="true">
+  <path d="M32 3C17.6 3 7 14.2 7 28C7 46.5 32 75 32 75S57 46.5 57 28C57 14.2 46.4 3 32 3Z" fill="#E3132C" stroke="#FFFFFF" stroke-width="3"/>
+  <polygon points="16,32 32,18 48,32" fill="#FFFFFF"/>
+  <rect x="20" y="32" width="24" height="17" rx="1.5" fill="#FFFFFF"/>
+  <rect x="27" y="37" width="10" height="12" rx="1" fill="#E3132C"/>
+</svg>`;
+const NAL_UTHYRNING = `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="38" viewBox="0 0 30 38" aria-hidden="true">
+  <path d="M15 1C7.3 1 1 7.3 1 15C1 26 15 37 15 37S29 26 29 15C29 7.3 22.7 1 15 1Z" fill="#2563eb" stroke="#FFFFFF" stroke-width="2"/>
+  <circle cx="15" cy="15" r="5.5" fill="#FFFFFF"/>
+</svg>`;
+const PRISLAPP_IKON = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.5" fill="currentColor"/></svg>`;
 
-    sale: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 64 78">
-      <path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#E3132C"/>
-      <polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/>
-      <rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/>
-      <rect x="27" y="37" width="10" height="12" rx="1" fill="#E3132C"/>
-    </svg>`,
+// 7 000 000 → "7 mkr", 4 250 000 → "4,3 mkr", 850 000 → "850 tkr"
+function kortPris(kr) {
+  const n = Number(kr);
+  if (!n) return "";
+  if (n < 1000000) return `${Math.round(n / 1000)} tkr`;
+  const m = n / 1000000;
+  return `${(Math.round(m * 10) / 10).toLocaleString("sv-SE")} mkr`;
+}
 
-    rent: `<svg xmlns="http://www.w3.org/2000/svg" width="30" height="38" viewBox="0 0 30 38">
-      <path d="M15 0C6.7 0 0 6.7 0 15C0 26.3 15 38 15 38S30 26.3 30 15C30 6.7 23.3 0 15 0Z" fill="#2563eb"/>
-      <polygon points="7,16 15,8 23,16" fill="white" opacity=".95"/>
-      <rect x="9" y="16" width="12" height="9" rx="1" fill="white" opacity=".95"/>
-      <rect x="12" y="19" width="5" height="6" rx=".5" fill="#2563eb"/>
-    </svg>`,
-
-    broker_sale: `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 64 78">
-      <path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#E3132C"/>
-      <polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/>
-      <rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/>
-      <rect x="27" y="37" width="10" height="12" rx="1" fill="#E3132C"/>
-    </svg>`,
-  };
-
-  const svgStr = icons[status] || icons.passive;
-  const sizes = { passive: [28,36], sale: [32,40], rent: [30,38] };
-  const [w, h] = sizes[status] || [28,36];
-
+function createMarkerIcon(status, pris) {
+  const nal = status === "sale" ? NAL_HUS : status === "rent" ? NAL_UTHYRNING : NAL_PASSIV;
+  const [w, h] = status === "sale" ? [32, 40] : [30, 38];
+  const lapp = pris
+    ? `<span class="nal-prislapp">${PRISLAPP_IKON}${kortPris(pris)}</span>`
+    : "";
   return L.divIcon({
-    html: svgStr,
-    className: '',
+    html: `<div class="nal" style="width:${w}px;height:${h}px;">${nal}${lapp}</div>`,
+    className: "",
     iconSize: [w, h],
-    iconAnchor: [w/2, h],
+    iconAnchor: [w / 2, h],
     popupAnchor: [0, -h],
   });
 }
@@ -6180,6 +6180,7 @@ function addClaimedMarkers() {
   const allProps = [...AGARE_I_VY.values()].map(a => ({
     id: String(a.fid), lat: a.lat, lon: a.lon,
     status: a.hemstatus === "sale" ? "sale" : "passive",
+    pris: a.onskepris || null,
     name: a.beteckning || "",
     likes: GILLANDE[a.fid]?.antal ?? "–",
     interested: "–",
@@ -6217,6 +6218,8 @@ function addClaimedMarkers() {
       allProps.push({
         id: ownerId, lat, lon,
         status: vis === 'sale' ? 'sale' : vis === 'rent' ? 'rent' : 'passive',
+        // Ägaren ser sin egen prislapp bara om priset är satt som synligt.
+        pris: MITT_AGARSKAP?.onskepris_synligt ? MITT_AGARSKAP.onskepris : null,
         name: ownerName,
         likes: GILLANDE[ownerId]?.antal || 0,
         interested: INTRESSE[ownerId]?.antal ?? "–",
@@ -6225,11 +6228,12 @@ function addClaimedMarkers() {
   }
 
   allProps.forEach(prop => {
-    const icon = createMarkerIcon(prop.status);
-    const marker = L.marker([prop.lat, prop.lon], { icon, zIndexOffset: 1000 });
+    const icon = createMarkerIcon(prop.status, prop.pris);
+    // Hus med prislapp ligger överst, så att lappen inte döljs av grannens nål.
+    const marker = L.marker([prop.lat, prop.lon], { icon, zIndexOffset: prop.pris ? 1100 : 1000 });
 
-    const statusLabel = { passive: 'Passiv', sale: 'Till salu', rent: 'Uthyrning' }[prop.status] || 'Passiv';
-    const statusColor = { passive: '#6B7280', sale: '#E3132C', rent: '#2563eb' }[prop.status] || '#6B7280';
+    const statusLabel = { passive: 'Ägare på ifound', sale: 'Till salu', rent: 'Uthyrning' }[prop.status] || 'Ägare på ifound';
+    const statusColor = { passive: '#E3132C', sale: '#E3132C', rent: '#2563eb' }[prop.status] || '#E3132C';
 
     // Find matching PROP_DATA entry for image
     // Inga demobilder: en riktig fastighet får aldrig visas med någon annans hus.
@@ -6249,7 +6253,7 @@ function addClaimedMarkers() {
         <div style="padding:12px 14px 14px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
             <span style="font-size:10px;font-weight:700;color:${statusColor};text-transform:uppercase;letter-spacing:.08em;background:${statusColor}18;padding:2px 7px;border-radius:999px;">${statusLabel}</span>
-            ${prop.price ? `<span style="font-size:12px;font-weight:700;color:var(--ink);">${prop.price}</span>` : ''}
+            ${prop.pris ? `<span style="font-size:12px;font-weight:700;color:var(--ink);">Önskepris ${kortPris(prop.pris)}</span>` : ''}
           </div>
           <div class="beteckning" style="font-size:12px;color:var(--ink);margin-bottom:2px;">${escapeHtmlBasic(prop.name)}</div>
           <div style="font-size:11px;color:var(--ink-muted);margin-bottom:10px;">${prop.id === ownerId

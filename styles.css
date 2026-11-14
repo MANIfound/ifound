@@ -1736,3 +1736,143 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
   box-shadow: 0 2px 6px rgba(0,0,0,.25);
 }
 .nal-prislapp svg { color: var(--green-600, #E3132C); flex-shrink: 0; }
+
+/* =========================
+   HUSETS SIDA (14 nov 2026)
+   Lager ovanpå kartan. Mobil först: en kolumn, stora knappar.
+   ========================= */
+.hus-sida {
+  position: fixed; inset: 0; z-index: 8500;
+  background: var(--surface); overflow-y: auto;
+  font-family: var(--font-body); color: var(--ink);
+  animation: slideUp .2s ease;
+}
+.hus-topp {
+  position: sticky; top: 0; z-index: 2;
+  display: flex; align-items: center; padding: 10px 12px;
+  background: rgba(255,255,255,.94); backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--hairline);
+}
+.hus-tillbaka {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 44px; padding: 0 16px; border-radius: var(--radius-pill);
+  border: none; background: var(--surface-2); color: var(--ink);
+  font-family: var(--font-body); font-size: 15px; font-weight: 600; cursor: pointer;
+}
+.hus-inner { max-width: 640px; margin: 0 auto; padding: 14px 16px 48px; }
+
+.hus-galleri { display: grid; gap: 8px; border-radius: 22px; overflow: hidden; height: 300px; }
+.hus-galleri img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: zoom-in; }
+.hus-galleri-1 { grid-template-columns: 1fr; }
+.hus-galleri-2 { grid-template-columns: 2fr 1fr; }
+.hus-galleri-3 { grid-template-columns: 2fr 1fr; grid-template-rows: 1fr 1fr; }
+.hus-galleri-3 img:first-child { grid-row: span 2; }
+.hus-galleri-tom {
+  height: 200px; border-radius: 22px; background: var(--green-100);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  padding: 20px; text-align: center; font-size: 14px; color: var(--green-800); line-height: 1.5;
+}
+
+.hus-etikett { margin-top: 20px; font-size: 13px; font-weight: 600; color: var(--green-600); }
+.hus-namn { font-family: var(--font-display); font-size: 32px; font-weight: 800; letter-spacing: -.035em; line-height: 1.05; margin-top: 2px; }
+.hus-fakta { font-size: 15px; color: var(--ink-muted); margin-top: 6px; }
+
+.hus-fomo {
+  margin-top: 18px; padding: 16px 18px; border-radius: 20px; background: var(--green-100);
+  display: flex; gap: 14px; align-items: center;
+}
+.hus-fomo > i { font-size: 30px; color: var(--green-600); }
+.hus-fomo strong { display: block; font-size: 19px; font-weight: 800; letter-spacing: -.02em; color: var(--green-800); }
+.hus-fomo span { display: block; font-size: 14px; color: #5A1A22; margin-top: 2px; }
+
+.hus-pris { margin-top: 12px; padding: 16px 18px; border-radius: 20px; border: 1.5px solid var(--green-600); }
+.hus-pris-etikett { font-size: 13px; font-weight: 700; color: var(--green-600); display: flex; align-items: center; gap: 6px; }
+.hus-pris-belopp { font-size: 28px; font-weight: 800; letter-spacing: -.03em; margin-top: 4px; }
+.hus-pris-not { font-size: 13px; color: var(--ink-soft); margin-top: 4px; line-height: 1.5; }
+
+.hus-berattar { margin-top: 22px; }
+.hus-berattar-etikett { font-size: 13px; font-weight: 600; color: var(--ink-muted); margin-bottom: 6px; }
+.hus-berattar h2 { font-family: var(--font-display); font-size: 21px; font-weight: 800; letter-spacing: -.02em; line-height: 1.2; margin-bottom: 8px; }
+.hus-berattar p { font-size: 16px; line-height: 1.6; color: var(--ink-soft); white-space: pre-wrap; }
+.hus-berattar .hus-tom { font-size: 15px; color: var(--ink-muted); }
+
+.hus-knappar { margin-top: 24px; display: grid; gap: 10px; }
+.hus-stor { width: 100%; min-height: 54px; font-size: 17px; }
+.hus-gillad { background: var(--green-100); color: var(--green-800); }
+.hus-trygg {
+  margin-top: 16px; display: flex; gap: 10px; align-items: flex-start;
+  font-size: 13px; line-height: 1.5; color: var(--ink-soft);
+  background: var(--surface-2); border-radius: 14px; padding: 12px 14px;
+}
+.hus-trygg i { font-size: 18px; color: var(--ink); flex-shrink: 0; margin-top: 1px; }
+.hus-lankar { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 6px 18px; justify-content: center; }
+.hus-lankar button {
+  background: none; border: none; padding: 6px 2px; cursor: pointer;
+  font-family: var(--font-body); font-size: 13px; color: var(--ink-muted); text-decoration: underline;
+}
+@media (min-width: 900px) {
+  .hus-galleri { height: 400px; }
+  .hus-namn { font-size: 40px; }
+}
+
+/* Knapparna på husets sida stannar längst ner medan man läser. */
+.hus-knappar {
+  position: sticky; bottom: 0; z-index: 1;
+  background: linear-gradient(to bottom, rgba(255,255,255,0), #fff 18px);
+  padding: 22px 0 12px; margin-top: 8px;
+}
+
+/* =========================
+   FAKTA OM HUSET (14 nov 2026)
+   ========================= */
+.hus-fakta-sektion { margin-top: 26px; }
+.hus-sektion-rubrik { font-family: var(--font-display); font-size: 21px; font-weight: 800; letter-spacing: -.02em; margin-bottom: 10px; }
+.fakta-grupp + .fakta-grupp { margin-top: 16px; }
+.fakta-grupp-rubrik { font-size: 13px; font-weight: 700; color: var(--ink-muted); margin-bottom: 8px; }
+.fakta-rutnat { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.fakta-ruta {
+  display: flex; gap: 10px; align-items: flex-start;
+  background: var(--surface-2); border-radius: 14px; padding: 12px;
+}
+.fakta-ruta > i { font-size: 20px; color: var(--green-600); flex-shrink: 0; margin-top: 1px; }
+.fakta-ruta span { display: block; font-size: 12px; color: var(--ink-muted); }
+.fakta-ruta strong { display: block; font-size: 15px; font-weight: 700; color: var(--ink); line-height: 1.3; margin-top: 1px; overflow-wrap: anywhere; }
+.fakta-kalla { font-size: 12px; color: var(--ink-muted); margin-top: 10px; }
+
+/* Formuläret på Min sida */
+.fakta-form { margin: 6px 0 14px; padding-top: 14px; border-top: 1px solid var(--hairline); }
+.fakta-form-rubrik { font-family: var(--font-display); font-size: 17px; font-weight: 800; }
+.fakta-form-sub { font-size: 13px; color: var(--ink-soft); margin: 3px 0 10px; line-height: 1.5; }
+.fakta-details { border: 1px solid var(--hairline); border-radius: 14px; margin-bottom: 8px; background: #fff; }
+.fakta-details summary {
+  list-style: none; cursor: pointer; padding: 13px 14px;
+  font-size: 15px; font-weight: 700; display: flex; justify-content: space-between; align-items: center;
+}
+.fakta-details summary::-webkit-details-marker { display: none; }
+.fakta-details summary::after { content: "+"; font-size: 20px; font-weight: 400; color: var(--ink-muted); }
+.fakta-details[open] summary::after { content: "–"; }
+.fakta-details summary span { margin-left: auto; margin-right: 10px; font-size: 12px; font-weight: 600; color: var(--green-600); }
+.fakta-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 0 14px 14px; }
+.fakta-falt { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fakta-falt-bred { grid-column: 1 / -1; }
+.fakta-falt > span:first-child { font-size: 13px; font-weight: 600; color: var(--ink-soft); display: flex; align-items: center; gap: 6px; }
+.fakta-falt small { font-weight: 400; color: var(--ink-muted); }
+.fakta-input-rad { display: flex; align-items: center; gap: 6px; }
+.fakta-input-rad .input { min-width: 0; }
+.fakta-input-rad em { font-style: normal; font-size: 13px; color: var(--ink-muted); white-space: nowrap; }
+.fakta-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.fakta-chip, .fakta-janej {
+  min-height: 40px; padding: 0 14px; border-radius: var(--radius-pill);
+  border: 1px solid rgba(20,20,20,.14); background: #fff; color: var(--ink);
+  font-family: var(--font-body); font-size: 14px; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.fakta-chip[aria-pressed="true"], .fakta-janej[aria-pressed="true"] {
+  background: var(--green-100); border-color: var(--green-600); color: var(--green-800);
+}
+.fakta-janej { justify-content: flex-start; width: 100%; }
+.fakta-bock { margin-left: auto; opacity: 0; }
+.fakta-janej[aria-pressed="true"] .fakta-bock { opacity: 1; }
+@media (max-width: 380px) {
+  .fakta-grid, .fakta-rutnat { grid-template-columns: 1fr; }
+}

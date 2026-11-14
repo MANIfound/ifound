@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-11-14a";
+const IFOUND_VERSION = "2026-11-14c";
 
 // Mäklardemon (lokala demokonton, påhittade objekt och meddelanden) är dold
 // inför testpersonerna. Koden ligger kvar; true visar den igen.
@@ -597,6 +597,328 @@ function visaBild(url) {
   document.body.appendChild(el);
 }
 
+// =========================
+// FAKTA OM HUSET (14 nov 2026)
+// =========================
+// Strukturerade uppgifter i bostadsprofilen. Allt är frivilligt. Servern
+// (bostad-2.sql, bostad_fakta_tvatta) har samma lista och avvisar allt annat
+// — ändras ett fält här måste det ändras där också.
+const FAKTA_GRUPPER = [
+  { rubrik: "Huset", falt: [
+    { k: "byggar",       typ: "tal",   etikett: "Byggår",       ikon: "ti-calendar", ph: "1962" },
+    { k: "boarea",       typ: "tal",   etikett: "Boarea",       ikon: "ti-ruler-2",  enhet: "m²", ph: "140" },
+    { k: "biarea",       typ: "tal",   etikett: "Biarea",       ikon: "ti-stairs-down", enhet: "m²", ph: "40" },
+    { k: "rum",          typ: "tal",   etikett: "Antal rum",    ikon: "ti-door",     ph: "5" },
+    { k: "renoverat_ar", typ: "tal",   etikett: "Senast större renovering", ikon: "ti-tools", ph: "2019" },
+    { k: "renoverat",    typ: "flera", etikett: "Renoverat",    ikon: "ti-hammer",
+      val: { kok: "Kök", badrum: "Badrum", tak: "Tak", fonster: "Fönster", fasad: "Fasad", el: "El", stammar: "Stammar", dranering: "Dränering" } },
+  ]},
+  { rubrik: "Energi och drift", falt: [
+    { k: "uppvarmning",  typ: "flera", etikett: "Uppvärmning",  ikon: "ti-flame",
+      val: { fjarrvarme: "Fjärrvärme", bergvarme: "Bergvärme", jordvarme: "Jordvärme", luftvatten: "Luft/vatten", luftluft: "Luft/luft", direktel: "Direktverkande el", vattenburen_el: "Vattenburen el", pellets: "Pellets", ved: "Ved", olja: "Olja", gas: "Gas" } },
+    { k: "energiklass",  typ: "ett",   etikett: "Energiklass",  ikon: "ti-leaf",
+      val: { A: "A", B: "B", C: "C", D: "D", E: "E", F: "F", G: "G" } },
+    { k: "driftkostnad", typ: "tal",   etikett: "Driftkostnad", ikon: "ti-receipt", enhet: "kr/år", ph: "38 000" },
+    { k: "solceller",    typ: "janej", etikett: "Solceller",    ikon: "ti-solar-panel", detalj: { k: "solceller_kwp", etikett: "Effekt", enhet: "kWp", ph: "10" } },
+    { k: "hembatteri",   typ: "janej", etikett: "Hembatteri",   ikon: "ti-battery-charging", detalj: { k: "hembatteri_kwh", etikett: "Storlek", enhet: "kWh", ph: "10" } },
+    { k: "laddbox",      typ: "janej", etikett: "Laddbox för elbil", ikon: "ti-charging-pile" },
+    { k: "fiber",        typ: "janej", etikett: "Fiber",        ikon: "ti-wifi" },
+    { k: "braskamin",    typ: "janej", etikett: "Braskamin",    ikon: "ti-flame" },
+  ]},
+  { rubrik: "Ute", falt: [
+    { k: "tradgard",     typ: "ett",   etikett: "Trädgård",     ikon: "ti-plant-2",
+      val: { ingen: "Ingen", liten: "Liten", mellan: "Mellanstor", stor: "Stor" } },
+    { k: "garage",       typ: "ett",   etikett: "Garage",       ikon: "ti-car-garage",
+      val: { ingen: "Inget", carport: "Carport", garage: "Garage", dubbelgarage: "Dubbelgarage" } },
+    { k: "vaxthus",      typ: "janej", etikett: "Växthus",      ikon: "ti-building-greenhouse" },
+    { k: "altan",        typ: "janej", etikett: "Altan eller uteplats", ikon: "ti-armchair" },
+    { k: "pool",         typ: "janej", etikett: "Pool",         ikon: "ti-pool" },
+    { k: "forrad",       typ: "janej", etikett: "Förråd eller attefallshus", ikon: "ti-building-warehouse" },
+  ]},
+];
+
+const _faktaTal = n => Number(n).toLocaleString("sv-SE");
+
+// Ett fälts värde som text, eller "" om det saknas.
+function faktaVarde(f, fakta) {
+  const v = fakta?.[f.k];
+  if (v === undefined || v === null || v === "" || v === false) return "";
+  if (f.typ === "tal") return f.k === "byggar" || f.k === "renoverat_ar" ? String(v) : `${_faktaTal(v)}${f.enhet ? " " + f.enhet : ""}`;
+  if (f.typ === "ett") return f.val[v] || "";
+  if (f.typ === "flera") return (Array.isArray(v) ? v : []).map(x => f.val[x]).filter(Boolean).join(", ");
+  if (f.typ === "janej") {
+    const d = f.detalj && fakta?.[f.detalj.k];
+    return d ? `Ja, ${_faktaTal(d)} ${f.detalj.enhet}` : "Ja";
+  }
+  return "";
+}
+
+// Kort rad till panelen: "Byggt 1962 · 142 m² · Bergvärme".
+function faktaSammanfattning(fakta) {
+  if (!fakta) return "";
+  const delar = [];
+  if (fakta.byggar) delar.push(`Byggt ${fakta.byggar}`);
+  if (fakta.boarea) delar.push(`${_faktaTal(fakta.boarea)} m²`);
+  if (fakta.rum) delar.push(`${fakta.rum} rum`);
+  const up = faktaVarde(FAKTA_GRUPPER[1].falt[0], fakta);
+  if (up) delar.push(up.split(", ")[0]);
+  if (fakta.solceller) delar.push("Solceller");
+  return delar.join(" · ");
+}
+
+// Husets sida: rutor med ikon, etikett och värde, grupperade.
+function faktaVisningHtml(fakta) {
+  if (!fakta || !Object.keys(fakta).length) return "";
+  const grupper = FAKTA_GRUPPER.map(g => {
+    const rutor = g.falt.map(f => {
+      const v = faktaVarde(f, fakta);
+      return v ? `<div class="fakta-ruta"><i class="ti ${f.ikon}" aria-hidden="true"></i><div><span>${f.etikett}</span><strong>${escapeHtmlBasic(v)}</strong></div></div>` : "";
+    }).join("");
+    return rutor ? `<div class="fakta-grupp"><div class="fakta-grupp-rubrik">${g.rubrik}</div><div class="fakta-rutnat">${rutor}</div></div>` : "";
+  }).join("");
+  return grupper ? `<div class="hus-fakta-sektion"><h2 class="hus-sektion-rubrik">Fakta om huset</h2>${grupper}<div class="fakta-kalla">Uppgifterna är ägarens egna.</div></div>` : "";
+}
+
+// Formuläret på Min sida.
+function faktaFormularHtml(fakta) {
+  fakta = fakta || {};
+  const chip = (k, v, text, pa, flera) =>
+    `<button type="button" class="fakta-chip" data-k="${k}" data-v="${v}" data-flera="${flera ? 1 : 0}" aria-pressed="${pa ? "true" : "false"}">${text}</button>`;
+  const falt = f => {
+    if (f.typ === "tal") return `
+      <label class="fakta-falt">
+        <span><i class="ti ${f.ikon}" aria-hidden="true"></i> ${f.etikett}</span>
+        <span class="fakta-input-rad"><input class="input" type="text" inputmode="numeric" autocomplete="off" data-k="${f.k}" value="${fakta[f.k] ?? ""}" placeholder="${f.ph || ""}" />${f.enhet ? `<em>${f.enhet}</em>` : ""}</span>
+      </label>`;
+    if (f.typ === "ett" || f.typ === "flera") return `
+      <div class="fakta-falt fakta-falt-bred">
+        <span><i class="ti ${f.ikon}" aria-hidden="true"></i> ${f.etikett}${f.typ === "flera" ? ' <small>välj en eller flera</small>' : ""}</span>
+        <div class="fakta-chips">${Object.entries(f.val).map(([v, t]) =>
+          chip(f.k, v, t, f.typ === "flera" ? (fakta[f.k] || []).includes(v) : fakta[f.k] === v, f.typ === "flera")).join("")}</div>
+      </div>`;
+    if (f.typ === "janej") return `
+      <div class="fakta-falt">
+        <button type="button" class="fakta-janej" data-k="${f.k}" aria-pressed="${fakta[f.k] ? "true" : "false"}">
+          <i class="ti ${f.ikon}" aria-hidden="true"></i> ${f.etikett}<i class="ti ti-check fakta-bock" aria-hidden="true"></i>
+        </button>
+        ${f.detalj ? `<span class="fakta-input-rad fakta-detalj"><input class="input" type="text" inputmode="decimal" autocomplete="off" data-k="${f.detalj.k}" value="${fakta[f.detalj.k] ?? ""}" placeholder="${f.detalj.etikett} (${f.detalj.ph})" aria-label="${f.etikett}: ${f.detalj.etikett.toLowerCase()}" /><em>${f.detalj.enhet}</em></span>` : ""}
+      </div>`;
+    return "";
+  };
+  const ifyllda = g => g.falt.filter(f => faktaVarde(f, fakta)).length;
+  return `
+    <div class="fakta-form" id="faktaForm">
+      <div class="fakta-form-rubrik">Fakta om huset</div>
+      <div class="fakta-form-sub">Allt är frivilligt. Fyll i det du vill — det visas på husets sida och gör den värd att besöka.</div>
+      ${FAKTA_GRUPPER.map((g, n) => `
+        <details class="fakta-details" ${n === 0 || ifyllda(g) ? "open" : ""}>
+          <summary>${g.rubrik}${ifyllda(g) ? `<span>${ifyllda(g)} ifyllda</span>` : ""}</summary>
+          <div class="fakta-grid">${g.falt.map(falt).join("")}</div>
+        </details>`).join("")}
+    </div>`;
+}
+
+// Kopplar knapparna i formuläret. Anropas efter varje omritning.
+function kopplaFaktaFormular() {
+  const form = document.getElementById("faktaForm");
+  if (!form) return;
+  form.querySelectorAll(".fakta-chip").forEach(b => b.onclick = () => {
+    const pa = b.getAttribute("aria-pressed") !== "true";
+    if (b.dataset.flera !== "1") {
+      form.querySelectorAll(`.fakta-chip[data-k="${b.dataset.k}"]`).forEach(x => x.setAttribute("aria-pressed", "false"));
+    }
+    b.setAttribute("aria-pressed", pa ? "true" : "false");
+  });
+  form.querySelectorAll(".fakta-janej").forEach(b => b.onclick = () =>
+    b.setAttribute("aria-pressed", b.getAttribute("aria-pressed") === "true" ? "false" : "true"));
+}
+
+// Läser formuläret till det format servern tar emot.
+function samlaFakta() {
+  const form = document.getElementById("faktaForm");
+  if (!form) return null;
+  const ut = {};
+  form.querySelectorAll("input[data-k]").forEach(i => {
+    // Tillåter "38 000", "9,8" och "38 000 kr".
+    const v = String(i.value).replace(/[\s\u00a0]|kr|m²|kwp|kwh/gi, "").replace(",", ".");
+    if (v === "") return;
+    if (isNaN(Number(v))) throw new Error(`Skriv en siffra i fältet ${i.closest(".fakta-falt")?.innerText.split("\n")[0].trim() || ""}.`);
+    ut[i.dataset.k] = Number(v);
+  });
+  FAKTA_GRUPPER.forEach(g => g.falt.forEach(f => {
+    if (f.typ === "ett") {
+      const b = form.querySelector(`.fakta-chip[data-k="${f.k}"][aria-pressed="true"]`);
+      if (b) ut[f.k] = b.dataset.v;
+    } else if (f.typ === "flera") {
+      const v = [...form.querySelectorAll(`.fakta-chip[data-k="${f.k}"][aria-pressed="true"]`)].map(b => b.dataset.v);
+      if (v.length) ut[f.k] = v;
+    } else if (f.typ === "janej") {
+      const pa = form.querySelector(`.fakta-janej[data-k="${f.k}"]`)?.getAttribute("aria-pressed") === "true";
+      if (pa) ut[f.k] = true;
+      else if (f.detalj) delete ut[f.detalj.k];   // ingen effekt utan solceller
+    }
+  }));
+  return ut;
+}
+
+// =========================
+// HUSETS SIDA (14 nov 2026)
+// =========================
+// En egen sida för hus där ägaren finns på ifound: ägarens bilder och text,
+// önskepris, hur många som gillat, och "Skriv till ägaren" som huvudknapp.
+// Det är husets sida, inte ägarens — ägaren visas aldrig med namn.
+//
+// Ligger som ett lager ovanpå kartan, så att "Tillbaka till kartan" landar
+// exakt där man var. Öppnas från panelen ("Besök husets sida") och från
+// popupen på en röd nål.
+
+const HUS_FALLBILD = `<svg width="56" height="68" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#E3132C"/><polygon points="16,32 32,18 48,32" fill="#fff"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="#fff"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#E3132C"/></svg>`;
+
+let _husObserver = null;
+
+function openHusSida(pid, name, feature) {
+  pid = String(pid);
+  const f = feature || { properties: { fastighet_id: pid, fastighet: name }, _pid: pid };
+  window._husSida = { pid, name: name || pid, feature: f };
+
+  // Hämta det som saknas; sidan ritas om en gång när svaren kommit.
+  const vantar = [];
+  if (!_gillandeHamtat.has(pid)) { _gillandeHamtat.add(pid); vantar.push(hamtaGillanden([pid])); }
+  if (!_intresseHamtat.has(pid)) { _intresseHamtat.add(pid); vantar.push(hamtaIntressen([pid])); }
+  if (AGARE[pid] === undefined && !_agareHamtat.has(pid)) { _agareHamtat.add(pid); vantar.push(hamtaAgare([pid])); }
+  if (!_bostadHamtad.has(pid)) vantar.push(hamtaBostad(pid));
+  if (vantar.length) Promise.allSettled(vantar).then(() => { if (window._husSida?.pid === pid) ritaHusSida(); });
+
+  // Efter "Skriv till ägaren" stängs intresserutan — då ska siffrorna
+  // och knappen på husets sida stämma.
+  if (!_husObserver) {
+    _husObserver = new MutationObserver(muts => {
+      for (const m of muts) for (const n of m.removedNodes) {
+        if (n.id === "interest-modal-overlay" && window._husSida) ritaHusSida();
+      }
+    });
+    _husObserver.observe(document.body, { childList: true });
+  }
+  ritaHusSida();
+}
+
+function closeHusSida() {
+  window._husSida = null;
+  document.getElementById("husSida")?.remove();
+  document.body.style.overflow = "";
+}
+
+function ritaHusSida() {
+  const h = window._husSida;
+  if (!h) return;
+  const { pid, name, feature } = h;
+  const st = loadState();
+  const ag = AGARE[pid] || null;
+  const bo = BOSTAD[pid] || null;
+  const egen = st.ownerParcelId === pid;
+  const g = GILLANDE[pid], i = INTRESSE[pid];
+  const likes = g ? g.antal : 0, intr = i ? i.antal : 0;
+  const jagGillar = g ? g.jag : !!st.myLikes?.[pid];
+  const jagIntresse = !!st.myInterests?.[pid];
+  const esc = x => escapeHtmlBasic(String(x ?? ""));
+  const bilder = bo?.bilder || [];
+  const adress = st.parcelAddresses?.[pid] || "";
+  const typ = getKnownType(pid) || "";
+  const area = getParcelMeta(feature).area || st.parcelMeta?.[pid]?.area || "";
+  const pris = egen
+    ? (MITT_AGARSKAP?.onskepris_synligt ? MITT_AGARSKAP.onskepris : null)
+    : ag?.onskepris || null;
+  const fakta = [adress, typ, area ? `${Number(area).toLocaleString("sv-SE")} m²` : ""].filter(Boolean).join(" · ");
+
+  const galleri = bilder.length ? `
+    <div class="hus-galleri hus-galleri-${Math.min(bilder.length, 3)}">
+      ${bilder.slice(0, 3).map((b, n) => `<img src="${bildUrl(b)}" alt="Bild ${n + 1} på ${esc(name)}" onclick="visaBild('${bildUrl(b)}')" />`).join("")}
+    </div>` : `
+    <div class="hus-galleri-tom">
+      ${HUS_FALLBILD}
+      <div>${egen ? "Lägg upp bilder på Min sida, så ser de som gillar huset dem här." : "Ägaren har inte lagt upp bilder än."}</div>
+    </div>`;
+
+  const fomo = likes > 0
+    ? `<strong>${likes} ${likes === 1 ? "person har" : "personer har"} gillat huset</strong>${intr > 0 ? `<span>${intr} har visat intresse</span>` : ""}`
+    : `<strong>Ingen har gillat huset än</strong><span>${egen ? "Du får se det här när någon gör det." : "Bli först — ägaren ser när någon gillar."}</span>`;
+
+  const el = document.getElementById("husSida") || document.body.appendChild(Object.assign(document.createElement("div"), { id: "husSida" }));
+  el.className = "hus-sida";
+  el.setAttribute("role", "dialog");
+  el.setAttribute("aria-label", `Husets sida, ${name}`);
+  document.body.style.overflow = "hidden";
+  el.innerHTML = `
+    <div class="hus-topp">
+      <button class="hus-tillbaka" id="husTillbaka"><i class="ti ti-arrow-left" aria-hidden="true"></i> Tillbaka till kartan</button>
+    </div>
+    <div class="hus-inner">
+      ${galleri}
+      <div class="hus-etikett">Husets sida${egen ? " · så ser andra ditt hus" : ""}</div>
+      <h1 class="hus-namn">${esc(name)}</h1>
+      ${fakta ? `<div class="hus-fakta">${esc(fakta)}</div>` : ""}
+
+      <div class="hus-fomo"><i class="ti ti-heart-filled" aria-hidden="true"></i><div>${fomo}</div></div>
+
+      ${pris ? `
+      <div class="hus-pris">
+        <div class="hus-pris-etikett"><i class="ti ti-tag" aria-hidden="true"></i> Ägarens önskepris</div>
+        <div class="hus-pris-belopp">${Number(pris).toLocaleString("sv-SE")} kr</div>
+        <div class="hus-pris-not">Huset är inte till salu — men ägaren har angett vad hen skulle kunna tänka sig.</div>
+      </div>` : ""}
+
+      <div class="hus-berattar">
+        <div class="hus-berattar-etikett">Ägaren berättar</div>
+        ${bo?.rubrik ? `<h2>${esc(bo.rubrik)}</h2>` : ""}
+        ${bo?.beskrivning ? `<p>${esc(bo.beskrivning)}</p>` : ""}
+        ${!bo?.rubrik && !bo?.beskrivning ? `<p class="hus-tom">${egen
+          ? "Du har inte skrivit något om huset än. Gör det på Min sida."
+          : "Ägaren finns på ifound och ser när någon gillar huset eller skriver. Hen har inte skrivit något här än."}</p>` : ""}
+      </div>
+
+      ${faktaVisningHtml(bo?.fakta) || (egen ? `<div class="hus-fakta-sektion"><h2 class="hus-sektion-rubrik">Fakta om huset</h2><p class="hus-tom">Fyll i byggår, uppvärmning, trädgård med mera på Min sida, så ser besökarna det här.</p></div>` : "")}
+
+      ${egen ? `
+      <div class="hus-knappar">
+        <button class="btn-primary hus-stor" onclick="closeHusSida(); navigate('dashboard')"><i class="ti ti-pencil" aria-hidden="true"></i> Ändra på Min sida</button>
+      </div>` : `
+      <div class="hus-knappar">
+        <button class="btn-primary hus-stor" id="husSkriv"><i class="ti ti-message" aria-hidden="true"></i> ${jagIntresse ? "Skriv till ägaren igen" : "Skriv till ägaren"}</button>
+        <button class="btn-ghost hus-stor ${jagGillar ? "hus-gillad" : ""}" id="husGilla"><i class="ti ${jagGillar ? "ti-heart-filled" : "ti-heart"}" aria-hidden="true"></i> ${jagGillar ? "Gillad" : "Gilla huset"}</button>
+      </div>
+      <div class="hus-trygg"><i class="ti ti-shield-check" aria-hidden="true"></i> Ägaren ser inte vem du är förrän du vill. Betala aldrig handpenning eller deposition innan du träffat ägaren och sett kontraktet.</div>
+      <div class="hus-lankar">
+        ${bo ? `<button id="husAnmalInnehall">Anmäl innehållet</button>` : ""}
+        <button id="husMittHus">Det här är mitt hus — anmäl</button>
+      </div>`}
+    </div>`;
+
+  el.querySelector("#husTillbaka").onclick = closeHusSida;
+  const skriv = el.querySelector("#husSkriv");
+  if (skriv) skriv.onclick = () => openInterestModal(feature, pid, name);
+  const gilla = el.querySelector("#husGilla");
+  if (gilla) gilla.onclick = async () => {
+    const pa = !jagGillar;
+    gilla.disabled = true;
+    let antal;
+    try { antal = await skickaGillande(pid, pa); }
+    catch (e) { gilla.disabled = false; toast("Kunde inte spara gillningen just nu. Försök igen."); return; }
+    GILLANDE[pid] = { antal, jag: pa };
+    MINA_GILLANDEN = null; _minaGillandenGen++;
+    const s = loadState();
+    s.myLikes = s.myLikes || {}; s.parcelNames = s.parcelNames || {}; s.parcelNames[pid] = name;
+    if (pa) s.myLikes[pid] = true; else delete s.myLikes[pid];
+    saveState(s);
+    toast(pa ? "Huset är gillat. Ägaren ser det." : "Gillning borttagen.");
+    ritaHusSida();
+    if (window._panelPid === pid && window._currentPanelFeature) { try { redrawLayer(); renderParcelPanel(window._currentPanelFeature); } catch {} }
+  };
+  const ai = el.querySelector("#husAnmalInnehall");
+  if (ai && bo) ai.onclick = async () => { await anmalInnehall(pid, bo.agarskap_id, name); ritaHusSida(); };
+  const mh = el.querySelector("#husMittHus");
+  if (mh) mh.onclick = async () => { await anmalAgarskap(pid, name); ritaHusSida(); };
+}
+
 function bostadBlockHtml(pid, name, bo, isOwner) {
   if (!bo) return "";
   const bilder = bo.bilder || [];
@@ -606,6 +928,7 @@ function bostadBlockHtml(pid, name, bo, isOwner) {
       <div style="font-size:10.5px;font-weight:600;color:var(--ink-muted);margin-bottom:6px;">Ägaren berättar</div>
       ${bo.rubrik ? `<div style="font-family:var(--font-display);font-size:15px;font-weight:700;color:var(--ink);line-height:1.3;margin-bottom:6px;">${esc(bo.rubrik)}</div>` : ""}
       ${bo.beskrivning ? `<div style="font-size:12.5px;color:var(--ink-soft);line-height:1.6;white-space:pre-wrap;">${esc(bo.beskrivning)}</div>` : ""}
+      ${faktaSammanfattning(bo.fakta) ? `<div style="font-size:12.5px;font-weight:600;color:var(--ink);margin-top:8px;">${esc(faktaSammanfattning(bo.fakta))}</div>` : ""}
       ${bilder.length ? `
       <div style="display:grid;grid-template-columns:repeat(${Math.min(bilder.length, 3)},1fr);gap:6px;margin-top:10px;">
         ${bilder.map(s => `<img src="${bildUrl(s)}" alt="" loading="lazy" onclick="visaBild('${bildUrl(s)}')" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:zoom-in;display:block;" />`).join("")}
@@ -828,7 +1151,7 @@ let locateMarker = null;
 // =========================
 // Router
 // =========================
-function navigate(view) { currentView = view; render(); }
+function navigate(view) { if (window._husSida) closeHusSida(); currentView = view; render(); }
 
 // =========================
 // Geo helpers
@@ -3581,7 +3904,9 @@ function _renderParcelPanelInner(feature) {
         ${ag.hemstatus === "sale" ? `<span style="font-size:11px;font-weight:600;background:var(--green-600);color:#fff;border-radius:999px;padding:3px 10px;">Till salu</span>` : ""}
       </div>
       <div style="font-size:11.5px;color:var(--ink-soft);margin-top:4px;line-height:1.5;">Ägaren ser när någon gillar eller visar intresse för huset.</div>
-    </div>` : ""}
+      <button id="besokHusBtn" class="btn-primary" style="width:100%;margin-top:10px;"><i class="ti ti-home" aria-hidden="true"></i> Besök husets sida</button>
+    </div>` : isOwner ? `
+    <button id="besokHusBtn" class="btn-ghost" style="width:100%;margin:10px 0 4px;"><i class="ti ti-eye" aria-hidden="true"></i> Se husets sida som andra ser den</button>` : ""}
     ${bostadBlockHtml(pid, name, bo, isOwner)}
     ${(() => {
       const own = state.ownerParcelId === pid;
@@ -3645,6 +3970,8 @@ function _renderParcelPanelInner(feature) {
 
   const anmalBtn = document.getElementById("anmalAgareBtn");
   if (anmalBtn) anmalBtn.onclick = () => anmalAgarskap(pid, name);
+  const besokHusBtn = document.getElementById("besokHusBtn");
+  if (besokHusBtn) besokHusBtn.onclick = () => openHusSida(pid, name, feature);
   const anmalInnehallBtn = document.getElementById("anmalInnehallBtn");
   if (anmalInnehallBtn && bo) anmalInnehallBtn.onclick = () => anmalInnehall(pid, bo.agarskap_id, name);
 
@@ -5543,7 +5870,8 @@ function renderDashboard() {
                   <i class="ti ti-cloud-upload"></i> Lägg upp ${lokalaBilder.length === 1 ? "bilden" : `de ${lokalaBilder.length} bilderna`} du sparade tidigare
                 </button>` : ""}
                 <input id="homeImageInput" type="file" accept="image/*" multiple style="display:none;" />
-              </div>`}
+              </div>
+              ${faktaFormularHtml(MIN_BOSTAD.fakta)}`}
               <div class="extra-form${homeStatus === "rent" ? " show" : ""}" id="rent-extra">
                 <div class="card-title" style="font-size:13px;margin-bottom:10px;">Uthyrningsdetaljer</div>
                 ${(() => {
@@ -5829,11 +6157,19 @@ function renderDashboard() {
     });
   }
 
+  kopplaFaktaFormular();
   const sparaBtn = document.getElementById("saveHomeProfileBtn");
   if (sparaBtn) sparaBtn.onclick = async () => {
     const titel = document.getElementById("homeTitleInput")?.value.trim() ?? "";
     const text  = document.getElementById("homeDescriptionInput")?.value.trim() ?? "";
     sparaBtn.disabled = true;
+    let fakta;
+    try { fakta = samlaFakta(); } catch (e) { toast(e.message); return; }
+    if (fakta) {
+      // Fakta först: blir något fel ligger allt kvar i formuläret.
+      const { error } = await sbKlient().rpc("spara_bostad_fakta", { fakta_in: fakta });
+      if (error) { sparaBtn.disabled = false; toast(svenskFel(error, "Kunde inte spara fakta om huset just nu.")); return; }
+    }
     const ok = await sparaMinBostad(titel, text);
     sparaBtn.disabled = false;
     if (!ok) return;   // felet är redan visat; texten ligger kvar i rutorna
@@ -6259,6 +6595,7 @@ function addClaimedMarkers() {
           <div style="font-size:11px;color:var(--ink-muted);margin-bottom:10px;">${prop.id === ownerId
             ? (state.claimStatus === "verified" ? "Din fastighet" : "Din ansökan granskas")
             : "Ägaren finns på ifound"}</div>
+          <button onclick="openHusSida('${String(prop.id).replace(/[^A-Za-z0-9-]/g, "")}', '${String(prop.name).replace(/['"\\<>]/g, "")}')" class="btn-primary" style="width:100%;margin-bottom:10px;padding:9px 12px;font-size:13px;">Besök husets sida</button>
           <div style="display:flex;gap:0;border-top:0.5px solid #F3F4F6;padding-top:10px;">
             <div style="flex:1;text-align:center;">
               <div style="font-size:17px;font-weight:700;color:var(--ink);line-height:1;">${prop.likes}</div>
@@ -8857,7 +9194,11 @@ function renderView() {
   renderDashboard();
 }
 
-window.addEventListener("keydown", ev => { if (currentView === "map" && ev.key === "Escape") closePanel(); });
+window.addEventListener("keydown", ev => {
+  if (ev.key !== "Escape") return;
+  if (window._husSida) { closeHusSida(); return; }
+  if (currentView === "map") closePanel();
+});
 
 (async () => {
   // Städa bort det gamla lokala kontosystemet: lösenord i klartext och det

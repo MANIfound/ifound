@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-11-14g";
+const IFOUND_VERSION = "2026-11-24a";
 
 // Mäklardemon (lokala demokonton, påhittade objekt och meddelanden) är dold
 // inför testpersonerna. Koden ligger kvar; true visar den igen.
@@ -994,7 +994,7 @@ function ritaHusSida() {
       </div>`}
     </div>`;
 
-  el.querySelector("#husTillbaka").onclick = closeHusSida;
+  el.querySelector("#husTillbaka").onclick = () => closeHusSida();
   const skriv = el.querySelector("#husSkriv");
   if (skriv) skriv.onclick = () => openInterestModal(feature, pid, name);
   const gilla = el.querySelector("#husGilla");
@@ -5174,6 +5174,7 @@ function renderBuildNew() {
 
       <nav class="dashboard-nav">
         <div class="nav-left">
+          <button class="tillbaka-knapp" onclick="tillbaka()" aria-label="Tillbaka"><i class="ti ti-arrow-left" aria-hidden="true"></i></button>
           <div class="logo" onclick="navigate('welcome')" style="cursor:pointer;">
             <svg width="17" height="21" viewBox="0 0 64 78" fill="none" aria-hidden="true"><path d="M32 4C18 4 8 15 8 28C8 46 32 74 32 74S56 46 56 28C56 15 46 4 32 4Z" fill="#E3132C"/><polygon points="16,32 32,18 48,32" fill="white" opacity=".95"/><rect x="20" y="32" width="24" height="17" rx="1.5" fill="white" opacity=".95"/><rect x="27" y="37" width="10" height="12" rx="1" fill="#E3132C"/></svg>
             <span class="logo-text">i<em>found</em></span>
@@ -9249,7 +9250,64 @@ function brokerEditListing(id) {
 // =========================
 // Render & boot
 // =========================
+// =========================
+// TILLBAKA (24 nov 2026)
+// =========================
+// Mobilens tillbaka-knapp (och webbläsarens) ska stanna i ifound: varje byte
+// av vy blir ett steg i webbläsarens historik. Är något öppet ovanpå sidan —
+// en ruta, husets sida eller panelen på kartan — stänger tillbaka det först.
+let _historikVy = null;      // vyn som ligger överst i historiken
+let _historikDjup = 0;       // hur många steg vi själva lagt till
+let _franHistorik = false;   // render() som orsakats av tillbaka-knappen
+
+function historikSteg() {
+  if (_franHistorik) { _historikVy = currentView; return; }
+  if (currentView === _historikVy) return;
+  try {
+    if (_historikVy === null) history.replaceState({ ifound: 1, vy: currentView, djup: 0 }, "");
+    else { _historikDjup++; history.pushState({ ifound: 1, vy: currentView, djup: _historikDjup }, ""); }
+  } catch {}
+  _historikVy = currentView;
+}
+
+// Rutor som stängs med tillbaka, överst först.
+const TILLBAKA_RUTOR = ["inforuta", "samtal-overlay", "type-picker-overlay", "postcard-modal-overlay",
+  "interest-modal-overlay", "rental-modal-overlay", "claim-modal-overlay", "auth-modal-overlay",
+  "admin-anv-overlay", "area-search-overlay"];
+
+function stangOverstaLagret() {
+  for (const id of TILLBAKA_RUTOR) {
+    const el = document.getElementById(id);
+    if (el) { el.remove(); if (!document.querySelector(".modal-overlay, [id$='-overlay']")) document.body.style.overflow = ""; return true; }
+  }
+  if (window._husSida) { closeHusSida(); return true; }
+  const panel = document.getElementById("panel");
+  if (currentView === "map" && panel && !panel.classList.contains("hidden")) { closePanel(); return true; }
+  return false;
+}
+
+window.addEventListener("popstate", e => {
+  if (stangOverstaLagret()) {
+    // Lägg tillbaka steget vi just lämnade — vi står kvar på samma sida.
+    try { history.pushState({ ifound: 1, vy: currentView, djup: _historikDjup }, ""); } catch {}
+    return;
+  }
+  const st = e.state;
+  if (!st?.ifound) return;
+  _historikDjup = st.djup || 0;
+  if (st.vy === currentView) return;
+  _franHistorik = true;
+  try { currentView = st.vy; render(); } finally { _franHistorik = false; }
+});
+
+// Synliga tillbaka-knappar: ett steg bakåt om det finns ett, annars hem.
+function tillbaka() {
+  if (_historikDjup > 0) history.back();
+  else navigate("welcome");
+}
+
 function render() {
+  historikSteg();
   renderView();
   const s = loadSession();
   if (arAdmin() || isBroker()) return;

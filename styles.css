@@ -2012,3 +2012,11 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
   .inforuta-bakgrund { align-items: flex-end; padding: 0; }
   .inforuta { max-width: none; border-radius: 22px 22px 0 0; padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); animation: sheetUp .25s ease; }
 }
+
+/* Tillbaka-knapp (24 nov 2026) */
+.tillbaka-knapp {
+  width: 40px; height: 40px; border-radius: 50%; border: none; flex-shrink: 0;
+  background: var(--surface-2); color: var(--ink); cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 19px; margin-right: 8px;
+}
+.tillbaka-knapp:hover { background: var(--green-100); color: var(--green-600); }

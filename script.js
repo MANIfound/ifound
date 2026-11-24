@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-11-24b";
+const IFOUND_VERSION = "2026-11-24c";
 
 // Mäklardemon (lokala demokonton, påhittade objekt och meddelanden) är dold
 // inför testpersonerna. Koden ligger kvar; true visar den igen.
@@ -4886,7 +4886,7 @@ function renderWelcome() {
               </div>
               <div class="story-foot">
                 <span class="beteckning">Skulle du göra samma sak?</span>
-                <button class="story-link" onclick="currentView='map';render();">Hitta mark på kartan <i class="ti ti-arrow-right" aria-hidden="true"></i></button>
+                <button class="story-link" onclick="openByggbar()">Hitta mark på kartan <i class="ti ti-arrow-right" aria-hidden="true"></i></button>
               </div>
             </article>
 
@@ -5216,7 +5216,7 @@ function renderBuildNew() {
               På ifound hittar du den marken på kartan, ritar ut exakt vilken del du är intresserad av och skickar en fråga till ägaren — även om ingenting är till salu. Det är där husprojektet börjar.
             </div>
             <div class="bn-role-actions">
-              <button class="bn-btn-primary" onclick="currentView='map';render();">
+              <button class="bn-btn-primary" onclick="openByggbar()">
                 <i class="ti ti-map-2" aria-hidden="true"></i> Hitta mark på kartan
               </button>
               <button class="bn-btn-ghost" onclick="currentView='feed';render();">Se vad andra intresserat sig för</button>
@@ -6428,6 +6428,7 @@ function renderMapView() {
             ${isLoggedIn ? '<option value="owner" ' + (savedMode==="owner"?"selected":"") + '>Ägarläge</option>' : ''}
           </select>
           <button id="nearMeMapBtn" class="toolbar-btn"><i class="ti ti-current-location" aria-hidden="true"></i> Nära mig</button>
+          <button class="toolbar-btn bygg-btn" onclick="startByggbar()" title="Var går det att bygga?" aria-label="Var går det att bygga?"><i class="ti ti-home-plus" aria-hidden="true"></i><span class="bygg-btn-text"> Bygga?</span></button>
           <button id="toggleMapStyleBtn" class="toolbar-btn">Kartvy</button>
         </div>
       </div>
@@ -7080,6 +7081,220 @@ function hamtaBevakningar() {
   return _bevakningarPagar;
 }
 
+// =========================
+// VAR GÅR DET ATT BYGGA? (24 nov 2026)
+// =========================
+// Man ritar ett område och servern (byggbar_omrade, ~/lm/byggbar.sql)
+// svarar med tomter där en avstyckning eller ett nytt hus är möjligt
+// enligt praxis: trolig / kanske / svart, med motivering. Ingen bedömning
+// från kommunen — det ska alltid framgå. Resultatet ligger kvar på kartan
+// tills man rensar eller ritar nytt, även när kartan byggs om.
+const BYGGBAR_MAX_KVM = 5000000;   // samma gräns som servern, 5 km²
+let _byggRitning = null;           // { handler, lager } medan man ritar
+let _byggResultat = null;          // { rader, geom } senaste svaret
+let _byggLager = null;             // markeringarna på kartan
+const BYGG_FARG = { trolig: "#1F8A4C", kanske: "#D99A3E", svart: "#8C8C8C" };
+const BYGG_ORD  = { trolig: "Trolig", kanske: "Kanske", svart: "Svårt" };
+const BYGG_KALLOR = "Källor: Lantmäteriet, Naturvårdsverket, Länsstyrelsen Skåne (CC BY 4.0), © OpenStreetMap.";
+const BYGG_FORBEHALL = "Möjligt enligt praxis — ingen bedömning från kommunen. Detaljplanen avgör. Fråga kommunen om förhandsbesked innan du gör något.";
+
+function openByggbar() {
+  window._pendingArea = { mode: "byggbar" };
+  currentView = "map";
+  render();
+}
+
+function stopByggRitning() {
+  if (_byggRitning) {
+    try { _byggRitning.handler?.disable(); } catch {}
+    try { _byggRitning.lager?.remove(); } catch {}
+    map?.off(L.Draw.Event.CREATED, onByggDrawCreated);
+    _byggRitning = null;
+  }
+  if (activeDrawFeature?._bygg) activeDrawFeature = null;
+}
+
+function rensaByggbar() {
+  stopByggRitning();
+  _byggResultat = null;
+  if (_byggLager) { try { _byggLager.remove(); } catch {} _byggLager = null; }
+}
+
+const _byggStil = { color: "#1F8A4C", weight: 3, fillColor: "#1F8A4C", fillOpacity: 0.08, dashArray: "6 6" };
+
+function startByggbar(nytt = false) {
+  if (!map) return;
+  if (_byggResultat && !nytt) { visaByggLista(); return; }
+  stopDraw();
+  stopDrawWatch();
+  rensaByggbar();
+  activeDrawFeature = { _bygg: true };
+  _byggRitning = { handler: null, lager: L.featureGroup().addTo(map) };
+  map.on(L.Draw.Event.CREATED, onByggDrawCreated);
+
+  openPanel(`
+    <button class="panel-close" id="byggStang" aria-label="Stäng">✕</button>
+    <div class="panel-eyebrow">Var går det att bygga?</div>
+    <div class="panel-name" style="font-size:15px;">Rita området du är intresserad av</div>
+    <div style="margin:12px 0;padding:12px;background:var(--green-50);border-radius:10px;font-size:13px;color:var(--ink-soft);line-height:1.6;">
+      Vi letar upp tomter som är stora nog för ett hus till, lucktomter och obebyggd mark — och sorterar bort det som ligger i naturreservat eller inom strandskydd. Högst 5 km², ungefär en stadsdel.
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button id="byggPoly" class="panel-btn" style="flex:1;background:var(--green-600);color:#fff;border-color:var(--green-600);">
+        <i class="ti ti-vector-triangle"></i> Rita fritt
+      </button>
+      <button id="byggRekt" class="panel-btn" style="flex:1;"><i class="ti ti-rectangle"></i> Rektangel</button>
+    </div>
+    <div id="byggStatus" style="font-size:12px;color:var(--ink-muted);text-align:center;margin-top:10px;min-height:20px;"></div>
+  `);
+  document.getElementById("byggStang").onclick = () => { rensaByggbar(); closePanel(); };
+  const starta = (Typ, opts, text) => {
+    try { _byggRitning?.handler?.disable(); } catch {}
+    const h = new Typ(map, opts);
+    h.enable();
+    if (_byggRitning) _byggRitning.handler = h;
+    const st = document.getElementById("byggStatus");
+    if (st) st.textContent = text;
+  };
+  document.getElementById("byggPoly").onclick = () =>
+    starta(L.Draw.Polygon, { allowIntersection: false, showArea: false, shapeOptions: _byggStil },
+           "Klicka ut hörnen. Klicka på första punkten för att avsluta.");
+  document.getElementById("byggRekt").onclick = () =>
+    starta(L.Draw.Rectangle, { shapeOptions: _byggStil }, "Klicka och dra över området.");
+}
+
+async function onByggDrawCreated(e) {
+  if (!_byggRitning) return;
+  window._lastDrawCreatedAt = Date.now();
+  const layer = e.layer;
+  let geom = null;
+  try { geom = layer.toGeoJSON().geometry; } catch {}
+  let kvm = null;
+  try {
+    const ll = layer.getLatLngs();
+    const ring = Array.isArray(ll[0]) ? ll[0] : ll;
+    if (L.GeometryUtil && ring.length >= 3) kvm = L.GeometryUtil.geodesicArea(ring);
+  } catch {}
+  stopByggRitning();
+  if (!geom) { toast("Kunde inte läsa formen. Rita om."); startByggbar(true); return; }
+  if (kvm != null && kvm > BYGGBAR_MAX_KVM) {
+    openPanel(`
+      <button class="panel-close" onclick="closePanel()" aria-label="Stäng">✕</button>
+      <div class="panel-eyebrow">Var går det att bygga?</div>
+      <div class="panel-name" style="font-size:15px;">Området är för stort</div>
+      <div style="margin:12px 0;font-size:13px;color:var(--ink-soft);line-height:1.6;">Högst 5 km² går att undersöka på en gång. Zooma in och rita ett mindre område.</div>
+      <button class="btn-primary" style="width:100%;justify-content:center;" onclick="startByggbar(true)">Rita igen</button>`);
+    return;
+  }
+  openPanel(`
+    <div class="panel-eyebrow">Var går det att bygga?</div>
+    <div style="padding:28px 0;text-align:center;font-size:13px;color:var(--ink-muted);"><i class="ti ti-loader-2 bygg-snurr" aria-hidden="true"></i> Letar efter tomter …</div>`);
+  let rader;
+  try {
+    rader = await bevakningRpc("byggbar_omrade", { omrade: geom });
+  } catch (err) {
+    console.warn("byggbar_omrade:", err.message);
+    openPanel(`
+      <button class="panel-close" onclick="closePanel()" aria-label="Stäng">✕</button>
+      <div class="panel-eyebrow">Var går det att bygga?</div>
+      <div style="margin:12px 0;font-size:13px;color:var(--ink-soft);line-height:1.6;">${escapeHtmlBasic(err.anvandarText || "Det gick inte att undersöka området just nu. Försök igen om en stund.")}</div>
+      <button class="btn-primary" style="width:100%;justify-content:center;" onclick="startByggbar(true)">Rita igen</button>`);
+    return;
+  }
+  _byggResultat = { rader: Array.isArray(rader) ? rader : [], geom };
+  ritaByggbar(true);
+  visaByggLista();
+}
+
+function ritaByggbar(zooma = false) {
+  if (!map || !_byggResultat) return;
+  if (_byggLager) { try { _byggLager.remove(); } catch {} }
+  _byggLager = L.featureGroup().addTo(map);
+  try { L.geoJSON(_byggResultat.geom, { style: { ..._byggStil, fillOpacity: 0.04 }, interactive: false }).addTo(_byggLager); } catch {}
+  // Svårt först, så att trolig hamnar överst.
+  const ordning = { svart: 0, kanske: 1, trolig: 2 };
+  [..._byggResultat.rader].sort((a, b) => ordning[a.betyg] - ordning[b.betyg]).forEach(r => {
+    if (r.lat == null || r.lon == null) return;
+    const m = L.circleMarker([r.lat, r.lon], {
+      radius: r.betyg === "trolig" ? 10 : 8, color: "#fff", weight: 2.5,
+      fillColor: BYGG_FARG[r.betyg] || "#888", fillOpacity: 1,
+    }).addTo(_byggLager);
+    m.on("click", ev => { L.DomEvent.stopPropagation(ev); visaByggTomt(r.fastighet_id); });
+  });
+  if (zooma) {
+    try { const b = L.geoJSON(_byggResultat.geom).getBounds(); if (b.isValid()) map.fitBounds(b, { padding: [30, 30] }); } catch {}
+  }
+}
+
+function byggChip(betyg) {
+  return `<span class="bygg-chip" style="background:${BYGG_FARG[betyg]}">${BYGG_ORD[betyg] || betyg}</span>`;
+}
+
+function visaByggLista() {
+  if (!_byggResultat) return;
+  const rader = _byggResultat.rader;
+  const antal = b => rader.filter(r => r.betyg === b).length;
+  const rad = r => `
+    <button class="bygg-rad" onclick="visaByggTomt('${String(r.fastighet_id).replace(/'/g, "")}')">
+      <span class="bygg-prick" style="background:${BYGG_FARG[r.betyg]}"></span>
+      <span style="flex:1;min-width:0;text-align:left;">
+        <span class="beteckning" style="display:block;">${escapeHtmlBasic(r.beteckning || "")}</span>
+        <span style="font-size:12px;color:var(--ink-muted);">${(r.area || 0).toLocaleString("sv-SE")} m² · ${BYGG_ORD[r.betyg]}</span>
+      </span>
+      <i class="ti ti-chevron-right" style="color:var(--ink-muted);"></i>
+    </button>`;
+  openPanel(`
+    <button class="panel-close" onclick="closePanel()" aria-label="Stäng">✕</button>
+    <div class="panel-eyebrow">Var går det att bygga?</div>
+    <div class="panel-name" style="font-size:16px;">${rader.length ? `${rader.length} ${rader.length === 1 ? "tomt" : "tomter"} att titta närmare på` : "Inga tomter hittades"}</div>
+    ${rader.length ? `
+      <div class="bygg-summa">
+        <span>${byggChip("trolig")} ${antal("trolig")}</span>
+        <span>${byggChip("kanske")} ${antal("kanske")}</span>
+        <span>${byggChip("svart")} ${antal("svart")}</span>
+      </div>` : `
+      <div style="margin:10px 0;font-size:13px;color:var(--ink-soft);line-height:1.6;">Inga tomter i området är stora nog för ett hus till. Prova ett annat område — gärna villakvarter med stora trädgårdar.</div>`}
+    <div class="bygg-forbehall">${BYGG_FORBEHALL}</div>
+    <div class="bygg-lista">${rader.map(rad).join("")}</div>
+    <div style="display:flex;gap:8px;margin-top:12px;">
+      <button class="panel-btn" style="flex:1;" onclick="startByggbar(true)"><i class="ti ti-pencil"></i> Rita nytt område</button>
+      <button class="panel-btn" style="flex:1;" onclick="rensaByggbar();closePanel();"><i class="ti ti-eraser"></i> Rensa</button>
+    </div>
+    <div style="font-size:10.5px;color:var(--ink-muted);margin-top:10px;line-height:1.5;">${BYGG_KALLOR}</div>
+  `);
+}
+
+function visaByggTomt(fid) {
+  const r = _byggResultat?.rader.find(x => String(x.fastighet_id) === String(fid));
+  if (!r) return;
+  try { map.setView([r.lat, r.lon], Math.max(map.getZoom(), 17)); } catch {}
+  const skal = (r.skal || []).map(t => `<li>${escapeHtmlBasic(t)}</li>`).join("");
+  openPanel(`
+    <button class="panel-close" onclick="closePanel()" aria-label="Stäng">✕</button>
+    <button class="bygg-tillbaka" onclick="visaByggLista()"><i class="ti ti-arrow-left" aria-hidden="true"></i> Alla tomter i området</button>
+    <div class="panel-eyebrow">Var går det att bygga?</div>
+    <div class="panel-name beteckning" style="font-size:20px;">${escapeHtmlBasic(r.beteckning || "")}</div>
+    <div style="margin:8px 0 12px;">${byggChip(r.betyg)}</div>
+    <ul class="bygg-skal">${skal}</ul>
+    <div class="bygg-forbehall">${BYGG_FORBEHALL}</div>
+    <button class="btn-primary" style="width:100%;justify-content:center;margin-top:12px;" onclick="oppnaByggTomt('${String(r.fastighet_id).replace(/'/g, "")}')">
+      <i class="ti ti-home"></i> Öppna tomten
+    </button>
+    <div style="font-size:12px;color:var(--ink-muted);text-align:center;margin-top:8px;line-height:1.5;">Där kan du visa intresse och skriva till ägaren.</div>
+  `);
+}
+
+// Öppna den vanliga panelen för tomten. Läget är känt, så ingen sökning behövs.
+function oppnaByggTomt(fid) {
+  const r = _byggResultat?.rader.find(x => String(x.fastighet_id) === String(fid));
+  if (!r) return;
+  const s = loadState();
+  s.parcelMeta = s.parcelMeta || {};
+  s.parcelMeta[fid] = { area: s.parcelMeta[fid]?.area ?? r.area ?? null, lat: r.lat, lon: r.lon };
+  saveState(s);
+  openParcelById(fid, r.beteckning, "map");
+}
+
 // Från Min sida eller checklistan: öppna kartan i ritläge.
 function openWatchDraw() {
   window._pendingArea = { mode: "draw" };
@@ -7139,6 +7354,8 @@ function consumePendingArea() {
   };
 
   if (pending?.mode === "draw") startDrawWatch();
+  if (pending?.mode === "byggbar") startByggbar(true);
+  else if (_byggResultat) ritaByggbar();
 
   if (MINA_BEVAKNINGAR) efter();
   else hamtaBevakningar().then(() => {

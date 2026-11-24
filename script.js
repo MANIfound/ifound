@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-11-24e";
+const IFOUND_VERSION = "2026-11-24f";
 
 // Mäklardemon (lokala demokonton, påhittade objekt och meddelanden) är dold
 // inför testpersonerna. Koden ligger kvar; true visar den igen.
@@ -2369,7 +2369,9 @@ function submitRentalRequest(pid) {
 // =========================
 // INTRESSE-MODAL
 // =========================
-function openInterestModal(feature, pid, name) {
+function openInterestModal(feature, pid, name, opts = {}) {
+  // opts (byggkartan): { rubrik, meddelande, vidSkick(meddelande) }
+  window._interestVidSkick = opts.vidSkick || null;
   const existing = document.getElementById('interest-modal-overlay');
   if (existing) existing.remove();
 
@@ -2381,7 +2383,7 @@ function openInterestModal(feature, pid, name) {
     <div style="background:#fff;border-radius:20px;padding:28px;width:100%;max-width:420px;box-shadow:0 24px 64px rgba(0,0,0,.2);font-family:var(--font-body);">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px;">
         <div>
-          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:4px;">Visa intresse</div>
+          <div style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin-bottom:4px;">${escapeHtmlBasic(opts.rubrik || "Visa intresse")}</div>
           <div style="font-size:18px;font-weight:700;letter-spacing:-.03em;color:var(--ink);">${name}</div>
         </div>
         <button onclick="closeInterestModal()" style="width:32px;height:32px;border-radius:50%;border:none;background:var(--surface-2);cursor:pointer;font-size:16px;color:var(--ink-soft);display:flex;align-items:center;justify-content:center;flex-shrink:0;">✕</button>
@@ -2395,13 +2397,13 @@ function openInterestModal(feature, pid, name) {
 
       <div style="margin-bottom:16px;">
         <label style="display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin-bottom:6px;">Meddelande till ägaren <span style="font-weight:400;text-transform:none;letter-spacing:0;">(valfritt)</span></label>
-        <textarea id="interestMessage" style="width:100%;border:0.5px solid rgba(17,24,39,.12);border-radius:9px;padding:11px 13px;font-size:13px;font-family:var(--font-body);color:var(--ink);outline:none;min-height:100px;resize:vertical;line-height:1.6;background:#fff;" placeholder="Ex: Jag är intresserad av att köpa denna fastighet om ni någonsin funderar på att sälja. Hör gärna av er!"></textarea>
+        <textarea id="interestMessage" style="width:100%;border:0.5px solid rgba(17,24,39,.12);border-radius:9px;padding:11px 13px;font-size:13px;font-family:var(--font-body);color:var(--ink);outline:none;min-height:100px;resize:vertical;line-height:1.6;background:#fff;" placeholder="Ex: Jag är intresserad av att köpa denna fastighet om ni någonsin funderar på att sälja. Hör gärna av er!">${escapeHtmlBasic(opts.meddelande || "")}</textarea>
         <div style="font-size:11px;color:var(--ink-muted);margin-top:5px;line-height:1.5;">Ägaren ser inte vem du är förrän du väljer att visa ditt namn. Telefonnummer och e-post kan skickas när ägaren har svarat. Under testperioden kan ifound läsa meddelanden för att stoppa bedrägerier.</div>
       </div>
 
       <div style="display:flex;flex-direction:column;gap:10px;">
         <button id="sendInterestBtn" style="width:100%;padding:13px;border-radius:11px;border:none;background:var(--accent);color:#fff;font-size:14px;font-weight:600;font-family:var(--font-body);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;">
-          <i class="ti ti-star" aria-hidden="true"></i> Skicka intresse
+          <i class="ti ti-star" aria-hidden="true"></i> ${opts.vidSkick ? "Skicka frågan" : "Skicka intresse"}
         </button>
         <button onclick="sendInterestWithoutMessage('${pid}', '${name}')" style="width:100%;padding:11px;border-radius:11px;border:0.5px solid rgba(17,24,39,.12);background:transparent;color:var(--ink-soft);font-size:13px;font-weight:500;font-family:var(--font-body);cursor:pointer;">
           Bara markera intresse utan meddelande
@@ -2432,6 +2434,7 @@ function openInterestModal(feature, pid, name) {
 function closeInterestModal() {
   const overlay = document.getElementById('interest-modal-overlay');
   if (overlay) overlay.remove();
+  window._interestVidSkick = null;
 }
 
 function sendInterestWithoutMessage(pid, name) {
@@ -2481,6 +2484,7 @@ function handleMyPhotoPick(pid, name, input) {
 }
 
 async function saveInterest(pid, name, message) {
+  try { const f = window._interestVidSkick; window._interestVidSkick = null; f?.(message); } catch {}
   const btn = document.getElementById("sendInterestBtn");
   if (btn) btn.disabled = true;
   const s = loadState();
@@ -7307,13 +7311,44 @@ function visaByggTomt(fid) {
     <div style="margin:8px 0 12px;">${byggChip(r.betyg)}</div>
     <ul class="bygg-skal">${skal}</ul>
     <div class="bygg-forbehall">${BYGG_FORBEHALL}</div>
-    <button class="btn-primary" style="width:100%;justify-content:center;margin-top:12px;" onclick="oppnaByggTomt('${String(r.fastighet_id).replace(/'/g, "")}')">
+    ${r.betyg !== "svart" ? `
+    <button class="btn-primary" style="width:100%;justify-content:center;margin-top:12px;" onclick="fragaOmTomt('${String(r.fastighet_id).replace(/'/g, "")}')">
+      <i class="ti ti-message-circle"></i> ${r.betyg === "fardig" ? "Fråga ägaren om tomten" : "Fråga ägaren om avstyckning"}
+    </button>` : ""}
+    <button class="panel-btn" style="width:100%;justify-content:center;margin-top:8px;" onclick="oppnaByggTomt('${String(r.fastighet_id).replace(/'/g, "")}')">
       <i class="ti ti-home"></i> Öppna tomten
     </button>
-    <div style="font-size:12px;color:var(--ink-muted);text-align:center;margin-top:8px;line-height:1.5;">Där kan du visa intresse och skriva till ägaren.</div>
   `, "panel-bygg");
   // Mobil: panelen täcker kartans nedre del — lyft tomten ovanför den.
   try { const h = byggPanelHojd(); if (h) map.panBy([0, h / 2], { animate: false }); } catch {}
+}
+
+// "Fråga ägaren": vanlig intresseruta med ett förifyllt meddelande som går
+// att ändra. När den skickas sparas ett bygglead (spara_bygglead, ~/lm/bygglead.sql).
+const BYGG_MEDDELANDE = {
+  fardig: "Hej! Jag letar efter en tomt att bygga på och undrar om du skulle kunna tänka dig att sälja tomten. Hör gärna av dig!",
+  avstyckning: "Hej! Jag letar efter en tomt att bygga på. Skulle du kunna tänka dig att stycka av en del av din tomt och sälja den? Hör gärna av dig!",
+};
+function fragaOmTomt(fid) {
+  const r = _byggResultat?.rader.find(x => String(x.fastighet_id) === String(fid));
+  if (!r) return;
+  if (!loadSession()?.email) {
+    openAuthModal("reg", "Skapa ett gratis konto så kan du fråga ägaren om tomten, och ägaren kan svara dig.");
+    return;
+  }
+  const s = loadState();
+  s.parcelMeta = s.parcelMeta || {};
+  s.parcelMeta[fid] = { area: s.parcelMeta[fid]?.area ?? r.area ?? null, lat: r.lat, lon: r.lon };
+  saveState(s);
+  const feature = { properties: { fastighet_id: fid, fastighet: r.beteckning }, _pid: fid };
+  openInterestModal(feature, fid, r.beteckning, {
+    rubrik: r.betyg === "fardig" ? "Fråga om tomten" : "Fråga om avstyckning",
+    meddelande: r.betyg === "fardig" ? BYGG_MEDDELANDE.fardig : BYGG_MEDDELANDE.avstyckning,
+    vidSkick: msg => {
+      bevakningRpc("spara_bygglead", { fid, bet: r.beteckning || "", betyg_in: r.betyg, med_meddelande_in: !!msg })
+        .catch(e => console.warn("spara_bygglead:", e.message));
+    },
+  });
 }
 
 // Öppna den vanliga panelen för tomten. Läget är känt, så ingen sökning behövs.

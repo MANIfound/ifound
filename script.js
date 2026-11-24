@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-11-24c";
+const IFOUND_VERSION = "2026-11-24d";
 
 // Mäklardemon (lokala demokonton, påhittade objekt och meddelanden) är dold
 // inför testpersonerna. Koden ligger kvar; true visar den igen.
@@ -2893,9 +2893,11 @@ function stopDraw(clearLayers = true) {
 // =========================
 // Panel
 // =========================
-function openPanel(html) {
+function openPanel(html, klass = "") {
   const panel = document.getElementById("panel");
   if (!panel) return;
+  panel.classList.remove("panel-bygg", "panel-mini");
+  if (klass) panel.classList.add(klass);
   panel.innerHTML = '<div class="panel-handle"></div>' + html;
   panel.classList.remove("hidden");
   panel.scrollTop = 0;
@@ -7089,12 +7091,23 @@ function hamtaBevakningar() {
 // enligt praxis: trolig / kanske / svart, med motivering. Ingen bedömning
 // från kommunen — det ska alltid framgå. Resultatet ligger kvar på kartan
 // tills man rensar eller ritar nytt, även när kartan byggs om.
+// Leaflet.draw:s hjälptexter vid markören är på engelska — gör dem svenska (gäller all ritning).
+try {
+  const d = L.drawLocal?.draw?.handlers;
+  if (d) {
+    d.rectangle.tooltip.start = "Dra över området.";
+    d.simpleshape.tooltip.end = "Släpp för att avsluta.";
+    d.polygon.tooltip.start = "Tryck för att börja rita.";
+    d.polygon.tooltip.cont = "Tryck för nästa hörn.";
+    d.polygon.tooltip.end = "Tryck på första punkten för att avsluta.";
+  }
+} catch {}
 const BYGGBAR_MAX_KVM = 5000000;   // samma gräns som servern, 5 km²
 let _byggRitning = null;           // { handler, lager } medan man ritar
 let _byggResultat = null;          // { rader, geom } senaste svaret
 let _byggLager = null;             // markeringarna på kartan
-const BYGG_FARG = { trolig: "#1F8A4C", kanske: "#D99A3E", svart: "#8C8C8C" };
-const BYGG_ORD  = { trolig: "Trolig", kanske: "Kanske", svart: "Svårt" };
+const BYGG_FARG = { fardig: "#E3132C", trolig: "#1F8A4C", kanske: "#D99A3E", svart: "#8C8C8C" };
+const BYGG_ORD  = { fardig: "Färdig tomt", trolig: "Trolig", kanske: "Kanske", svart: "Svårt" };
 const BYGG_KALLOR = "Källor: Lantmäteriet, Naturvårdsverket, Länsstyrelsen Skåne (CC BY 4.0), © OpenStreetMap.";
 const BYGG_FORBEHALL = "Möjligt enligt praxis — ingen bedömning från kommunen. Detaljplanen avgör. Fråga kommunen om förhandsbesked innan du gör något.";
 
@@ -7153,14 +7166,20 @@ function startByggbar(nytt = false) {
     const h = new Typ(map, opts);
     h.enable();
     if (_byggRitning) _byggRitning.handler = h;
-    const st = document.getElementById("byggStatus");
-    if (st) st.textContent = text;
+    // Panelen krymper till en list, så att hela kartan går att rita på.
+    openPanel(`
+      <div class="bygg-mini">
+        <i class="ti ti-pencil" aria-hidden="true" style="font-size:18px;color:var(--green-600);"></i>
+        <span style="flex:1;">${text}</span>
+        <button class="panel-btn" id="byggAvbryt" style="flex:none;">Avbryt</button>
+      </div>`, "panel-mini");
+    document.getElementById("byggAvbryt").onclick = () => { rensaByggbar(); closePanel(); };
   };
   document.getElementById("byggPoly").onclick = () =>
     starta(L.Draw.Polygon, { allowIntersection: false, showArea: false, shapeOptions: _byggStil },
-           "Klicka ut hörnen. Klicka på första punkten för att avsluta.");
+           "Tryck ut hörnen. Avsluta på första punkten.");
   document.getElementById("byggRekt").onclick = () =>
-    starta(L.Draw.Rectangle, { shapeOptions: _byggStil }, "Klicka och dra över området.");
+    starta(L.Draw.Rectangle, { shapeOptions: _byggStil }, "Dra med fingret över området.");
 }
 
 async function onByggDrawCreated(e) {
@@ -7202,8 +7221,8 @@ async function onByggDrawCreated(e) {
     return;
   }
   _byggResultat = { rader: Array.isArray(rader) ? rader : [], geom };
-  ritaByggbar(true);
   visaByggLista();
+  ritaByggbar(true);
 }
 
 function ritaByggbar(zooma = false) {
@@ -7212,18 +7231,28 @@ function ritaByggbar(zooma = false) {
   _byggLager = L.featureGroup().addTo(map);
   try { L.geoJSON(_byggResultat.geom, { style: { ..._byggStil, fillOpacity: 0.04 }, interactive: false }).addTo(_byggLager); } catch {}
   // Svårt först, så att trolig hamnar överst.
-  const ordning = { svart: 0, kanske: 1, trolig: 2 };
+  const ordning = { svart: 0, kanske: 1, trolig: 2, fardig: 3 };
   [..._byggResultat.rader].sort((a, b) => ordning[a.betyg] - ordning[b.betyg]).forEach(r => {
     if (r.lat == null || r.lon == null) return;
     const m = L.circleMarker([r.lat, r.lon], {
-      radius: r.betyg === "trolig" ? 10 : 8, color: "#fff", weight: 2.5,
+      radius: (r.betyg === "trolig" || r.betyg === "fardig") ? 10 : 8, color: "#fff", weight: 2.5,
       fillColor: BYGG_FARG[r.betyg] || "#888", fillOpacity: 1,
     }).addTo(_byggLager);
     m.on("click", ev => { L.DomEvent.stopPropagation(ev); visaByggTomt(r.fastighet_id); });
   });
   if (zooma) {
-    try { const b = L.geoJSON(_byggResultat.geom).getBounds(); if (b.isValid()) map.fitBounds(b, { padding: [30, 30] }); } catch {}
+    try {
+      const b = L.geoJSON(_byggResultat.geom).getBounds();
+      if (b.isValid()) map.fitBounds(b, { paddingTopLeft: [20, 20], paddingBottomRight: [20, 20 + byggPanelHojd()] });
+    } catch {}
   }
+}
+
+// Hur mycket av kartan panelen täcker underifrån (bara på mobil, där den är ett blad).
+function byggPanelHojd() {
+  if (window.innerWidth > 620) return 0;
+  const p = document.getElementById("panel");
+  return p && !p.classList.contains("hidden") ? p.offsetHeight : 0;
 }
 
 function byggChip(betyg) {
@@ -7249,6 +7278,7 @@ function visaByggLista() {
     <div class="panel-name" style="font-size:16px;">${rader.length ? `${rader.length} ${rader.length === 1 ? "tomt" : "tomter"} att titta närmare på` : "Inga tomter hittades"}</div>
     ${rader.length ? `
       <div class="bygg-summa">
+        ${antal("fardig") ? `<span>${byggChip("fardig")} ${antal("fardig")}</span>` : ""}
         <span>${byggChip("trolig")} ${antal("trolig")}</span>
         <span>${byggChip("kanske")} ${antal("kanske")}</span>
         <span>${byggChip("svart")} ${antal("svart")}</span>
@@ -7261,13 +7291,13 @@ function visaByggLista() {
       <button class="panel-btn" style="flex:1;" onclick="rensaByggbar();closePanel();"><i class="ti ti-eraser"></i> Rensa</button>
     </div>
     <div style="font-size:10.5px;color:var(--ink-muted);margin-top:10px;line-height:1.5;">${BYGG_KALLOR}</div>
-  `);
+  `, "panel-bygg");
 }
 
 function visaByggTomt(fid) {
   const r = _byggResultat?.rader.find(x => String(x.fastighet_id) === String(fid));
   if (!r) return;
-  try { map.setView([r.lat, r.lon], Math.max(map.getZoom(), 17)); } catch {}
+  try { map.setView([r.lat, r.lon], Math.max(map.getZoom(), 17), { animate: false }); } catch {}
   const skal = (r.skal || []).map(t => `<li>${escapeHtmlBasic(t)}</li>`).join("");
   openPanel(`
     <button class="panel-close" onclick="closePanel()" aria-label="Stäng">✕</button>
@@ -7281,7 +7311,9 @@ function visaByggTomt(fid) {
       <i class="ti ti-home"></i> Öppna tomten
     </button>
     <div style="font-size:12px;color:var(--ink-muted);text-align:center;margin-top:8px;line-height:1.5;">Där kan du visa intresse och skriva till ägaren.</div>
-  `);
+  `, "panel-bygg");
+  // Mobil: panelen täcker kartans nedre del — lyft tomten ovanför den.
+  try { const h = byggPanelHojd(); if (h) map.panBy([0, h / 2], { animate: false }); } catch {}
 }
 
 // Öppna den vanliga panelen för tomten. Läget är känt, så ingen sökning behövs.

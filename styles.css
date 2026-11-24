@@ -2037,3 +2037,10 @@ h1, h2, h3, .door-title, .bn-title, .bn-h2, .bn-cta-title, .how-heading,
 .bygg-snurr { display: inline-block; animation: byggSnurr 1s linear infinite; }
 @keyframes byggSnurr { to { transform: rotate(360deg); } }
 @media (max-width: 620px) { .bygg-btn .bygg-btn-text { display: none; } }
+/* Bygga?: ritläge som smal list, resultat som halvhögt blad på mobil */
+.bygg-mini { display: flex; align-items: center; gap: 10px; font-size: 13.5px; color: var(--ink); line-height: 1.4; }
+.panel.panel-mini .panel-handle { display: none; }
+@media (max-width: 620px) {
+  .panel.panel-mini { padding: 12px 14px calc(12px + var(--tabbar-h, 62px) + env(safe-area-inset-bottom, 0px)); max-height: none; }
+  .panel.panel-bygg { max-height: 46vh; max-height: 46dvh; }
+}

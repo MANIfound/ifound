@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-11-24d";
+const IFOUND_VERSION = "2026-11-24e";
 
 // Mäklardemon (lokala demokonton, påhittade objekt och meddelanden) är dold
 // inför testpersonerna. Koden ligger kvar; true visar den igen.
@@ -7106,7 +7106,7 @@ const BYGGBAR_MAX_KVM = 5000000;   // samma gräns som servern, 5 km²
 let _byggRitning = null;           // { handler, lager } medan man ritar
 let _byggResultat = null;          // { rader, geom } senaste svaret
 let _byggLager = null;             // markeringarna på kartan
-const BYGG_FARG = { fardig: "#E3132C", trolig: "#1F8A4C", kanske: "#D99A3E", svart: "#8C8C8C" };
+const BYGG_FARG = { fardig: "#1F8A4C", trolig: "#2B6CB0", kanske: "#D9A21B", svart: "#8C8C8C" };
 const BYGG_ORD  = { fardig: "Färdig tomt", trolig: "Trolig", kanske: "Kanske", svart: "Svårt" };
 const BYGG_KALLOR = "Källor: Lantmäteriet, Naturvårdsverket, Länsstyrelsen Skåne (CC BY 4.0), © OpenStreetMap.";
 const BYGG_FORBEHALL = "Möjligt enligt praxis — ingen bedömning från kommunen. Detaljplanen avgör. Fråga kommunen om förhandsbesked innan du gör något.";

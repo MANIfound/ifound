@@ -12,7 +12,7 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-11-24a";
+const IFOUND_VERSION = "2026-11-24b";
 
 // Mäklardemon (lokala demokonton, påhittade objekt och meddelanden) är dold
 // inför testpersonerna. Koden ligger kvar; true visar den igen.
@@ -4981,7 +4981,7 @@ function renderWelcome() {
             <div style="font-size:13px;color:rgba(255,255,255,.5);">Se vem som är intresserad av din fastighet — gratis.</div>
           </div>
           <div class="welcome-cta-btns">
-            <button onclick="openAuthModal('reg')" style="padding:11px 20px;border-radius:10px;border:none;background:#fff;color:var(--ink);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font-body);white-space:nowrap;">Claima din fastighet</button>
+            <button onclick="${!loadSession()?.email ? "openAuthModal('reg')" : loadState().ownerParcelId ? "navigate('dashboard')" : "openClaimModal()"}" style="padding:11px 20px;border-radius:10px;border:none;background:#fff;color:var(--ink);font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font-body);white-space:nowrap;">${loadSession()?.email && loadState().ownerParcelId ? "Se din fastighet" : "Claima din fastighet"}</button>
             ${MAKLARDEMO_PA ? `<button onclick="navigate('brokerWelcome')" style="padding:11px 20px;border-radius:10px;border:0.5px solid rgba(255,255,255,.25);background:transparent;color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font-body);white-space:nowrap;">För mäklare</button>` : ""}
           </div>
         </div>

@@ -12,11 +12,14 @@ const LS_MAP_MODE= "prop_map_mode_v1";
 // =========================
 // Räknas upp vid varje leverans. Syns överst i Console när sidan laddas,
 // så att det går att se vilken version webbläsaren faktiskt kör.
-const IFOUND_VERSION = "2026-11-24f";
+const IFOUND_VERSION = "2026-11-25a";
 
 // Mäklardemon (lokala demokonton, påhittade objekt och meddelanden) är dold
 // inför testpersonerna. Koden ligger kvar; true visar den igen.
 const MAKLARDEMO_PA = false;
+// Utforska (flödet med exempelhus) pausad som egen flik 25 nov 2026. Vyn finns
+// kvar och nås från startsidans förhandsvisning ("Se alla" m.fl.).
+const UTFORSKA_PA = false;
 console.info("[ifound] version " + IFOUND_VERSION);
 
 function toast(msg) {
@@ -2967,7 +2970,7 @@ function mountBottomTabs(active) {
     { id: "map",     icon: "ti-map-2",       label: "Karta" },
     { id: "feed",    icon: "ti-layout-grid", label: "Utforska" },
     { id: "profile", icon: isLoggedIn ? "ti-user-check" : "ti-user", label: isLoggedIn ? "Min sida" : "Profil" },
-  ];
+  ].filter(t => t.id !== "feed" || UTFORSKA_PA);
   app.insertAdjacentHTML("beforeend", `
     <nav class="bottom-tabs">
       ${tabs.map(t => `
@@ -4742,7 +4745,7 @@ function renderWelcome() {
         </div>
         <div class="nav-center">
           ${isLoggedIn ? `<button class="nav-tab" onclick="navigate('dashboard')">Min sida</button>` : ''}
-          <button class="nav-tab" onclick="currentView='feed';render();">Utforska</button>
+          ${UTFORSKA_PA ? `<button class="nav-tab" onclick="currentView='feed';render();">Utforska</button>` : ""}
           <button class="nav-tab" onclick="currentView='map';render();">Karta</button>
           <button class="nav-tab" onclick="navigate('buildNew')">Bygga nytt hus</button>
           ${MAKLARDEMO_PA ? `<button class="nav-tab" onclick="navigate('brokerWelcome')">För mäklare</button>` : ""}
@@ -5189,7 +5192,7 @@ function renderBuildNew() {
         </div>
         <div class="nav-center">
           ${isLoggedIn ? `<button class="nav-tab" onclick="navigate('dashboard')">Min sida</button>` : ''}
-          <button class="nav-tab" onclick="currentView='feed';render();">Utforska</button>
+          ${UTFORSKA_PA ? `<button class="nav-tab" onclick="currentView='feed';render();">Utforska</button>` : ""}
           <button class="nav-tab" onclick="currentView='map';render();">Karta</button>
           <button class="nav-tab active">Bygga nytt hus</button>
         </div>
@@ -5372,7 +5375,7 @@ function renderSaved() {
         </div>
         <div class="nav-center">
           <button class="nav-tab" onclick="navigate('dashboard')">Min sida</button>
-          <button class="nav-tab" onclick="currentView='feed';render();">Utforska</button>
+          ${UTFORSKA_PA ? `<button class="nav-tab" onclick="currentView='feed';render();">Utforska</button>` : ""}
           <button class="nav-tab" onclick="currentView='map';render();">Karta</button>
         </div>
         <div class="nav-right">
@@ -5498,7 +5501,7 @@ function renderFeed() {
         </div>
         <div class="nav-center">
           ${isLoggedIn ? `<button class="nav-tab" onclick="navigate('dashboard')">Min sida</button>` : ''}
-          <button class="nav-tab active">Utforska</button>
+          ${UTFORSKA_PA ? `<button class="nav-tab active">Utforska</button>` : ""}
           <button class="nav-tab" onclick="currentView='map';render();">Karta</button>
           <button class="nav-tab" onclick="navigate('buildNew')">Bygga nytt hus</button>
         </div>
@@ -5855,7 +5858,7 @@ function renderDashboard() {
         </div>
         <div class="nav-center">
           <button class="nav-tab active" onclick="navigate('dashboard')">Min sida</button>
-          <button class="nav-tab" onclick="navigate('feed')">Utforska</button>
+          ${UTFORSKA_PA ? `<button class="nav-tab" onclick="navigate('feed')">Utforska</button>` : ""}
           <button class="nav-tab" onclick="currentView='map';render();">Karta</button>
         </div>
         <div class="nav-right">
@@ -6406,7 +6409,7 @@ function renderMapView() {
         </div>
         <div class="nav-center">
           ${isLoggedIn ? `<button class="nav-tab" onclick="navigate('dashboard')">Min sida</button>` : ''}
-          <button class="nav-tab" onclick="currentView='feed';render();">Utforska</button>
+          ${UTFORSKA_PA ? `<button class="nav-tab" onclick="currentView='feed';render();">Utforska</button>` : ""}
           <button class="nav-tab active">Karta</button>
           <button class="nav-tab" onclick="navigate('buildNew')">Bygga nytt hus</button>
         </div>
@@ -9719,7 +9722,7 @@ window.addEventListener("keydown", ev => {
     kontoKlart.then(() => {
       if (!KONTO) return;
       if (arAdmin()) currentView = "admin";
-      else if (currentView === "welcome") currentView = "feed";
+      else if (currentView === "welcome" && UTFORSKA_PA) currentView = "feed";
       render();
     });
   }
